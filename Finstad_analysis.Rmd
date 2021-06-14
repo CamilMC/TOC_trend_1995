@@ -168,6 +168,10 @@ Distribution of log_woodlang has 2 peaks. So with the high correlation between w
 car::scatterplotMatrix(select(waterchem_1995_full,c("log_toc","log_totp","log_so4","log_catchm_area","log_bogs","log_runoff","ndvi")),regLine = list(col = "red"),col="black")
 ```
 
+# Spatial correlation of data
+@Koh2020
+```{r spatial-autocorrelation}
+```
 ```{r GWSS}
 
 library(GWmodel)
@@ -201,7 +205,7 @@ server <- function(input,output){
     f_plotspatial(data = waterchem_1995, var = waterchem_gwss_toc[,input$correlation_toc], plottitle = input$correlation,col = "RdYlBu")
   })
 }
-shinyApp(ui = ui, server = server)
+shinyApp(ui = ui, server = server, options = list(height = 200))
 
 ```
 # GWR
@@ -218,7 +222,10 @@ bw_std <- bw.gwr(std_log_toc~std_log_totp + std_log_so4+std_log_catchm_area+std_
 # computes bwr
 gwr_std <- gwr.basic(std_log_toc~std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_std_spdf, regression.points = waterchem_std_spdf, bw = bw_std, adaptive = T)
 
+#gwr_cv <- gwr.model.selection(DeVar = "std_log_toc", InDeVars = c("std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi"), data = waterchem_std_spdf, bw = bw_std, adaptive = T, kernel="gaussian",approach="aic")
+
 waterchem_std_gwr <- gwr_std$SDF@data
+model_gwr <- data.frame(gwr_std$lm$residuals, gwr_std$lm$fitted.values, gwr_std$lm$effects) %>% setNames(c("residuals","fitted.values","effects"))
 ```
 
 ```{r shiny-gwr}
@@ -232,23 +239,26 @@ server_2 <- function(input,output){
     f_plotspatial(data = waterchem_1995, var = waterchem_std_gwr[,input$coeff], plottitle = input$coeff,col = "RdYlBu")
   })
 }
-shinyApp(ui = ui_2, server = server_2)
-
-# plots coefficients
-#f_plotspatial(data = waterchem_1995,var=gwr_std$SDF$std_log_so4,plottitle = "coef so4")
-#f_plotspatial(data = waterchem_1995,var=gwr_std$SDF$std_log_catchm_area,plottitle = "coef catch")
-#f_plotspatial(data = waterchem_1995,var=gwr_std$SDF$std_log_bogs,plottitle = "coef bogs")
-#f_plotspatial(data = waterchem_1995,var=gwr_std$SDF$std_log_runoff,plottitle = "coef runoff")
-#f_plotspatial(data = waterchem_1995,var=gwr_std$SDF$std_ndvi,plottitle = "coef ndvi")
-
-# plots residuals
-#f_plotspatial(data=waterchem_1995,var=gwr_std$lm$residuals,plottitle = "residuals")
-# qplot(gwr_std$lm$fitted.values,gwr_std$lm$residuals,xlab = "Predicted", ylab = "Residuals") + geom_hline (yintercept = 0,col = "gray") + 
-#    geom_smooth(method = "loess", se = F, col = "red")+
-#    geom_line(aes(x=x[j],y = z$fitted[j]),col="red",lwd=1)+
-#    labs (x = "Fitted values", title = "Residuals vs fitted")+
-#    theme_bw(base_size = 12) + theme(panel.grid = element_line(color="gray95"))
- 
- 
+shinyApp(ui = ui_2, server = server_2, options = list(height = 200))
 
 ```
+```{r shiny-model-gwr}
+ui_3 <- fluidPage(
+  selectInput(inputId = "model", label = "Select model parameter", choices = names(model_gwr)),
+  plotOutput(outputId = "map_model")
+  )
+
+server_3 <- function(input,output){
+  output$map_model <- renderPlot({
+    f_plotspatial(data = waterchem_1995, var = model_gwr[,input$model], plottitle = input$model, col = "RdYlBu")
+  })
+}
+
+shinyApp(ui = ui_3, server = server_3, options = list(height = 200))
+```
+
+```{r explore-gwr}
+ggplot(model_gwr)+geom_point(aes(x=fitted.values,y=residuals))+theme_light()
+boxplot(waterchem_1995_std$std_log_toc)
+
+``` 
