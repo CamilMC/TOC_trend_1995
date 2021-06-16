@@ -24,6 +24,7 @@ library(reshape2)
 library(RColorBrewer)
 library(shiny)
 library(rstatix)
+library(spdep)
 ```
 # Introduction
 
@@ -55,8 +56,8 @@ Hence, data records holding the following criteria where removed from the datase
 lakes with unrealistic high TOTP (> 200 ug l-1) or negative TOTP values.
 * TOC, catchment and lake area where log transformed, and numeric fields where standardized by detracting mean and dividing on standard deviation using the scale function of the base library.
 
-```{r }
-# Data cleaning
+```{r data-cleaning}
+
 waterchem_1995 <- waterchem_1995[waterchem_1995$runoff < 1e-04, ]
 waterchem_1995 <- waterchem_1995[waterchem_1995$toc >= 0, ]
 waterchem_1995 <- waterchem_1995[waterchem_1995$waterBodyID_uncertain == FALSE, 
@@ -167,10 +168,55 @@ Distribution of log_woodlang has 2 peaks. So with the high correlation between w
 
 car::scatterplotMatrix(select(waterchem_1995_full,c("log_toc","log_totp","log_so4","log_catchm_area","log_bogs","log_runoff","ndvi")),regLine = list(col = "red"),col="black")
 ```
+# Classic OLS
+```{r OLS}
+ols_std <- lm(std_log_toc~std_log_totp+std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_1995_std)
+summary(ols_std)
+plot(ols_std)
+
+ols_summary <- data.frame(names(ols_std$coefficients), ols_std$coefficients,summary(ols_std)$coefficients[,4]) %>% setNames(c("parameter","coefficient","p"))
+ols_summary <- ols_summary %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1"))
+
+ols_res <- ols_std$residuals %>% as.data.frame() %>% setNames("residuals")
+ols_res$long <- waterchem_1995$Longitude
+ols_res$lat <- waterchem_1995$Latitude
+
+ggplot(ols_summary[-1,])+geom_col(aes(x=coefficient, y = parameter,fill=p_value))+scale_fill_viridis_d(end = 0.8)+theme_light()
+
+ggplot(ols_res)+geom_point(aes(x=long,y=lat,col=residuals))+theme_void()+scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+borders("Norway")
+
+```
 
 # Spatial correlation of data
 @Koh2020
-```{r spatial-autocorrelation}
+paper sur Moran's I?
+The Moran'I of each dependent and independant parameter was calculated using the package "spdep" @Bivan2009. It is a measure of the clusterisation of the studied variable, which can take a value between -1 and 1. Randomly distributed values have a Moran's I close to 0. Moran's I and their respective p-value are represented in Figure 1. The test is realized on log-transformed values to respect the assumption of normality. All p-values were significant (< 0.001). NDVI, log(TN), log(TOC), log(SO4) and log(runoff) have a Moran's I superior to 0.5, indicating a high level of spatial autocorrelation. log(TP), log(Ca) and log(woodland) were also highly autocorrelated (with Moran's I between 0.4 and 0.5). Lake and catchment area, as well as log(bogs), are however randomly distributed. 
+Since our dependent variable log(TOC) is spatially autocorrelated, we need to apply a statistical method taking this correlation into account. 
+
+```{r spatial-autocorrelation, fig.cap = "first"}
+
+k_neigh <- knearneigh(waterchem_1995_spdf,k = 100)
+k_neigh_nb <- knn2nb(k_neigh)
+k_neigh_w <- nb2listw(k_neigh_nb)
+moran_I_toc <- moran.test(waterchem_1995$toc,k_neigh_w)
+
+moran_list <- c() 
+for (i in names(waterchem_1995_log)[-1]){
+  moran_list[[i]] <- moran.test(waterchem_1995_log[,i],k_neigh_w)
+}
+
+moran_df <- data.frame(names(waterchem_1995_log)[-1]) %>% setNames("parameter")
+moran_df$I <- NA
+moran_df$p <- NA
+
+for (i in 1:length(moran_list)){
+  moran_df$I[i] <- moran_list[[i]]$estimate[1]
+  moran_df$p[i] <- moran_list[[i]]$p.value
+}
+
+moran_df <- moran_df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1"))
+ggplot(moran_df)+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 0.5)
+
 ```
 ```{r GWSS}
 
@@ -180,10 +226,12 @@ getwd()
 
 waterchem_1995_spdf <- SpatialPointsDataFrame(waterchem_1995_full[c("Longitude","Latitude")],waterchem_1995)
 
-#bw_gwss <- bw.gwss.average(waterchem_1995_spdf,vars=names(waterchem_1995),kernel = "gaussian", adaptive = T)
-#gw_ss <- gwss(waterchem_1995_spdf,vars = c("toc","totp","so4","catchment_area_km2","woodland","bogs","runoff","ndvi_summer_lag1yr"),kernel = "gaussian",adaptive = T, bw = 100)
+# bw_gwss <- bw.gwss.average(waterchem_1995_spdf,vars=c("toc","totp","so4","catchment_area_km2","woodland","bogs","runoff","ndvi_summer_lag1yr"),kernel = "gaussian", adaptive = T)
 
-#save(gw_ss,file = "gw_ss.RData",envir = .GlobalEnv)
+gw_ss2 <- gwss(waterchem_1995_spdf,vars = c("toc","totp","so4","catchment_area_km2","woodland","bogs","runoff","ndvi_summer_lag1yr"),kernel = "gaussian",adaptive = T, bw = bw_gwss)
+
+save(gw_ss,file = "gw_ss.RData",envir = .GlobalEnv)
+#save(bw_gwss, file = "bw_gwss.Rdata, envir = .GlobalEnv")
 
 library(miceadds)
 gw_ss_load <- "gw_ss"
@@ -220,7 +268,7 @@ waterchem_std_spdf <- SpatialPointsDataFrame(waterchem_1995_full[c("Longitude","
 bw_std <- bw.gwr(std_log_toc~std_log_totp + std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_std_spdf,adaptive = T)
 
 # computes bwr
-gwr_std <- gwr.basic(std_log_toc~std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_std_spdf, regression.points = waterchem_std_spdf, bw = bw_std, adaptive = T)
+gwr_std <- gwr.basic(std_log_toc~std_log_totp + std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_std_spdf, regression.points = waterchem_std_spdf, bw = bw_std, adaptive = T)
 
 #gwr_cv <- gwr.model.selection(DeVar = "std_log_toc", InDeVars = c("std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi"), data = waterchem_std_spdf, bw = bw_std, adaptive = T, kernel="gaussian",approach="aic")
 
