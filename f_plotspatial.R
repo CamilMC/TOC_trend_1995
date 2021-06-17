@@ -17,5 +17,6 @@ f_plotspatial <- function(data,var,plottitle,col){
     scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0) + 
     borders(database = "world", regions = c("Norway","Sweden","Finland"), 
             fill = NA, colour = "grey50",xlim=c(0,35),ylim=c(55,73)) + 
-    xlab("") + ylab("") 
+    xlab("") + ylab("") +
+    theme_void()
 }
