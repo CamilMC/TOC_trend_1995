@@ -5,7 +5,7 @@ date: "12 5 2021"
 output:
   bookdown::html_document2: default
   word_document: default
-runtime: shiny
+#runtime: shiny
 bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 link-citations: yes
 
@@ -25,6 +25,9 @@ library(RColorBrewer)
 library(shiny)
 library(rstatix)
 library(spdep)
+library(tidyr)
+library(gridExtra)
+library(grid)
 
 source("f_plotspatial.R")
 ```
@@ -70,14 +73,13 @@ waterchem_1995 <- waterchem_1995[waterchem_1995$totp < 200 & waterchem_1995$totp
     0, ]
 waterchem_1995 <- waterchem_1995[duplicated(waterchem_1995$Latitude) == FALSE, 
     ]
-
-
+waterchem_1995$waterBodyID_uncertain <- NULL
 
 ```
 
 # Results
 ## Distribution of variables
-```{r distribution}
+```{r shiny-distribution, eval = F}
 num_var <- sapply(waterchem_1995,is.numeric) %>% as.vector()
 #lapply(names(waterchem_1995)[which(num_var == T)], function(j) ggplot(waterchem_1995[,-1])+geom_histogram(aes_string(j))+theme_light())
 
@@ -104,21 +106,39 @@ server_1 <- function(input,output){
 shinyApp(ui = ui_1, server = server_1, options = list(height = 500))
 
 ```
-```{r histograms-variables, fig.cap = "histograms"}
+
+```{r histograms-variables, fig.cap = "histograms", fig.dim = c(10,8)}
 binwidth_hist <- function(x){
-  if(IQR(x)==0){ 
+  if(IQR(x, na.rm = T)==0){ 
     bw <- length(x)
   }else{
-      bw <- 2*IQR(x)/(length(x)^(1/3))
+      bw <- 2*IQR(x, na.rm = T)/(length(x)^(1/3))
     }
 return(bw)
 }
 
+waterchem_long <- pivot_longer(waterchem_1995,!lake_name, names_to = "expvar", values_to = "value") %>% group_by(expvar) %>% mutate(bw = binwidth_hist(value))
+
+
+#ggplot(waterchem_long,aes(value))+facet_wrap(~expvar,scales = "free")+
+  # geom_histogram(binwidth = function(x) binwidth_hist(x))+ theme_bw(base_size = 10) +
+  # theme(strip.background = element_rect(fill = "white"), strip.text.x = element_text(size = 5, margin = margin()), strip.text.y = element_text(size = 3, margin = margin()))+guides(x = guide_axis(angle = 90)) 
+  
+
+# faire un plus petit strip 
+
+h_list <- c()
+
 for (i in names(waterchem_1995)[-1]){
-  data <- waterchem_1995[,i] %>% as.data.frame()
-  hi <- ggplot(data)+geom_histogram(aes_string(i), binwidth = binwidth_hist(data[,1]))
-  print(hi)
+  hi <- ggplot(waterchem_1995, aes_string(i))+geom_histogram(na.rm = TRUE, binwidth = function(x) binwidth_hist(x))+ylab("")
+  h_list[[i]] <- hi
 }
+
+h_grobs <- lapply(h_list,ggplotGrob)
+
+grobz.plot <- arrangeGrob(grobs = h_grobs,ncol = 3)
+grid.draw(grobz.plot)
+
 
 ```
 
@@ -250,8 +270,7 @@ moran_res <- moran.test(ols_res$residuals,k_neigh_w)
 ggplot(ols_summary[-1,])+geom_col(aes(x=coefficient, y = parameter,fill=p_value))+scale_fill_viridis_d(end = 0.8)+theme_light()
 ```
 
-Moran's I of residuals: 0.0989, p-value = 0
-Residuals are not spatially correlated. OLS could have some explanatory value? 
+The Moran's I of the residuals is `r moran_res$estimates[1]` and its p-value is `r moran_res$p.value`. (see \@ref(fig:map-residuals)). This shows that the residuals are not spatially correlated. The ordinary least square regression gives overall satisfactory results. 
 
 ```{r map-residuals, fig.cap = "Map of residuals"}
 ggplot(ols_res)+geom_point(aes(x=long,y=lat,col=residuals))+theme_void()+scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+borders(database = "world", regions = c("Norway","Sweden","Finland"),xlim=c(0,35),ylim=c(55,73))
@@ -268,9 +287,7 @@ Given the clustering of the variables, a geographically weighted regression is l
 ### Geographically weighted correlations
 ```{r GWSS}
 
-
-
-bw_gwss <- bw.gwss.average(waterchem_1995_spdf,vars=c("std_log_toc","std_log_totp","std_log_so4","std_log_catchm_area","std_log_woodland","std_log_bogs","std_log_runoff","std_ndvi"),kernel = "gaussian", adaptive = T)
+#bw_gwss <- bw.gwss.average(waterchem_1995_spdf,vars=c("std_log_toc","std_log_totp","std_log_so4","std_log_catchm_area","std_log_woodland","std_log_bogs","std_log_runoff","std_ndvi"),kernel = "gaussian", adaptive = T)
 
 #gw_ss2 <- gwss(waterchem_1995_spdf,vars = c("toc","totp","so4","catchment_area_km2","woodland","bogs","runoff","ndvi_summer_lag1yr"),kernel = "gaussian",adaptive = T, bw = bw_gwss)
 
@@ -285,7 +302,7 @@ waterchem_gwss <- gw_ss_load$SDF@data
 waterchem_gwss_toc <- waterchem_gwss[,grep("toc",names(waterchem_gwss))]
 ```
 
-```{r shiny-gwss, eval = T}
+```{r shiny-gwss, eval = F}
 
 ui <- fluidPage(
   selectInput(inputId = "correlation_toc", label = "Variable to display",choices = names(waterchem_gwss_toc)),
@@ -301,9 +318,33 @@ shinyApp(ui = ui, server = server, options = list(height = 500))
 
 ```
 
-The Pearson correlation c
+The geographically weighted Pearson correlation coefficients for TOC are represented in figure \@ref(fig:map-gwss)
 
-# GWR
+```{r map-gwss, fig.cap = "Maps of pearson correlation coefficients", fig.dim = c(10,10)}
+
+corr_toc <- waterchem_gwss_toc[,grep("Corr_", names(waterchem_gwss_toc))]
+corr_toc$Longitude <- waterchem_1995$Longitude
+corr_toc$Latitude <- waterchem_1995$Latitude
+
+c_list <- c()
+
+for (i in names(corr_toc)[-which(names(corr_toc) %in% c("Latitude","Longitude"))]){
+ci <- ggplot(corr_toc, aes(x=Longitude,y=Latitude)) +   geom_point(aes_string(col = i))+
+    scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
+    borders(database = "world", regions = c("Norway","Sweden","Finland"), 
+    fill = NA, colour = "grey50",xlim=c(0,35),ylim=c(55,73)) + 
+    xlab("") + ylab("") +
+    theme_void()
+c_list[[i]] <- ci
+}
+
+c_grobs <- lapply(c_list,ggplotGrob)
+
+grobc.plot <- arrangeGrob(grobs = c_grobs,ncol = 3)
+grid.draw(grobc.plot)
+```
+
+### GWR
 A model with the standardized log(TOC) and the standardised explanatory variables was run using the GWR package  
 
 ```{r GWR, results = 'hide'}
@@ -321,9 +362,11 @@ gwr_std <- gwr.basic(std_log_toc~std_log_totp + std_log_so4+std_log_catchm_area+
 
 waterchem_std_gwr <- gwr_std$SDF@data
 model_gwr <- data.frame(gwr_std$lm$residuals, gwr_std$lm$fitted.values, gwr_std$lm$effects) %>% setNames(c("residuals","fitted.values","effects"))
+
+
 ```
 
-```{r shiny-gwr, eval = T}
+```{r shiny-gwr, eval = F}
 ui_2 <- fluidPage(
   selectInput(inputId = "coeff", label = "Regression coefficients",choices = names(waterchem_std_gwr)),
   plotOutput(outputId = "map_coeff")
@@ -337,7 +380,7 @@ server_2 <- function(input,output){
 shinyApp(ui = ui_2, server = server_2, options = list(height = 500))
 
 ```
-```{r shiny-model-gwr, eval = T}
+```{r shiny-model-gwr, eval = F}
 ui_3 <- fluidPage(
   selectInput(inputId = "model", label = "Select model parameter", choices = names(model_gwr)),
   plotOutput(outputId = "map_model")
@@ -355,10 +398,14 @@ shinyApp(ui = ui_3, server = server_3, options = list(height = 500))
 ```{r explore-gwr}
 ggplot(model_gwr)+geom_point(aes(x=fitted.values,y=residuals))+theme_light()
 boxplot(waterchem_1995_std$std_log_toc)
+```
+```{r map-residuals-GWR}
+f_plotspatial(waterchem_1995, var = model_gwr$residuals, plottitle = "")
+moran_gwr_res <- moran.test(model_gwr$residuals,k_neigh_w)
+```
+The Moran's I of the residuals is `r moran_gwr_res$estimate[1]` and its p-value is `r moran_gwr_res$p.value`. This shows that the residuals are not autocorrelated. 
 
-``` 
-
-```{r download}
+```{r shiny-download, eval = F}
 ui <- fluidPage(
     downloadButton("report", "Generate report"))
 
