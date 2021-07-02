@@ -28,17 +28,28 @@ library(spdep)
 library(tidyr)
 library(gridExtra)
 library(grid)
+library(factoextra)
 
 source("f_plotspatial.R")
 ```
 # Introduction
 
 # Method
+
+Inherited from preliminary work from Finstad el al. 
+
 ## Dataset
 
-The data-set comes from four different data sources. a) The Fennoscandian lake catchment database (Blumentrath et al., unpublished), for which b) Corine land-cover (http://www.eea.europa.eu/publications/COR0-landcover) and c) CORDEX (http://www.cordex.org/) near-surface temperature and runoff have been extracted as area of catchment covered and mean? yearly? (check with Koji which year and which statistics that actually was exctracted), respectively. Finally, this have been matched with water chemistry data from the 1995 survey described by Hendriksen et al. (1997). Human population density is givan as number of persons pr km2 and comes from GEOSTAT_Grid_POP_2006_1K, European Commission. Downloaded from http://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/geostat
+The dataset comes from six different data sources. 
+1. The polygons of the catchments come from the the Fennoscandian lake catchment database (Blumentrath et al., unpublished).
+2. The land-use data was extracted from the Corine land-cover database (http://www.eea.europa.eu/publications/COR0-landcover). The land over classes were merged the following way: 
 
-Data are, following extraction of catchment characteristics (not described here) stored on the ecco_biwa database in several tables. Using the dplyr package (Wickham and Francois 2016, v. 0.5.0, https://CRAN.R-project.org/package=dplyr) to connect to database and merge data. This is decribed in the R-script R/dataIO.R. Serval on the fly data wrangling and transformations done while importing. a) Corine landcover classes are merged as described in script below. b) NDVI is defined as summer NDVI (June to August) with one year lag (following Finstad et al. 2016, doi:10.1038/srep31944). c) Temperature is given in kelvin for raw data, transformed to celsius.
+3. The near-temperature and runoff were collected from CORDEX (http://www.cordex.org/). The temperature was converted from kelvin to celsius. 
+4. Population density (inhabitants per km^2^) was extracted from Eurostat, the statistical office of the European commission (http://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/geostat). The Geostat data used is GEOSTAT_Grid_POP_2006_1K.
+5. Normalized Difference Vegetation Index (NDVI) where extrated using the GIMMS NDVI3g (Pinzon et al. 2014, Remote Sens. 6, 6929–6960) in 4 km resolution. In this study, NDVI was defined as the summer NDVI (from June to August) with one year lag (@Finstad2016). 
+6. the 1995 survey described by Hendriksen et al. (@Henriksen1998).
+
+Following the extraction of catchment characteristics (not described here), the data was stored on the ecco_biwa database in several tables. The "dplyr" package was used to connect to the database and merge the data. Using the dplyr package (@Wickham2020, version 0.5.0)  to connect to database and merge data. ** script in appendix**. 
 
 **Notes:** The variable “ebint” referes to internal waterbody identifier (waterbodyID) used internally by the database. This identifier is not meaningfull outside this dataset. Also, the 1995 Northern European lake survey data did not come with explicit linkage to specific water bodies. Linkages to water bodies (and hence to catchments) where provided by spatially matching given coordinates to lake polygons. There are a number of lakes where the coordinates don’t mach exactly, but for most of these lakes the was no close by lake to mix up with. However, for 434 out of 4677 lakes in the data set, the next closest lake polygon was > 1/2 as far from the given coordinate as the closest. These are marked as waterBodyID_uncertain==TRUE
 
@@ -52,12 +63,12 @@ Visual inspection of the data show a number of obvious erronous data-points in b
 
 Hence, data records holding the following criteria where removed from the dataset prior to further analyses:
 
-* Obvious errors in run-off data where runoff > 1 kg -2 s-1,(331 records).
-* Negative TOC values, (81 records).
-* Lakes for which identity (watebodyID), and hence the match between datasources was doubtfull and waterBodyID_uncertain==TRUE, (434 records).
+* Obvious errors in run-off data where runoff > 1 kg^-2^s^-1^(331 records).
+* Negative TOC values (81 records).
+* Lakes for which identity (watebodyID), and hence the match between datasources was doubtfull and waterBodyID_uncertain==TRUE (434 records).
 * One record with obvious erroneous NDVI measures (< 0).
-lakes with unrealistic high TOTP (> 200 ug l-1) or negative TOTP values.
-* TOC, catchment and lake area where log transformed, and numeric fields where standardized by detracting mean and dividing on standard deviation using the scale function of the base library.
+lakes with unrealistic high TOTP (> 200 ug.L^-1^) or negative TOTP values.
+
 
 ```{r data-cleaning}
 
@@ -74,6 +85,29 @@ waterchem_1995 <- waterchem_1995[waterchem_1995$totp < 200 & waterchem_1995$totp
 waterchem_1995 <- waterchem_1995[duplicated(waterchem_1995$Latitude) == FALSE, 
     ]
 waterchem_1995$waterBodyID_uncertain <- NULL
+
+```
+
+
+```{r map-covariates, fig.cap = "Map of the covariates", fig.dim = c(40,60), eval = F}
+
+covar_list <- c()
+
+for (i in names(waterchem_1995[-1])){
+ci <- ggplot(waterchem_1995, aes(x=Longitude,y=Latitude)) +   geom_point(aes_string(col = i))+
+    scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
+    borders(database = "world", regions = c("Norway","Sweden","Finland"), 
+    fill = NA, colour = "grey50",xlim=c(0,35),ylim=c(55,73)) + 
+    xlab("") + ylab("") +
+    theme_void(base_size=20)
+covar_list[[i]] <- ci
+}
+
+
+covar_grobs <- lapply(covar_list,ggplotGrob)
+
+grobcv.plot <- arrangeGrob(grobs = covar_grobs,ncol = 3)
+grid.draw(grobcv.plot)
 
 ```
 
@@ -107,7 +141,7 @@ shinyApp(ui = ui_1, server = server_1, options = list(height = 500))
 
 ```
 
-```{r histograms-variables, fig.cap = "histograms", fig.dim = c(10,8)}
+```{r histograms-variables, fig.cap = "histograms", fig.dim = c(10,15)}
 binwidth_hist <- function(x){
   if(IQR(x, na.rm = T)==0){ 
     bw <- length(x)
@@ -130,7 +164,7 @@ waterchem_long <- pivot_longer(waterchem_1995,!lake_name, names_to = "expvar", v
 h_list <- c()
 
 for (i in names(waterchem_1995)[-1]){
-  hi <- ggplot(waterchem_1995, aes_string(i))+geom_histogram(na.rm = TRUE, binwidth = function(x) binwidth_hist(x))+ylab("")
+  hi <- ggplot(waterchem_1995, aes_string(i))+geom_histogram(na.rm = TRUE, binwidth = function(x) binwidth_hist(x))+ylab("")+theme_light()
   h_list[[i]] <- hi
 }
 
@@ -142,22 +176,8 @@ grid.draw(grobz.plot)
 
 ```
 
-Many variables were skewed to the right: 
+Most variables have a skewed distribution. 
 
-* so4
-* non_marine_so4
-* s-dep (with a lot of zeros)
-* totp
-* totn
-* toc
-* ca
-* catchment_area_km2
-* woodland (also many zeros) / woodland mixed / woodland leaved / woodland coniferous / agriculture / schrub / bare / bogs / water / glacier / population / runoff / lake area
-* slope
-
-Variables skewed to the left: 
-
-* ndvi
 
 To remedy to the non-normality of data distribution, all the right-skewed variables were log-transformed. In addition, they were scaled and centered to ease the comparison between the explanatory variables. 
 
@@ -186,74 +206,84 @@ waterchem_1995_std <- as.data.frame(waterchem_1995_std)
 waterchem_1995_full <- cbind(waterchem_1995, waterchem_1995_log[,-1], waterchem_1995_std)  # merge back with original data
 
 waterchem_1995_spdf <- SpatialPointsDataFrame(waterchem_1995_full[c("Longitude","Latitude")],waterchem_1995_full)
+waterchem_std_spdf <- SpatialPointsDataFrame(waterchem_1995_full[c("Longitude","Latitude")],waterchem_1995_std)
 
-```
-
-## Correlations between dependent and independent variables
-
-```{r correlations, fig.dim = c(10,10), fig.cap = 'Correlation matrix between dependent and independent variables'}
-waterchem_cor <- cor_mat(waterchem_1995_log[,-1])
-waterchem_pmat <- cor_pmat(waterchem_1995_log[,-1])
-cor_plot(waterchem_cor,  p.mat = waterchem_pmat, method = "color",label = T,type = "lower", insignificant = "blank",font.label = list(size = 1))
-
-```
-
-Resp var: TOC
-
-Covariates:
-
-* log_totp (log_TN)
-* log_SO4 (log_Ca, log TN)
-* log_catchm_area (log_lake_area + log_population)
-* log_woodland(ndvi)
-* log_bogs
-* log_runoff (logCa)
-
-ndvi: à part
-
-Distribution of log_woodlang has 2 peaks. So with the high correlation between woodland and ndvi, I pick NDVI which is normally distributed. 
-
-
-```{r scatterplot_selection, fig.dim = c(20,20), eval = F}
-
-car::scatterplotMatrix(select(waterchem_1995_full,c("log_toc","log_totp","log_so4","log_catchm_area","log_bogs","log_runoff","ndvi")),regLine = list(col = "red"),col="black")
 ```
 
 
 ## Spatial autocorrelation of data
-@Koh2020
-paper sur Moran's I?
-The Moran'I of each dependent and independant parameter was calculated using the package "spdep" @Bivan2009. It is a measure of the clusterisation of the studied variable, which can take a value between -1 and 1. Randomly distributed values have a Moran's I close to 0. Moran's I and their respective p-value are represented in \@ref(fig:spatial-autocorrelation). The test is realized on log-transformed values to respect the assumption of normality. All p-values were significant (< 0.001). NDVI, log(TN), log(TOC), log(SO4) and log(runoff) have a Moran's I superior to 0.5, indicating a high level of spatial autocorrelation. log(TP), log(Ca) and log(woodland) were also highly autocorrelated (with Moran's I between 0.4 and 0.5). Lake and catchment area, as well as log(bogs), are however randomly distributed. 
-Since our dependent variable log(TOC) is spatially autocorrelated, we need to apply a statistical method taking this correlation into account. 
+
+The Moran'I of each dependent and independant parameter was calculated using the package "spdep" [@Bivand2009]. It is a measure of the clusterisation of the studied variable, which can take a value between -1 and 1. Randomly distributed values have a Moran's I close to 0. Moran's I and their respective p-value are represented on Figure \@ref(fig:spatial-autocorrelation). The test is realized on log-transformed values to respect the assumption of normality. All p-values were significant (< 0.001). NDVI, log(TN), log(TOC), log(SO4) and log(runoff) have a Moran's I superior to 0.5, indicating a high level of spatial autocorrelation [@Koh2020]. 
+Log(TP), log(Ca) and log(woodland) were also highly autocorrelated (with Moran's I between 0.4 and 0.5).
+However, Lake and catchment area, as well as log(bogs), are randomly distributed. 
+
+Since our dependent variable log(TOC) is spatially autocorrelated, we need to apply a statistical method taking this correlation into account. * or because most of the covariates are spatially autocorrelated*. 
 
 ```{r spatial-autocorrelation, fig.cap = "Moran's I coefficients for the independent variables"}
 
 k_neigh <- knearneigh(waterchem_1995_spdf,k = 100)
 k_neigh_nb <- knn2nb(k_neigh)
 k_neigh_w <- nb2listw(k_neigh_nb)
-moran_I_toc <- moran.test(waterchem_1995$toc,k_neigh_w)
+# moran_I_toc <- moran.test(waterchem_1995$toc,k_neigh_w)
+# 
+# moran_list <- c() 
+# for (i in names(waterchem_1995_log)[-1]){
+#   moran_list[[i]] <- moran.test(waterchem_1995_log[,i],k_neigh_w)
+# }
+# 
+# moran_df <- data.frame(names(waterchem_1995_log)[-1]) %>% setNames("parameter")
+# moran_df$I <- NA
+# moran_df$p <- NA
+# 
+# for (i in 1:length(moran_list)){
+#   moran_df$I[i] <- moran_list[[i]]$estimate[1]
+#   moran_df$p[i] <- moran_list[[i]]$p.value
+# }
+# 
+# saveRDS(moran_df,"moran_df.Rdata")
 
-moran_list <- c() 
-for (i in names(waterchem_1995_log)[-1]){
-  moran_list[[i]] <- moran.test(waterchem_1995_log[,i],k_neigh_w)
-}
-
-moran_df <- data.frame(names(waterchem_1995_log)[-1]) %>% setNames("parameter")
-moran_df$I <- NA
-moran_df$p <- NA
-
-for (i in 1:length(moran_list)){
-  moran_df$I[i] <- moran_list[[i]]$estimate[1]
-  moran_df$p[i] <- moran_list[[i]]$p.value
-}
+moran_df <- readRDS("moran_df.Rdata")
 
 moran_df <- moran_df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1"))
 ggplot(moran_df)+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 0.5)
 
 ```
 
+
+<!---
+```{r pca-cluster, fig.cap = "Principal component analysis of the dataset", fig.dim = c(4,4)}
+waterchem_pca <- prcomp(~.,data = waterchem_1995_log[,-1],center=TRUE,scale.=TRUE, na.action = na.omit)
+
+waterchem_var <- get_pca_var(waterchem_pca)
+fviz_nbclust(waterchem_var$coord, kmeans, method = "wss") 
+n_clust <- fviz_nbclust(waterchem_var$coord, kmeans, method = "silhouette")
+fviz_nbclust(waterchem_var$coord, kmeans, method = "gap_stat")
+
+opt_clust <- n_clust$data$clusters[which.max(n_clust$data$y)]
+waterchem_km <- kmeans(waterchem_var$coord, centers = 2, nstart = 25)
+group_pca <- as.factor(waterchem_km$cluster)
+ 
+# Plot PCA
+pca <- fviz_pca_var(waterchem_pca,
+             col.var = group_pca,
+             palette = c("#0073C2FF", "#EFC000FF", "#868686FF","black"),
+             legend.title = "Cluster",
+             repel = TRUE)
+print(pca)
+
+```
+The two first principal components explained `r (summary(waterchem_pca)$importance[6] %>% round(2))*100`% of the variance. The covariates were clustered using the k-means method and the optimal number of cluster was chosen using the silhouette method, which selected `r opt_clust` clusters. 
+
+```{r scatterplot_selection, fig.dim = c(20,20), eval = F}
+
+car::scatterplotMatrix(select(waterchem_1995_full,c("log_toc","log_totp","log_so4","log_catchm_area","log_bogs","log_runoff","ndvi")),regLine = list(col = "red"),col="black")
+```
+--->
+
+
+<!---
 ## Ordinary least square regression 
-```{r OLS, fig.cap = "Regression coefficients for OLS"}
+```{r OLS, fig.cap = "Regression coefficients for OLS", fig.dim = c(5,3), eval = F}
 ols_std <- lm(std_log_toc~std_log_totp+std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_1995_std)
 summary(ols_std)
 plot(ols_std)
@@ -270,35 +300,68 @@ moran_res <- moran.test(ols_res$residuals,k_neigh_w)
 ggplot(ols_summary[-1,])+geom_col(aes(x=coefficient, y = parameter,fill=p_value))+scale_fill_viridis_d(end = 0.8)+theme_light()
 ```
 
-The Moran's I of the residuals is `r moran_res$estimates[1]` and its p-value is `r moran_res$p.value`. (see \@ref(fig:map-residuals)). This shows that the residuals are not spatially correlated. The ordinary least square regression gives overall satisfactory results. 
+The Moran's I of the residuals is r moran_res$estimates[1] and its p-value is r moran_res$p.value. (see \@ref(fig:map-residuals)). This shows that the residuals are not spatially correlated. The ordinary least square regression gives overall satisfactory results. 
 
-```{r map-residuals, fig.cap = "Map of residuals"}
+```{r map-residuals, fig.cap = "Map of residuals for OLS", fig.dim = c(5,5), eval = F}
 ggplot(ols_res)+geom_point(aes(x=long,y=lat,col=residuals))+theme_void()+scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+borders(database = "world", regions = c("Norway","Sweden","Finland"),xlim=c(0,35),ylim=c(55,73))
 
 ```
-
+--->
 
 ## Geographically weigthed analysis
-Info @Meik2017
+Geographically weighted regression is an adaptation of the ordinary least square regression, in which the analysis is performed within a "moving window" giving more weight to the closer points. This process highlight underlying processes in the data, that would be smoothened by a global regression. In this article we use an adaptative kernel. This means that the "moving window" is smaller in regions where the density of points is high and bigger in regions where the density of points is low [@Fother].
 
-Given the clustering of the variables, a geographically weighted regression is likely to give better results than an ordinary one. The computations were realised with the "GWmodel" package on R @Harris2021.
+A model with the standardized log(TOC) and the standardised explanatory variables was run using the GWR package. All the computations were realised with the "GWmodel" package on R [@Lu2021].
+
+To select variables in a GWR model, 5 steps are necessary [@Fotheringham2010]. 
+
+1. select variables based on common sense;
+2. check the collinearity of the variables, done here using the correlation matrix (or VIF?);
+3. Do a stepwise selection of variables. The GWRModel packages contains a function that does a forward selection: "gw.model.selection" [@Warsito2018].
+4. Check the significance of the spatial variation using a Monte-Carlo test.
+5. Finally, do the GWR calibration. 
+
+### Correlations between variables
+
+```{r correlations, fig.dim = c(6,6), fig.cap = 'Correlation matrix of dependent and independent variables. Non-significant correlation coefficients (p-value < 0.05) are left in blank.'}
+waterchem_cor <- cor_mat(waterchem_1995_log[,-1])
+waterchem_pmat <- cor_pmat(waterchem_1995_log[,-1])
+cor_plot(waterchem_cor,  p.mat = waterchem_pmat, method = "color",label = T,type = "lower", insignificant = "blank",font.label = list(size = 0.7))
+
+```
+
+The response variable is "log_toc". It is strongly correlated (|r| > 0.5) with log_totp, log_totn, log_runoff, log_woodland and NDVI.
 
 
-### Geographically weighted correlations
+Among the explanatory variables, only the ones least correlated were kept. 
+
+* log_totp (log_TN)
+* log_SO4 (log_Ca, log TN)
+* log_catchm_area (log_lake_area + log_population)
+* log_bogs
+* log_runoff (logCa)
+* NDVI (log_woodland)
+
+The geographically weighted Pearson correlation coefficients of the selected explanatory variables with TOC are represented on Figure \@ref(fig:map-gwss)
+
+**note** considering doing a GW VIF analysis.
+
 ```{r GWSS}
 
 #bw_gwss <- bw.gwss.average(waterchem_1995_spdf,vars=c("std_log_toc","std_log_totp","std_log_so4","std_log_catchm_area","std_log_woodland","std_log_bogs","std_log_runoff","std_ndvi"),kernel = "gaussian", adaptive = T)
 
-#gw_ss2 <- gwss(waterchem_1995_spdf,vars = c("toc","totp","so4","catchment_area_km2","woodland","bogs","runoff","ndvi_summer_lag1yr"),kernel = "gaussian",adaptive = T, bw = bw_gwss)
+#gw_ss2 <- gwss(waterchem_1995_spdf,vars = c("std_log_toc","std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi"),kernel = "gaussian",adaptive = T, bw = bw_std)
 
 #save(gw_ss,file = "gw_ss.RData",envir = .GlobalEnv)
+#saveRDS(gw_ss2,file = "gw_ss2.RData")
 #save(bw_gwss, file = "bw_gwss.Rdata, envir = .GlobalEnv")
 
 library(miceadds)
 gw_ss_load <- "gw_ss"
 gw_ss_load <- load.Rdata("gw_ss.RData", gw_ss_load)
+gw_ss2_load <- readRDS("gw_ss2.Rdata")
 
-waterchem_gwss <- gw_ss_load$SDF@data
+waterchem_gwss <- gw_ss2_load$SDF@data
 waterchem_gwss_toc <- waterchem_gwss[,grep("toc",names(waterchem_gwss))]
 ```
 
@@ -311,59 +374,103 @@ ui <- fluidPage(
 
 server <- function(input,output){
   output$map_toc <- renderPlot({
-    f_plotspatial(data = waterchem_1995, var = waterchem_gwss_toc[,input$correlation_toc], plottitle = input$correlation,col = "RdYlBu")
+    f_plotspatial(data = waterchem_1995, var = waterchem_gwss_toc[,input$correlation_toc], plottitle = input$correlation)
   })
 }
 shinyApp(ui = ui, server = server, options = list(height = 500))
 
 ```
 
-The geographically weighted Pearson correlation coefficients for TOC are represented in figure \@ref(fig:map-gwss)
 
-```{r map-gwss, fig.cap = "Maps of pearson correlation coefficients", fig.dim = c(10,10)}
+```{r map-gwss, fig.cap = "Maps of Pearson correlation coefficients between TOC and the explanatory variables", fig.dim = c(40,40)}
 
 corr_toc <- waterchem_gwss_toc[,grep("Corr_", names(waterchem_gwss_toc))]
 corr_toc$Longitude <- waterchem_1995$Longitude
 corr_toc$Latitude <- waterchem_1995$Latitude
 
+names(corr_toc) <- c("TOC.TOTP", "TOC.SO4", "TOC.catchment.area", "TOC.bogs", "TOC.runoff", "TOC.NDVI", "Longitude", "Latitude")
+
 c_list <- c()
 
 for (i in names(corr_toc)[-which(names(corr_toc) %in% c("Latitude","Longitude"))]){
-ci <- ggplot(corr_toc, aes(x=Longitude,y=Latitude)) +   geom_point(aes_string(col = i))+
+ci <- ggplot(corr_toc, aes(x=Longitude,y=Latitude)) +   geom_point(aes_string(col = i),size=4)+
     scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
     borders(database = "world", regions = c("Norway","Sweden","Finland"), 
     fill = NA, colour = "grey50",xlim=c(0,35),ylim=c(55,73)) + 
     xlab("") + ylab("") +
-    theme_void()
+    theme_void(base_size = 30)
 c_list[[i]] <- ci
 }
 
 c_grobs <- lapply(c_list,ggplotGrob)
 
-grobc.plot <- arrangeGrob(grobs = c_grobs,ncol = 3)
+grobc.plot <- arrangeGrob(grobs = c_grobs,ncol = 2)
 grid.draw(grobc.plot)
 ```
 
-### GWR
-A model with the standardized log(TOC) and the standardised explanatory variables was run using the GWR package  
+### Stepwise selection of variables
+
+The stepwise variable selection offered by the GWR package is a forward process. The variables are introduced sequentially in the model in order to find, at each step, the model that gives the lowest AIC. The first variables included are the variables with the highest impact. The results are presented on Figure \@ref(fig:GWR-model-selection). The variables with most impact are ***totp, ndvi, runoff*** and ***SO4***.
+
+*Where to set the limit for variables with most impact?*
+
+```{r GWR-model-selection, fig.cap = "Model selection for GWR", results = "hide"}
+waterchem_std_spdf <- SpatialPointsDataFrame(waterchem_1995_full[c("Longitude","Latitude")],waterchem_1995_std)
+
+bw.gwr.selection <- bw.gwr(std_log_toc~std_log_totp + std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi, data = waterchem_std_spdf, adaptive = T)
+
+waterchem_gwr_selection <- gwr.model.selection(DeVar = "std_log_toc", InDeVars = c("std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi"),data = waterchem_1995_spdf, bw = bw.gwr.selection, adaptive = T)
+
+gwr.model.view("std_log_toc",c("std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi"),waterchem_gwr_selection[[1]])
+
+waterchem_gwr_sort <- gwr.model.sort(waterchem_gwr_selection, numVars = 11, ruler.vector = c(1:11))
+
+```
+
+
+### Monte Carlo simulation
+The Monte Carlo simulation is a randomisation test used to check the significance of the GWR coefficients. [@Lu2021]. It consists in the following steps: 
+
+1. Computing the "true" GWR coefficients;
+2. Permuting the data to randomise the samples and calculate the new GWR coefficients;
+3. Repeating step 2 n times (here 99 times);
+4. Ranking the results of the "true" correlation with the results of the simulated correlations.
+
+If the the true GWR coefficients lie in the 2.5% upper or bottom tail of the ranked distribution, they are considered as significantly different from the random correlations found by chance. 
+
+The results of the simulation are presented in table \@ref(tab:montecarlo-results).
+.
+```{r monte-carlo, eval = F}
+waterchem_montecarlo <- gwr.montecarlo(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi,data = waterchem_std_spdf,adaptive = T, bw = bw_std)
+saveRDS(waterchem_montecarlo,file = "waterchem_gwr_montecarlo.Rdata")
+```
+```{r montecarlo-results, results = "asis"}
+waterchem_montecarlo_load <- readRDS("waterchem_gwr_montecarlo.Rdata", )
+knitr::kable(waterchem_montecarlo_load, caption = "Monte-Carlo significance test results")
+```
+
+All the selected parameters have a coefficient with a p-value $\leq$ 0.05. Therefore, they can be considered as significant. 
+
+### GWR fitting
+
+The GWR model was fitted with TOC as response variable and TOTP, SO~4~, runoff and ndvi as explanatory variables. The residuals are higher for the lakes on the West coast of Norway. This is due to an edge effect. We used an adaptative bandwiwth, meaning that it relies on the number of neighbouring lakes and not on the distance with the neighbour lakes. Therefore, at the edge of the map, neighbouring lakes are likely to be further away than for points in the middle of the map, and the model likely to be less predictive.
+
 
 ```{r GWR, results = 'hide'}
 
 #gw.pcplot(data=waterchem_1995_spdf,vars= names(waterchem_1995),focus = 1, bw = 100, adaptive = T)
-waterchem_std_spdf <- SpatialPointsDataFrame(waterchem_1995_full[c("Longitude","Latitude")],waterchem_1995_std)
+
 # selects bandwidth
 
-bw_std <- bw.gwr(std_log_toc~std_log_totp + std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_std_spdf,adaptive = T)
+bw_std <- bw.gwr(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi,data = waterchem_std_spdf,adaptive = T)
 
 # computes bwr
-gwr_std <- gwr.basic(std_log_toc~std_log_totp + std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_std_spdf, regression.points = waterchem_std_spdf, bw = bw_std, adaptive = T)
+gwr_std <- gwr.basic(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi,data = waterchem_std_spdf, regression.points = waterchem_std_spdf, bw = bw_std, adaptive = T)
 
 #gwr_cv <- gwr.model.selection(DeVar = "std_log_toc", InDeVars = c("std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi"), data = waterchem_std_spdf, bw = bw_std, adaptive = T, kernel="gaussian",approach="aic")
 
 waterchem_std_gwr <- gwr_std$SDF@data
 model_gwr <- data.frame(gwr_std$lm$residuals, gwr_std$lm$fitted.values, gwr_std$lm$effects) %>% setNames(c("residuals","fitted.values","effects"))
-
-
 ```
 
 ```{r shiny-gwr, eval = F}
@@ -374,7 +481,7 @@ ui_2 <- fluidPage(
 
 server_2 <- function(input,output){
   output$map_coeff <- renderPlot({
-    f_plotspatial(data = waterchem_1995, var = waterchem_std_gwr[,input$coeff], plottitle = input$coeff,col = "RdYlBu")
+    f_plotspatial(data = waterchem_1995, var = waterchem_std_gwr[,input$coeff], plottitle = input$coeff)
   })
 }
 shinyApp(ui = ui_2, server = server_2, options = list(height = 500))
@@ -388,22 +495,40 @@ ui_3 <- fluidPage(
 
 server_3 <- function(input,output){
   output$map_model <- renderPlot({
-    f_plotspatial(data = waterchem_1995, var = model_gwr[,input$model], plottitle = input$model, col = "RdYlBu")
+    f_plotspatial(data = waterchem_1995, var = model_gwr[,input$model], plottitle = input$model)
   })
 }
 
 shinyApp(ui = ui_3, server = server_3, options = list(height = 500))
 ```
 
-```{r explore-gwr}
+```{r explore-gwr, eval = F}
 ggplot(model_gwr)+geom_point(aes(x=fitted.values,y=residuals))+theme_light()
 boxplot(waterchem_1995_std$std_log_toc)
 ```
-```{r map-residuals-GWR}
-f_plotspatial(waterchem_1995, var = model_gwr$residuals, plottitle = "")
-moran_gwr_res <- moran.test(model_gwr$residuals,k_neigh_w)
+
+```{r map-coef-gwr, fig.cap = "Map of GWR coefficients", fig.dim = c(40,40), eval = F}
+
+waterchem_std_gwr$Longitude <- waterchem_1995$Longitude
+waterchem_std_gwr$Latitude <- waterchem_1995$Latitude
+
+coef_list <- c()
+
+for (i in names(waterchem_std_gwr)[-which(names(waterchem_std_gwr) %in% c("Latitude","Longitude"))]){
+ci <- ggplot(waterchem_std_gwr, aes(x=Longitude,y=Latitude)) +   geom_point(aes_string(col = i), size = 4)+
+    scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
+    borders(database = "world", regions = c("Norway","Sweden","Finland"), 
+    fill = NA, colour = "grey50",xlim=c(0,35),ylim=c(55,73)) + 
+    xlab("") + ylab("") +
+    theme_void(base_size = 30)
+coef_list[[i]] <- ci
+}
+
+coef_grobs <- lapply(coef_list,ggplotGrob)
+
+grobcf.plot <- arrangeGrob(grobs = coef_grobs,ncol = 2)
+grid.draw(grobcf.plot)
 ```
-The Moran's I of the residuals is `r moran_gwr_res$estimate[1]` and its p-value is `r moran_gwr_res$p.value`. This shows that the residuals are not autocorrelated. 
 
 ```{r shiny-download, eval = F}
 ui <- fluidPage(
@@ -425,3 +550,69 @@ server <- function(input, output) {
 shinyApp(ui,server)
         
 ```
+
+```{r map-residuals-GWR, fig.cap= "Map of residuals for GWR", fig.dim = c(5,4)}
+f_plotspatial(waterchem_1995, var = model_gwr$residuals, plottitle = "")
+moran_gwr_res <- moran.test(model_gwr$residuals,k_neigh_w)
+```
+However, the Moran's I of the residuals is `r round(moran_gwr_res$estimate[1],2)` and its p-value is `r moran_gwr_res$p.value`. This shows that the residuals are not autocorrelated and are randomly distributed. 
+
+_**note** plot local r-square_
+```{r model-performance, fig.cap = "Map of original TOC concentrations (on the left) and map of  fitted TOC concentration  (on the right) (log transformed and standardised)", fig.dim = c(20,10)}
+p1 <- f_plotspatial(waterchem_1995, var = model_gwr$fitted.values, plottitle = "")
+p2 <- f_plotspatial(waterchem_1995_full, var = waterchem_1995_full$std_log_toc, plottitle = "")
+grid.arrange(p2,p1,ncol=2)
+```
+
+# Discussion
+The geographically weighted regression shows that the selected covariates impact the TOC concentration in a different way depending on the localisation of the lake. 
+
+## TOTP
+Total phosphate concentration positively impacts the concentration of TOC in all location, but its effect is stronger in region wit low phosphate concentration.
+
+Impacts + until reaching "saturation"?
+
+```{r plot-totp, fig.cap = "Concentration of total phosphate (ug/L) and and GWR coefficient for TOT-P", fig.dim = c(20,10)}
+p1 <- f_plotspatial(waterchem_1995_full, var = waterchem_std_gwr$std_log_totp, plottitle = "GWR coef for totp")
+p2 <- f_plotspatial(waterchem_1995_full, var = waterchem_1995_full$totp, plottitle = "totp")
+grid.arrange(p2,p1,ncol=2)
+```
+
+## SO4
+Negative impact of SO4 concentration on TOC concentration, especially in South Sweden. Contrarily to south Norway: coefficients in central/south regions are positive. 
+
+Sweden: regions that suffered from acid rains. Effect still visible?
+Norway: positive effects in south west. Why? Recovery measures in all lakes? Special bedrock? 
+
+```{r plot-so4, fig.cap = "Concentration of sulfate (ueq/L) and GWR coefficient for SO4", fig.dim = c(20,10)}
+p1 <- f_plotspatial(waterchem_1995_full, var = waterchem_std_gwr$std_log_so4, plottitle = "GWR coef for std_log_so4")
+p2 <- f_plotspatial(waterchem_1995_full, var = waterchem_1995_full$so4, plottitle = "SO4")
+grid.arrange(p2,p1,ncol=2)
+```
+
+## Runoff
+Runoff was negatively correlated with toc concentration (in gwss) but its coefficient is near 0 in most regions. Strong negative effect in south Sweden : coefficients up to -2, while the maximum coefficients for phosphate were ~ 0.5.
+
+The overall correlation with TOC was really strong (-0.49), but was apparently only driven by south-Sweden values. 
+
+```{r plot-runoff, fig.cap = "Map of runoff (kg-2.s-1) and GWR coefficient for runoff", fig.dim = c(20,10)}
+p1 <- f_plotspatial(waterchem_1995_full, var = waterchem_std_gwr$std_log_runoff, plottitle = "GWR coef for std_log_runoff")
+p2 <- f_plotspatial(waterchem_1995_full, var = waterchem_1995_full$runoff, plottitle = "Runoff")
+grid.arrange(p2,p1,ncol=2)
+```
+
+## NDVI
+Contrasted effect of NDVI. It was always positively correlated with TOC concentration (see figure \@ref(fig:map-gwss)), except in south Sweden. Its impact is stronger in Norway (ccoefficients up to 1), while NDVI values are  higher in Sweden. The NDVI coefficients in Sweden range from less than 0.5 to 1, with negative coefficients in the South. The NDVI impact is also very random in Finland, with all the NDVI range represented without any spatial pattern (*could do a Moran test*). 
+
+```{r plot-ndvi, fig.cap = "Map of NDVI and GWR coefficient for NDVI", fig.dim = c(20,10)}
+p1 <- f_plotspatial(waterchem_1995_full, var = waterchem_std_gwr$std_ndvi, plottitle = "GWR coef for std_NDVI")
+p2 <- f_plotspatial(waterchem_1995_full, var = waterchem_1995_full$ndvi_summer_lag1yr, plottitle = "NDVI")
+grid.arrange(p2,p1,ncol=2)
+```
+
+# Conclusion
+Overall: most impact of phosphate and NDVI in regions where phosphate and vegetation are limited. South Sweden: agriculture or forest? Maybe make maps of all the variables.
+Runoff: overall negative impact, but especially in South Sweden. Flatter, bigger catchments? More runoff should carry away more TOC. Maybe indicates higher productivity in South Sweden lakes? Or more dilution of the TOC?
+SO~4~: effects of acid rains still visible. Mystery of South Norway. 
+
+# Bibliography
