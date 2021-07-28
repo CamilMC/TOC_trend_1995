@@ -2,9 +2,9 @@
 title: "TOC and water chemistry in Fennoscandian lakes"
 author: "Camille M. Crapart"
 date: "12 5 2021"
-output:
-  bookdown::html_document2: default
-  word_document: default
+output: redoc::redoc
+  #bookdown::html_document2: default
+  #word_document: default
 #runtime: shiny
 bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 link-citations: yes
@@ -40,31 +40,31 @@ Inherited from preliminary work from Finstad el al.
 
 ## Dataset
 
-The dataset comes from six different data sources.
+The dataset is compiled from six different data sources.
 
-1. The polygons of the catchments come from the the Fennoscandian lake catchment database (Blumentrath et al., unpublished).
-2. The land-use data was extracted from the Corine land-cover database (http://www.eea.europa.eu/publications/COR0-landcover). The land cover classes were merged the following way:
-  + woodland = agro_forestry_are + broad_leave_area + coniferous_forest_area + mixed forest aread
+1. The polygons of the catchment areas come from the the Fennoscandian lake catchment database (Blumentrath et al., unpublished).
+2. The land-use data was extracted from the Corine land-cover database (http://www.eea.europa.eu/publications/COR0-landcover). To simplify the categories, the land cover classes were merged the following way:
+  + woodland = agro_forestry_area + broad_leave_area + coniferous_forest_area + mixed forest aread
   + agriculture = annual crops associated with permanent crop + complex cultivation pattern + non irrigated arable land + pastures area
   + shrub = moors and heathlands areas + natural grassland area + sclerophyllous vegetation + transitional woodland / shrub area
   + bare = bare rocks + sparsely vegetated area
   + bogs = peat bogs + inland marshes
 3. The near-temperature and runoff were collected from CORDEX (http://www.cordex.org/). The temperature was converted from kelvin to celsius. 
 4. Population density (inhabitants per km^2^) was extracted from Eurostat, the statistical office of the European commission (http://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/geostat). The Geostat data used is GEOSTAT_Grid_POP_2006_1K.
-5. Normalized Difference Vegetation Index (NDVI) where extrated using the GIMMS NDVI3g (Pinzon et al. 2014, Remote Sens. 6, 6929–6960) in 4 km resolution. In this study, NDVI was defined as the summer NDVI (from June to August) with one year lag (@Finstad2016). 
-6. the 1995 survey described by Hendriksen et al. (@Henriksen1998).
+5. Normalized Difference Vegetation Index (NDVI) where extracted using the GIMMS NDVI3g (Pinzon et al. 2014, Remote Sens. 6, 6929–6960) with a 4 km resolution. In this study, NDVI was defined as the summer NDVI (from June to August) with one year lag (@Finstad2016). 
+6. the Northern European Lake Survey described by Hendriksen et al. (@Henriksen1998).
 
-Following the extraction of catchment characteristics (not described here), the data was stored on the ecco_biwa database in several tables. The "dplyr" package was used to connect to the database and merge the data. Using the dplyr package (@Wickham2020, version 0.5.0)  to connect to database and merge data. ** script in appendix**. 
+Following the extraction of catchment characteristics (not described here), the data was stored on the ecco_biwa database in several tables. The "dplyr" package was used to connect to the database and merge the data. Using the dplyr package (@Wickham2020, version 0.5.0)  to connect to database and merge data. **script in appendix**. 
 
-**Notes:** The variable “ebint” referes to internal waterbody identifier (waterbodyID) used internally by the database. This identifier is not meaningfull outside this dataset. Also, the 1995 Northern European lake survey data did not come with explicit linkage to specific water bodies. Linkages to water bodies (and hence to catchments) where provided by spatially matching given coordinates to lake polygons. There are a number of lakes where the coordinates don’t mach exactly, but for most of these lakes the was no close by lake to mix up with. However, for 434 out of 4677 lakes in the data set, the next closest lake polygon was > 1/2 as far from the given coordinate as the closest. These are marked as waterBodyID_uncertain==TRUE
+**Notes**: The variable “ebint” refers to internal waterbody identifier (waterbodyID) used internally by the database. This identifier is not meaningfull outside this dataset. Also, the 1995 Northern European lake survey data did not come with explicit linkage to specific water bodies. Linkages to water bodies (and hence to catchments) where provided by spatially matching given coordinates to lake polygons. There are a number of lakes where the coordinates do not mach exactly, but for most of these lakes the was no close by lake to mix up with. However, for 434 out of 4677 lakes in the data set, the next closest lake polygon was > 1/2 as far from the given coordinate as the closest. These are marked as waterBodyID_uncertain==TRUE
 
 ```{r load-data, fig.dim = c(2,2), fig.show='hold', results = F}
 dim_waterchem <- read_xlsx("waterchem_1995.xlsx") %>% dim()
-waterchem_1995 <- read_xlsx("waterchem_1995.xlsx",col_types = c("skip","skip","skip","text",rep("numeric",dim_waterchem[2]-5),"logical"),na = "NA")
+waterchem_1995 <- read_xlsx("waterchem_1995.xlsx",col_types = c("skip","skip","skip","skip","text",rep("numeric",dim_waterchem[2]-6),"logical"),na = "NA")
 ```
 
 ## Data-cleaning
-Visual inspection of the data show a number of obvious erronous data-points in both the 1995 water chemistry dataset and the climate data (runoff). In addition, records for which identity could not be established due to lack of precice georefference in the 1995 water chemistry dataset is removed (see above, step A). A few waterchemistry records showed duplicates within waterbodies. This is likely as a result of different classification of what constitutes a waterbody between the lake polygons and the 1995 study.
+Visual inspection of the data show a number of obvious erroneous data-points in both the 1995 water chemistry dataset and the climate data (runoff). In addition, records for which lake identity could not be established due to lack of precise georeference in the 1995 water chemistry dataset is removed. A few water chemistry records showed duplicates within waterbodies. This is likely a result of different classification of what constitutes a waterbody between the lake polygons and the 1995 study.
 
 Hence, data records holding the following criteria where removed from the dataset prior to further analyses:
 
@@ -89,8 +89,13 @@ waterchem_1995 <- waterchem_1995[waterchem_1995$totp < 200 & waterchem_1995$totp
     0, ]
 waterchem_1995 <- waterchem_1995[duplicated(waterchem_1995$Latitude) == FALSE, 
     ]
+
+# suppress useless columns
 waterchem_1995$waterBodyID_uncertain <- NULL
 
+waterchem_1995$woodland_coniferous <- NULL
+waterchem_1995$woodland_leaved <- NULL
+waterchem_1995$woodland_mixed <- NULL
 ```
 
 
@@ -112,6 +117,7 @@ covar_list[[i]] <- ci
 covar_grobs <- lapply(covar_list,ggplotGrob)
 
 grobcv.plot <- arrangeGrob(grobs = covar_grobs,ncol = 3)
+grid.newpage()
 grid.draw(grobcv.plot)
 
 ```
@@ -158,7 +164,7 @@ binwidth_hist <- function(x){
 return(bw)
 }
 
-waterchem_long <- pivot_longer(waterchem_1995,!lake_name, names_to = "expvar", values_to = "value") %>% group_by(expvar) %>% mutate(bw = binwidth_hist(value))
+waterchem_long <- pivot_longer(waterchem_1995,!lake_name2, names_to = "expvar", values_to = "value") %>% group_by(expvar) %>% mutate(bw = binwidth_hist(value))
 
 
 #ggplot(waterchem_long,aes(value))+facet_wrap(~expvar,scales = "free")+
@@ -170,7 +176,7 @@ waterchem_long <- pivot_longer(waterchem_1995,!lake_name, names_to = "expvar", v
 
 h_list <- c()
 
-for (i in names(waterchem_1995)[-which(names(waterchem_1995) %in% c("date_mmdd", "Longitude","Latitude", "lake_name"))]){
+for (i in names(waterchem_1995)[-which(names(waterchem_1995) %in% c("date_mmdd", "Longitude","Latitude", "lake_name","lake_name2"))]){
   hi <- ggplot(waterchem_1995, aes_string(i))+geom_histogram(na.rm = TRUE, binwidth = function(x) max(x)/15)+ylab("")+theme_light()
   h_list[[i]] <- hi
 }
@@ -178,9 +184,8 @@ for (i in names(waterchem_1995)[-which(names(waterchem_1995) %in% c("date_mmdd",
 h_grobs <- lapply(h_list,ggplotGrob)
 
 grobz.plot <- arrangeGrob(grobs = h_grobs,ncol = 3)
-grid.draw(grobz.plot)
-
-
+grid.newpage()
+grid.draw(grobz.plot) 
 ```
 
 Most variables have a skewed distribution. 
@@ -190,7 +195,7 @@ To remedy to the non-normality of data distribution, all the right-skewed variab
 
 ```{r transforming-data}
 # transforming data
-waterchem_1995_log <- as.data.frame(waterchem_1995$lake_name)
+waterchem_1995_log <- as.data.frame(waterchem_1995$lake_name2)
 waterchem_1995_log$log_toc <- log10(waterchem_1995$toc)
 waterchem_1995_log$log_totp <- log10(waterchem_1995$totp)
 waterchem_1995_log$log_totn <- log10(waterchem_1995$totn)
@@ -257,8 +262,8 @@ moran_df <- moran_df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05
 moran_df$parameter <- factor(moran_df$parameter, levels = moran_df$parameter[order(moran_df$I)])
 
 
-ggplot(moran_df)+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 0.5)
-
+g_moran <- ggplot(moran_df)+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 0.5)
+plot(g_moran)
 ```
 Log(SO~4~), log(NDVI), log(runoff), log(TOC), log(TOTN)  have a Moran's I superior to 0.5, indicating a high level of spatial autocorrelation [@Koh2020]. Log(totP) and log(Ca) have a Moran's I valye close to 0.5 as well. Howeger, Population, agriculture, bogs, shrubs, catchment area and water area in the catchment are not autocorrelated and are randomly diretributed.
 
@@ -301,6 +306,7 @@ car::scatterplotMatrix(select(waterchem_1995_full,c("log_toc","log_totp","log_so
 <!---
 ## Ordinary least square regression 
 ```{r OLS, fig.cap = "Regression coefficients for OLS", fig.dim = c(5,3), eval = F}
+
 ols_std <- lm(std_log_toc~std_log_totp+std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi,data = waterchem_1995_std)
 summary(ols_std)
 plot(ols_std)
@@ -366,6 +372,46 @@ Among the explanatory variables, only the ones least correlated were kept.
 The geographically weighted Pearson correlation coefficients of the selected explanatory variables with TOC are represented on Figure \@ref(fig:map-gwss)
 
 **note** considering doing a GW VIF analysis.
+```{r vif, eval = F}
+vif_waterchem <- gwr.collin.diagno(formula = std_log_toc~std_log_totp+std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi+std_log_shrubs+std_log_agriculture, data = waterchem_1995_spdf, bw = bw_std, adaptive = T)
+
+fmvif <- formula(paste("std_log_toc",paste(names(waterchem_1995_std)[-1],collapse = "+"),sep="~"))
+                    
+vif_waterchem2 <- gwr.collin.diagno(fmvif, data = waterchem_std_spdf, bw=bw_std,adaptive = T)
+
+saveRDS(vif_waterchem,"vif_waterchem.Rdata")
+
+readRDS("vif_waterchem.Rdata")
+
+local_vif <- vif_waterchem$VIF %>% as.data.frame() %>% setNames(c("std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi","std_log_shrubs","std_log_agriculture"))
+
+for(i in names(local_vif)){
+  f_plotspatial(waterchem_1995,var = local_vif[,i], plottitle = i)
+}
+
+vif_list <- c()
+
+for (i in names(local_vif)){
+  vif_list[[i]] <- f_plotspatial(waterchem_1995,local_vif[,i], plottitle = i)
+}
+     
+
+vif_list
+     [-which(names(corr_toc) %in% c("Latitude","Longitude"))]){
+ci <- ggplot(corr_toc, aes(x=Longitude,y=Latitude)) +   geom_point(aes_string(col = i),size=4)+
+    scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
+    borders(database = "world", regions = c("Norway","Sweden","Finland"), 
+    fill = NA, colour = "grey50",xlim=c(0,35),ylim=c(55,73)) + 
+    xlab("") + ylab("") +
+    theme_void(base_size = 30)
+c_list[[i]] <- ci
+}
+
+c_grobs <- lapply(c_list,ggplotGrob)
+
+grobc.plot <- arrangeGrob(grobs = c_grobs,ncol = 2)
+grid.draw(grobc.plot)
+```
 
 ```{r GWSS}
 
