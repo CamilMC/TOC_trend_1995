@@ -133,7 +133,7 @@ grid.draw(grobcv.plot)
 ```{r histograms-variables, fig.cap = "histograms", fig.dim = c(10,15)}
 binwidth_hist <- function(x){
   if(IQR(x, na.rm = T) < 2){ 
-    bw <- length(x)/10
+    bw <- length(x)/20
   # }else if (IQR(x, na.rm = T) < 10) {
   #   bw <- max(x)/10
   }else{
@@ -397,6 +397,8 @@ c_grobs <- lapply(c_list,ggplotGrob)
 
 grobc.plot <- arrangeGrob(grobs = c_grobs,ncol = 3)
 grid.draw(grobc.plot)
+
+gwss_table <- data.frame(sapply(gwss_pearson,max),sapply(gwss_pearson,min))
 ```
 #### CN
 
@@ -415,19 +417,8 @@ vif_waterchem <- readRDS("vif_waterchem.Rdata")
 
 ```
 
-```{r condition-number}
-local_cn <- vif_waterchem$local_CN %>% as.data.frame() %>% setNames("CN")
-
-
-cn_plot <- f_plotspatial(train_set,local_cn$CN, plottitle = "Local CN")
-
-plot(cn_plot)
-
-```
-
 #### Variance inflation factor
 **note** considering doing a GW VIF analysis.
-
 
 ```{r map-vif, fig.dim = c(8,16), fig.cap = 'vif'}
 local_vif <- vif_waterchem$VIF %>% as.data.frame() %>% setNames(names_vif)
@@ -447,8 +438,13 @@ grid.draw(grobc.plot)
 ```
 
 ```{r vif-table}
-vif_classement <- sapply(local_vif,max) %>% sort(decreasing = T)
-knitr::kable(vif_classement, caption = "Maximum vif value for predictor variables")
+vif_max_sorted <- sapply(local_vif,max) %>% sort(decreasing = T)
+vif_mean_sorted <- sapply(local_vif,mean) %>% sort(decreasing = T)
+vif_median_sorted <- sapply(local_vif,median) %>% sort(decreasing = T)
+
+vif_sorted <- data.frame(round(vif_max_sorted,2),round(vif_mean_sorted,2),round(vif_median_sorted,2)) %>% setNames(c("max","mean","median"))
+
+knitr::kable(vif_sorted, caption = "Summary of vif value for predictor variables")
 ```
 
 #### VDPs
@@ -466,20 +462,29 @@ vdp_grobs <- lapply(vdp_list,ggplotGrob)
 
 vdp.plot <- arrangeGrob(grobs = vdp_grobs,ncol = 2)
 grid.draw(vdp.plot)
-
 ```
+```{r vdp-table}
+vdp_max_sorted <- sapply(local_vdp,max) %>% sort(decreasing = T)
+vdp_mean_sorted <- sapply(local_vdp,mean) %>% sort(decreasing = T)
+vdp_median_sorted <- sapply(local_vdp,median) %>% sort(decreasing = T)
+
+vdp_sorted <- data.frame(round(vdp_max_sorted,2),round(vdp_mean_sorted,2),round(vdp_median_sorted,2)) %>% setNames(c("max","mean","median"))
+
+knitr::kable(vdp_sorted, caption = "Summary of vdp value for predictor variables")
+```
+
 ### Collinearity after selection of variables
 
 ```{r vif_selected}
-fmvif2 <- std_log_toc~std_log_water+std_log_agriculture+std_log_runoff+std_log_bogs+std_log_shrubs
+fmvif2 <- std_log_toc~std_log_totp+std_log_so4+std_log_shrubs+std_log_water+std_log_bogs+std_log_runoff+std_log_population+std_ndvi
 
 names_vif2 <- as.character(fmvif2)[3] %>% str_split(pattern =" \\+ ") %>% unlist()
 
-bw_vif2 <- bw.gwr(fmvif2,train_spdf[,-c(1:2)],kernel = "gaussian", adaptive =T)
+#bw_vif2 <- bw.gwr(fmvif2,train_spdf[,-c(1:2)],kernel = "gaussian", adaptive =T)
 
-vif_waterchem2 <- gwr.collin.diagno(formula = fmvif2, data = train_spdf, bw = bw_vif2, adaptive = T)
+#vif_waterchem2 <- gwr.collin.diagno(formula = fmvif2, data = train_spdf, bw = bw_vif2, adaptive = T)
 
-saveRDS(vif_waterchem2,"vif_waterchem2.Rdata")
+#saveRDS(vif_waterchem2,"vif_waterchem2.Rdata")
 
 vif_waterchem2 <- readRDS("vif_waterchem2.Rdata")
 ```
@@ -488,8 +493,56 @@ vif_waterchem2 <- readRDS("vif_waterchem2.Rdata")
 
 local_vif2 <- vif_waterchem2$VIF %>% as.data.frame() %>% setNames(names_vif2)
   
-lapply(local_vif2,f_plotspatial,data = train_set,plottitle = "",lim = c(min(local_vif2),max(local_vif2)),midpoint = 4)
+vif2_list <- lapply(local_vif2,f_plotspatial,data = train_set,plottitle = "",lim = c(min(local_vif2),max(local_vif2)),midpoint = 4)
+
+names(vif2_list) <- names_vif2
+
+for(i in names_vif2){
+  vif2_list[[i]] <- vif2_list[[i]]+ggtitle(i)
+}
+
+vif2_grobs <- lapply(vif2_list,ggplotGrob)
+
+grobc.plot2 <- arrangeGrob(grobs = vif2_grobs,ncol = 2)
+grid.draw(grobc.plot2)
 ```
+
+```{r table-vif2}
+vif2_mean_sorted <- sapply(local_vif2,mean) %>% sort(decreasing = T)
+vif2_median_sorted <- sapply(local_vif2,median) %>% sort(decreasing = T)
+vif2_max_sorted <- sapply(local_vif2,max) %>% sort(decreasing = T)
+
+vif2_sorted <- data.frame(round(vif2_max_sorted,2),round(vif2_mean_sorted,2),round(vif2_median_sorted,2)) %>% setNames(c("max","mean","median"))
+
+knitr::kable(vif2_sorted, caption = "Summary of vif value for selected predictor variables")
+```
+
+```{r map-vdp-selected}
+local_vdp2 <- vif_waterchem2$VDP %>% as.data.frame() %>% setNames(c("intercept",names_vif2))
+
+vdp2_list <- lapply(local_vdp2,f_plotspatial,data = train_set, plottitle = "", lim = c(min(local_vdp),max(local_vdp)),midpoint = 0.5)
+
+for(i in names(vdp2_list)){
+  vdp2_list[[i]] <- vdp2_list[[i]]+ggtitle(i)
+}
+
+vdp2_grobs <- lapply(vdp2_list,ggplotGrob)
+
+vdp.plot2 <- arrangeGrob(grobs = vdp2_grobs,ncol = 2)
+grid.draw(vdp.plot2)
+```
+
+```{r table-vdp-selectd}
+vdp2_median_sorted <- sapply(local_vdp2,median) %>% sort(decreasing = T)
+vdp2_max_sorted <- sapply(local_vdp2,max) %>% sort(decreasing = T)
+vdp2_mean_sorted <- sapply(local_vdp2,mean) %>% sort(decreasing = T)
+  
+vdp2_sorted <- data.frame(round(vdp2_max_sorted,2),round(vdp2_mean_sorted,2),round(vdp2_median_sorted,2)) %>% setNames(c("max","mean","median"))
+
+knitr::kable(vdp2_sorted, caption = "Summary of vdp value for selected predictor variables")
+```
+The VDP calculated with the selected variables are higher than the VDP calculated with all variables. But the mean VDP values are under 0.5 so the selected variables are kept for the analysis. 
+
 ### Stepwise selection of explanatory variables
 
 The stepwise variable selection offered by the GWR package is a forward process. The explanatory variables are introduced sequentially in the model in order to find, at each step, the TOC model that gives the lowest Akaike Information Criterion (AIC) [@Gollini2015]. **From this step, the parameters are standardized (std_log_).** The first variables included are the variables with the highest impact. The results are presented on Figure \@ref(fig:GWR-model-selection). The variables with most impact are ***log(TOTP), NDVI, log(runoff)*** and ***log(SO~4~)***.
@@ -609,7 +662,19 @@ p2 <- f_plotspatial(test_set, var = test_set$std_log_toc, plottitle = "std_log_t
 
 grid.arrange(p2,p1,ncol=2)
 ```
+#### Robust gwr
+@DeBellefon2018
+intercept = reference value
 
+test non stationarity of coefficients using monte carlo
+problem of collinearity when the average of the VIF is >2
+
+```{r robust-gwr, eval = F}
+gw.dist 
+bw.gwr
+gwr.robust with pre-calculated distance matrix
+
+```
 # Discussion
 The geographically weighted regression shows the importance of the different identified explanatory parameters in explaining the TOC concentration between lakes with different catchment characteristics. 
 
