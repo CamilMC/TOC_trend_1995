@@ -1,0 +1,229 @@
+---
+title: "Space-for-time approach on TOC trends in Fennoscandia"
+author: "Camille M. Crapart"
+date: "12 9 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F, error = F, fig.align = "center")
+```
+
+```{r libraries, message = F}
+library(readxl)
+library(GWmodel)
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+library(RColorBrewer)
+library(rstatix)
+library(spdep)
+library(tidyr)
+library(gridExtra)
+library(grid)
+library(factoextra)
+library(stringr)
+
+source("f_plotspatial.R")
+```
+
+
+## Distribution of variables
+
+Most variables have a skewed distribution. TOC, TOTP, TOTN, SO4,Ca, lake area, catchment area, agriculture, schrubs, bogs, woodland, slope, flow accumulation, population and runoff were right-skewed. On the contrary, NDVI was left-skewed. Some lakes had an extremely high proportion of schrubs and bogs: 
+
+
+To remedy to the non-normality of data distribution, all the right-skewed variables were log-transformed. In addition, they were scaled and centered to ease the comparison between the explanatory variables. 
+
+```{r load-data, fig.dim = c(2,2), fig.show='hold', results = F}
+dim_waterchem <- read_xlsx("waterchem_1995.xlsx") %>% dim()
+waterchem_1995 <- read_xlsx("waterchem_1995.xlsx",col_types = c("numeric","skip","skip","skip","text",rep("numeric",dim_waterchem[2]-6),"skip"),na = "NA")
+```
+
+```{r transforming-data}
+# transforming data
+waterchem_1995_log <- as.data.frame(waterchem_1995$lake_name2)
+waterchem_1995_log$log_toc <- log10(waterchem_1995$toc)
+waterchem_1995_log$log_totp <- log10(waterchem_1995$totp)
+waterchem_1995_log$log_totn <- log10(waterchem_1995$totn)
+waterchem_1995_log$log_so4 <- log10(waterchem_1995$so4)
+waterchem_1995_log$log_sdep <- log10(waterchem_1995$sdep)
+waterchem_1995_log$log_ca <- log10(waterchem_1995$ca)
+waterchem_1995_log$log_lake_area <- log10(waterchem_1995$lake_area_km2)
+waterchem_1995_log$log_catchm_area <- log10(waterchem_1995$catchment_area_km2)
+waterchem_1995_log$log_agriculture <- log10(waterchem_1995$agriculture + 0.001)
+waterchem_1995_log$log_shrubs <- log10(waterchem_1995$shrub + 0.001)
+waterchem_1995_log$log_bare <- log10(waterchem_1995$bare + 0.001)
+waterchem_1995_log$log_water <- log10(waterchem_1995$water + 0.001)
+#waterchem_1995_log$log_woodland <- log10(waterchem_1995$woodland + 0.001)
+waterchem_1995_log$log_bogs <- log10(waterchem_1995$bogs + 0.001)
+waterchem_1995_log$log_runoff <- log10(waterchem_1995$runoff + 0.001)
+waterchem_1995_log$log_flow <- log10(waterchem_1995$flow_accum + 0.001)
+waterchem_1995_log$log_population <- log10(waterchem_1995$population + 0.001)
+waterchem_1995_log$ndvi <- waterchem_1995$ndvi_summer_lag1yr
+waterchem_1995_log$temperature <- waterchem_1995$tempr
+
+# select numeric input variables, standarize, and merge back with main dataframe
+waterchem_1995_std <- waterchem_1995_log[,-1] %>% scale(center = T, scale = T)
+colnames(waterchem_1995_std) <- paste("std", colnames(waterchem_1995_std), sep = "_")  # rename columns of std. data
+waterchem_1995_std <- as.data.frame(waterchem_1995_std)
+waterchem_1995_full <- cbind(waterchem_1995, waterchem_1995_log[,-1], waterchem_1995_std)  # merge back with original data
+
+# training and testin sets
+train_set <- waterchem_1995_full %>% sample_frac(.75)
+test_set <- anti_join(waterchem_1995_full,train_set,by = "ebint")
+
+# spdf
+train_spdf <- SpatialPointsDataFrame(train_set[c("Longitude","Latitude")],train_set)
+test_spdf <- SpatialPointsDataFrame(test_set[c("Longitude","Latitude")],test_set)
+
+
+```
+
+## Spatial autocorrelation of data
+
+The spatial autocorrelation of each dependent and independant parameter was calculated using Moran's I index, with the "spdep" package  [@Bivand2009]. Moran'I is a measure of the spatial clusterisation of the studied variable, which can take a value between -1 and 1 [@Moran1950]. Randomly distributed values have a Moran's I close to 0 (below 1/(N-1) or above 1(N-1)). Moran's I and their respective p-value are represented on Figure \@ref(fig:spatial-autocorrelation). The test is realized on log-transformed values to respect the assumption of normality. All the Moran's I had a significant p-value (< 0.001). 
+
+```{r spatial-autocorrelation, fig.cap = "Moran's I coefficients for the independent variables"}
+
+k_neigh <- knearneigh(train_spdf,k = 100)
+k_neigh_nb <- knn2nb(k_neigh)
+k_neigh_w <- nb2listw(k_neigh_nb)
+moran_I_toc <- moran.test(train_set$toc,k_neigh_w)
+ 
+moran_df <- readRDS("moran_df.Rdata")
+
+moran_df <- moran_df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1"))
+
+moran_df$parameter <- factor(moran_df$parameter, levels = moran_df$parameter[order(moran_df$I)])
+
+
+g_moran <- ggplot(moran_df)+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 1/(dim(train_set)[1]-1))
+plot(g_moran)
+```
+
+Log(SO~4~), log(NDVI), log(runoff), log(TOC), log(TOTN)  have a Moran's I superior to 0.5, indicating a high level of spatial autocorrelation [@Koh2020].
+As a matter of fact, S deposition decreases from southwest to northeast, while NDVI and runoff increase with decreasing elevation. 
+
+Log(totP) and log(Ca) have a Moran's I value close to 0.5 as well. Howeger, Population, agriculture, bogs, shrubs, catchment area and water area in the catchment are not autocorrelated according to the Moran's I results.
+
+Autocorrelation must be taken into account in the statistical analysis. Therefore, the model used is a Geographically Weighted Regression instead of an ordinary least square regression. 
+
+## Geographically weigthed analysis
+Geographically weighted regression (GWR) is an adaptation of the ordinary least square regression, in which the analysis is performed within a "moving window" giving more weight to the closer points. This process highlight underlying processes in the data, which would be smoothened by a global regression. In this article we use an adaptive kernel. This means that the "moving window" is narrower in regions where the density of points is high and wider in regions where the density of points is low [@Fother].
+
+A model with the standardized log(TOC) and the standardised empirical explanatory variables was run using the GWR package. All the computations were realised with the "GWmodel" package on R [@Lu2021].
+
+To select variables in a GWR model, 5 steps are necessary [@Fotheringham2010]. 
+
+1. Select variables based on conceptual explanatory relevance;
+2. Check the collinearity of the variables, done here using the correlation matrix (or VIF?);
+3. Do a stepwise selection of variables. The GWRModel packages contains a function that does a forward selection: "gw.model.selection" [@Warsito2018].
+4. Check the significance of the spatial variation using a Monte-Carlo test.
+5. Finally, do the GWR calibration. 
+
+Step 1 and 2 are done with the log-transformed parameters (except for NDVI, which had a left-skewed distribution), and steps 3, 4 and 5 are done with standardized log-transformed parameters. 
+```{r gwr-fit-function}
+
+fit.gwr <- function(variables, spdf, df, name_model){
+
+fm <- paste(variables[1],"~",paste(variables[-1],collapse = "+"))
+
+bw.x <- bw.gwr(fm,data = spdf, adaptive = T, kernel = "gaussian")
+gwr.x <- gwr.basic(fm,data=spdf,bw=bw.x,kernel = "gaussian",adaptive = T)
+assign(name_model,gwr.x,env = .GlobalEnv)
+
+gwr.res <- gwr.x$SDF@data
+
+for(i in 1:length(variables[-1])){
+  map <<- f_plotspatial(data = df,var = gwr.res[,i+1],plottitle = variables[i+1])
+  plot(map)
+}
+
+  map.sres <- f_plotspatial(data = df,var = gwr.res[,"Stud_residual"],plottitle = "Studentized residuals")
+  map.r2 <- f_plotspatial(data = df,var = gwr.res[,"Local_R2"],plottitle = "Local R2")
+  plot(map.sres)
+  plot(map.r2)
+}
+
+```
+
+## 1. Selection of variables
+Method suggested by @Wheeler
+
+### Selection of variables with VIF
+The local variance inflation factor is calculated for each location in a model including all the variables. Then the variable which has the highest VIF is removed from the model. The condition number and the AIC is calculated for each model. 
+
+```{r var-sel, eval = F}
+source("vif_variable_selection.R")
+```
+
+```{r print-vif-selection-table}
+vif.selection.table <- readRDS("vif.selection.table.Rdata")
+knitr::kable(vif.selection.table[-1,],caption = "Selection table by removing the explanatory variable with the highest VIF")
+```
+
+```{r model-vif}
+vif.selected.variables <- readRDS("vif.selected.variables.Rdata")
+
+gwr.vif.plots <- fit.gwr(vif.selected.variables, train_spdf, train_set, name_model = "gwr.vif")
+```
+
+### Selection of variables with VDP
+```{r var-sel-vdp, eval = F}
+source("vdp_variable_selection.R")
+```
+```{r print-vdp-selection-table}
+vdp.selection.table <- readRDS("vdp.selection.table.Rdata")
+knitr::kable(vdp.selection.table[-1,],caption = "Selection table by removing the explanatory variable with the highest VDP")
+```
+
+```{r model-vdp}
+vdp.selected.variables <- readRDS("vdp.selected.variables.Rdata")
+gwr.vdp.plots <- fit.gwr(vdp.selected.variables,train_spdf,train_set,name_model = "gwr.vdp")
+```
+
+```{r comparison-local-global-gwr}
+global.pred.vif <- predict(gwr.vif$lm,newdata = test_set)
+global.pred.vdp <- predict(gwr.vdp$lm,newdata = test_set)
+
+vif.pred <- gwr.predict(formula = gwr.vif$GW.arguments$formula,data = train_spdf,predictdata = test_spdf,bw = gwr.vif$GW.arguments$bw, kernel = "gaussian", adaptive = T)
+
+vdp.pred <- gwr.predict(formula = gwr.vdp$GW.arguments$formula,data = train_spdf,predictdata = test_spdf,bw = gwr.vdp$GW.arguments$bw, kernel = "gaussian", adaptive = T)
+
+predictions.df <- data.frame(original = test_set$std_log_toc, global.pred.vif = global.pred.vif, vif.pred = vif.pred$SDF$prediction,global.pred.vdp = global.pred.vdp, vdp.pred = vdp.pred$SDF$prediction)
+
+ggplot(predictions.df,aes(x=original))+geom_point(aes(y=global.pred.vif,col="linear model"))+
+  geom_point(aes(y=vif.pred,col="GWR"))+
+  geom_abline(slope=1,intercept = 0)+
+  annotate("label",x=1,y = -3,label = paste("AIC for linear model = ",round(AIC(gwr.vif$lm),2)))+
+  annotate("label",x=1,y=-2.5,label=paste("AIC for GWR model = ",round(gwr.vif$GW.diagnostic$AICc,2)))+
+  labs(x="Original TOC concentration (log standardized)",y= "Predicted TOC concentration",title = "Model predictions for variables selected by VIF: bogs and runoff")+
+  theme_light()+
+  scale_colour_viridis_d(end = 0.8)
+
+ggplot(predictions.df,aes(x=original))+geom_point(aes(y=global.pred.vdp,col="linear model"))+
+  geom_point(aes(y=vdp.pred,col="GWR"))+
+  geom_abline(slope=1,intercept = 0)+
+  annotate("label",x=1,y = -3,label = paste("AIC for linear model = ",round(AIC(gwr.vdp$lm),2)))+
+  annotate("label",x=1,y=-2.5,label=paste("AIC for GWR model = ",round(gwr.vdp$GW.diagnostic$AICc,2)))+
+  labs(x="Original TOC concentration (log standardized)",y= "Predicted TOC concentration",title = "Model predictions for variables selected by VDP: schrubs and water")+
+  theme_light()+
+  scale_colour_viridis_d(end = 0.8)
+```
+```{r simple-model-ndvi-runoff}
+gwr.simple.plots <- fit.gwr(c("std_log_toc","std_ndvi","std_log_runoff"),train_spdf,train_set, name_model = "gwr.simple")
+global.pred <- predict(gwr.simple$lm,newdata = test_set)
+gwr.pred <- gwr.predict(gwr.simple$GW.arguments$formula,data = train_spdf,predictdata = test_spdf,bw = gwr.simple$GW.arguments$bw, kernel = "gaussian", adaptive = T)
+
+simple.pred.df <- data.frame(original = test_set$std_log_toc,global = global.pred,local = gwr.pred$SDF$prediction)
+
+ggplot(simple.pred.df,aes(x=original))+geom_point(aes(y=global,col="linear model"))+
+  geom_point(aes(y=local,col="GWR"))+
+  geom_abline(slope=1,intercept = 0)+
+  annotate("label",x=1,y = -3,label = paste("AIC for linear model = ",round(AIC(gwr.simple$lm),2)))+
+  annotate("label",x=1,y=-2.5,label=paste("AIC for GWR model = ",round(gwr.simple$GW.diagnostic$AICc,2)))+
+  labs(x="Original TOC concentration (log standardized)",y= "Predicted TOC concentration",title = "Model predictions for model with NDVI and runoff")+
+  theme_light()+
+  scale_colour_viridis_d(end = 0.8)
+```
