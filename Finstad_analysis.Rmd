@@ -236,7 +236,7 @@ test_spdf <- SpatialPointsDataFrame(test_set[c("Longitude","Latitude")],test_set
 
 ## Spatial autocorrelation of data
 
-The spatial autocorrelation of each dependent and independant parameter was calculated using Moran's I index, with the "spdep" package  [@Bivand2009]. Moran'I is a measure of the spatial clusterisation of the studied variable, which can take a value between -1 and 1. Randomly distributed values have a Moran's I close to 0. Moran's I and their respective p-value are represented on Figure \@ref(fig:spatial-autocorrelation). The test is realized on log-transformed values to respect the assumption of normality. All the Moran's I had a significant p-value (< 0.001). 
+The spatial autocorrelation of each dependent and independant parameter was calculated using Moran's I index, with the "spdep" package  [@Bivand2009]. Moran'I is a measure of the spatial clusterisation of the studied variable, which can take a value between -1 and 1 [@Moran1950]. Randomly distributed values have a Moran's I close to 0 (below 1/(N-1) or above 1(N-1)). Moran's I and their respective p-value are represented on Figure \@ref(fig:spatial-autocorrelation). The test is realized on log-transformed values to respect the assumption of normality. All the Moran's I had a significant p-value (< 0.001). 
 
 ```{r spatial-autocorrelation, fig.cap = "Moran's I coefficients for the independent variables"}
 
@@ -268,7 +268,7 @@ moran_df <- moran_df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05
 moran_df$parameter <- factor(moran_df$parameter, levels = moran_df$parameter[order(moran_df$I)])
 
 
-g_moran <- ggplot(moran_df)+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 0.5)
+g_moran <- ggplot(moran_df)+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 1/(dim(train_set)[1]-1))
 plot(g_moran)
 ```
 Log(SO~4~), log(NDVI), log(runoff), log(TOC), log(TOTN)  have a Moran's I superior to 0.5, indicating a high level of spatial autocorrelation [@Koh2020].
@@ -373,7 +373,7 @@ grobc.plot <- arrangeGrob(grobs = c_grobs,ncol = 3)
 grid.draw(grobc.plot)
 ```
 
-```{r all-map-gwss, fig.cap = "Maps of Pearson correlation coefficients", fig.dim = c(50,250)}
+```{r all-map-gwss, fig.cap = "Maps of Pearson correlation coefficients", fig.dim = c(50,250),eval = F}
 
 gwss_pearson <- train_set_gwss[,grep("Corr_",names(train_set_gwss))]
 
@@ -401,24 +401,34 @@ grid.draw(grobc.plot)
 gwss_table <- data.frame(sapply(gwss_pearson,max),sapply(gwss_pearson,min))
 ```
 #### CN
+Large condition number indicates high collinearity between the columns of a given matrix @Wheeler2007. A condition number higher then 30 is considered as a threshold for collinerity. In the model with all variables, all local CN are much greater than 30. 
 
-```{r local-collinearity, eval = T}
+Use gaussian kernel @Warsito2018
+
+```{r local-collinearity-formula, eval = T}
 fmvif <- std_log_toc~std_log_totp+std_log_totn+std_log_so4+std_log_sdep+std_log_ca+std_log_lake_area+std_log_catchm_area+std_log_agriculture+std_log_shrubs+std_log_bare+std_log_water+std_log_bogs+std_log_runoff+std_log_population+std_ndvi
 
 names_vif <- as.character(fmvif)[3] %>% str_split(pattern =" \\+ ") %>% unlist()
+```
 
-#bw_vif <- bw.gwr(fmvif,train_spdf[,-c(1:2)],kernel = "gaussian", adaptive =T)
+```{r local-collinerarity, eval = F}
 
-#vif_waterchem <- gwr.collin.diagno(formula = fmvif, data = train_spdf, bw = bw_vif, adaptive = T)
+bw_vif <- bw.gwr(fmvif,train_spdf[,-c(1:2)],kernel = "gaussian", adaptive =T)
 
-#saveRDS(vif_waterchem,"vif_waterchem.Rdata")
+vif_waterchem <- gwr.collin.diagno(formula = fmvif, data = train_spdf, bw = bw_vif, kernel = "gaussian", adaptive = T)
 
-vif_waterchem <- readRDS("vif_waterchem.Rdata")
+saveRDS(vif_waterchem,"vif_waterchem.Rdata")
 
 ```
 
+```{r condition-number, eval = T}
+vif_waterchem <- readRDS("vif_waterchem.Rdata")
+local_cn <- vif_waterchem$local_CN %>% as.data.frame() %>% setNames("CN")
+cn_plot <- f_plotspatial(train_set,local_cn$CN,plottitle = "Local CN", midpoint = 30, lim = c(0,max(local_cn)))
+plot(cn_plot)
+```
 #### Variance inflation factor
-**note** considering doing a GW VIF analysis.
+
 
 ```{r map-vif, fig.dim = c(8,16), fig.cap = 'vif'}
 local_vif <- vif_waterchem$VIF %>% as.data.frame() %>% setNames(names_vif)
@@ -442,7 +452,7 @@ vif_max_sorted <- sapply(local_vif,max) %>% sort(decreasing = T)
 vif_mean_sorted <- sapply(local_vif,mean) %>% sort(decreasing = T)
 vif_median_sorted <- sapply(local_vif,median) %>% sort(decreasing = T)
 
-vif_sorted <- data.frame(round(vif_max_sorted,2),round(vif_mean_sorted,2),round(vif_median_sorted,2)) %>% setNames(c("max","mean","median"))
+vif_sorted <- data.frame(round(vif_max_sorted,2),round(vif_mean_sorted,2),round(vif_median_sorted,2)) %>% setNames(c("max","mean","median")) # are variables disordered?
 
 knitr::kable(vif_sorted, caption = "Summary of vif value for predictor variables")
 ```
@@ -480,15 +490,19 @@ fmvif2 <- std_log_toc~std_log_totp+std_log_so4+std_log_shrubs+std_log_water+std_
 
 names_vif2 <- as.character(fmvif2)[3] %>% str_split(pattern =" \\+ ") %>% unlist()
 
-#bw_vif2 <- bw.gwr(fmvif2,train_spdf[,-c(1:2)],kernel = "gaussian", adaptive =T)
+bw_vif2 <- bw.gwr(fmvif2,train_spdf[,-c(1:2)],kernel = "gaussian", adaptive =T)
 
-#vif_waterchem2 <- gwr.collin.diagno(formula = fmvif2, data = train_spdf, bw = bw_vif2, adaptive = T)
+vif_waterchem2 <- gwr.collin.diagno(formula = fmvif2, data = train_spdf, bw = bw_vif2, kernel = "gaussian", adaptive = T)
 
-#saveRDS(vif_waterchem2,"vif_waterchem2.Rdata")
+saveRDS(vif_waterchem2,"vif_waterchem2.Rdata")
 
 vif_waterchem2 <- readRDS("vif_waterchem2.Rdata")
 ```
-
+```{r condition-number2, eval = F}
+local_cn2 <- vif_waterchem2$local_CN %>% as.data.frame() %>% setNames("CN")
+cn_plot2 <- f_plotspatial(train_set,local_cn2$CN,plottitle = "Local CN", midpoint = 30, lim = c(0,max(local_cn2)))
+plot(cn_plot2)
+```
 ```{r map-vif2}
 
 local_vif2 <- vif_waterchem2$VIF %>% as.data.frame() %>% setNames(names_vif2)
@@ -549,19 +563,17 @@ The stepwise variable selection offered by the GWR package is a forward process.
 
 *Where to set the limit for variables with most impact?*
 
-```{r GWR-model-selection, fig.cap = "Model selection for GWR", results = "hide", eval = F}
-#waterchem_std_spdf <- SpatialPointsDataFrame(waterchem_1995_full[c("Longitude","Latitude")],waterchem_1995_std)
+```{r GWR-model-selection, fig.cap = "Model selection for GWR", results = "hide", eval = T}
 
-bw.gwr.selection <- bw.gwr(std_log_toc~std_log_totp + std_log_so4+std_log_catchm_area+std_log_bogs+std_log_runoff+std_ndvi+ std_log_shrubs+std_log_agriculture, data = train_spdf, adaptive = T)
+bw.gwr.selection <- bw.gwr(fmvif2, data = train_spdf, adaptive = T,kernel = "gaussian")
 
-waterchem_gwr_selection <- gwr.model.selection(DeVar = "std_log_toc", InDeVars = c("std_log_totp","std_log_sdep","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi","std_log_shrubs","std_log_agriculture"),data = train_spdf, bw = bw.gwr.selection, adaptive = T)
+waterchem_gwr_selection <- gwr.model.selection(DeVar = "std_log_toc", InDeVars = c("std_log_totp","std_log_so4","std_log_shrubs","std_log_water","std_log_bogs","std_log_runoff","std_log_population","std_ndvi"),data = train_spdf, bw = bw.gwr.selection, adaptive = T,kernel = "gaussian")
 
-gwr.model.view("std_log_toc",c("std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi","std_log_shrubs","std_log_agriculture"),waterchem_gwr_selection[[1]])
+gwr.model.view("std_log_toc",c("std_log_totp","std_log_so4","std_log_shrubs","std_log_water","std_log_bogs","std_log_runoff","std_log_population","std_ndvi"),waterchem_gwr_selection[[1]])
 
 waterchem_gwr_sort <- gwr.model.sort(waterchem_gwr_selection, numVars = 11, ruler.vector = c(1:11))
 
 ```
-
 
 ### Monte Carlo simulation
 The Monte Carlo simulation is a randomisation test used to check the significance of the GWR TOC model coefficients. [@Lu2021]. It consists in the following steps: 
@@ -576,12 +588,13 @@ If the the true GWR coefficients lie in the 2.5% upper or bottom tail of the ran
 The results of the simulation are presented in Table \@ref(tab:montecarlo-results).
 .
 ```{r monte-carlo, eval = F}
-waterchem_montecarlo <- gwr.montecarlo(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi,data = waterchem_std_spdf,adaptive = T, bw = bw_std)
-saveRDS(waterchem_montecarlo,file = "waterchem_gwr_montecarlo.Rdata")
+bw.montecarlo <- bw.gwr(std_log_toc~std_log_totp + std_ndvi + std_log_runoff + std_log_so4, train_spdf,adaptive = T, kernel = "gaussian")
+train_montecarlo <- gwr.montecarlo(std_log_toc~std_log_totp + std_ndvi + std_log_runoff + std_log_so4,data = train_spdf,adaptive = T,kernel = "gaussian", bw = bw_std)
+saveRDS(train_montecarlo,file = "train_gwr_montecarlo.Rdata")
 ```
-```{r montecarlo-results, results = "asis", eval = F}
-waterchem_montecarlo_load <- readRDS("waterchem_gwr_montecarlo.Rdata", )
-knitr::kable(waterchem_montecarlo_load, caption = "Monte-Carlo significance test results")
+```{r montecarlo-results, results = "asis", eval = T}
+train_montecarlo_load <- readRDS("train_gwr_montecarlo.Rdata", )
+knitr::kable(train_montecarlo_load, caption = "Monte-Carlo significance test results")
 ```
 
 All the selected parameters have a coefficient with a p-value $\leq$ 0.05 and are considered as significant. 
@@ -596,15 +609,16 @@ The residuals are higher for the lakes on the West coast of Norway. This is due 
 ```{r GWR, results = 'hide', eval = F}
 
 #gw.pcplot(data=waterchem_1995_spdf,vars= names(waterchem_1995),focus = 1, bw = 100, adaptive = T)
+coord_mat <- train_set[,c("Longitude","Latitude")] %>% as.matrix()
 
+dist_mat <- gw.dist(coord_mat,coord_mat)
 # selects bandwidth
 
-bw_std <- bw.gwr(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi+std_log_shrubs + std_log_agriculture,data = train_spdf,adaptive = T)
+bw_std <- bw.gwr(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi+std_log_shrubs + std_log_agriculture,data = train_spdf,adaptive = T,dMat = dist_mat)
 saveRDS(bw_std,"bw_std.Rdata")
 
 # computes bwr
-gwr_std <- gwr.basic(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi,data = train_spdf, regression.points = train_spdf, bw = bw_std, adaptive = T)
-
+gwr_std <- gwr.robust(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi+std_log_shrubs + std_log_agriculture,data = train_spdf, dMat = dist_mat, bw = bw_std, adaptive = T)
 
 saveRDS(gwr_std,"gwr_std.Rdata")
 #gwr_cv <- gwr.model.selection(DeVar = "std_log_toc", InDeVars = c("std_log_totp","std_log_so4","std_log_catchm_area","std_log_bogs","std_log_runoff","std_ndvi"), data = waterchem_std_spdf, bw = bw_std, adaptive = T, kernel="gaussian",approach="aic")
@@ -615,12 +629,10 @@ gwr_std <- readRDS("gwr_std.Rdata")
 train_std_gwr <- gwr_std$SDF@data
 model_gwr <- data.frame(gwr_std$lm$residuals, gwr_std$lm$fitted.values, gwr_std$lm$effects) %>% setNames(c("residuals","fitted.values","effects"))
 ```
-
 ```{r explore-gwr, eval = F}
 ggplot(model_gwr)+geom_point(aes(x=fitted.values,y=residuals))+theme_light()
 boxplot(waterchem_1995_std$std_log_toc)
 ```
-
 ```{r map-coef-gwr, fig.cap = "Map of GWR coefficients", fig.dim = c(40,40), eval = F}
 
 train_std_gwr$Longitude <- train_set$Longitude
@@ -643,25 +655,108 @@ coef_grobs <- lapply(coef_list,ggplotGrob)
 grobcf.plot <- arrangeGrob(grobs = coef_grobs,ncol = 2)
 grid.draw(grobcf.plot)
 ```
-
-
 ```{r map-residuals-GWR, fig.cap= "Map of residuals for GWR TOC model", fig.dim = c(5,4), eval = T}
 f_plotspatial(train_set, var = model_gwr$residuals, plottitle = "")
 moran_gwr_res <- moran.test(model_gwr$residuals,k_neigh_w)
 ```
-However, the Moran's I of the residuals is **`r round(moran_gwr_res$estimate[1],2)`** and its p-value is **`r moran_gwr_res$p.value`**. This shows that the residuals are not autocorrelated and are randomly distributed. 
-
+However, the Moran's I of the residuals is **`r round(moran_gwr_res$estimate[1],2)`** and its p-value is **`r moran_gwr_res$p.value`**. The value is close to zero, showing that the residuals are not autocorrelated and are randomly distributed. 
 _**note** plot local r-square_
-
 ```{r model-performance, fig.cap = "Map of original TOC concentrations (on the left) and map of  fitted TOC concentration  (on the right) (log transformed and standardised)", fig.dim = c(20,10), eval = F}
 
-predict_test <- gwr.predict(std_log_toc~std_log_totp + std_log_sdep+std_log_runoff+std_ndvi,train_spdf,test_spdf,bw = bw_std)
+predict_test <- gwr.predict(std_log_toc~std_log_totp + std_log_so4+std_log_runoff+std_ndvi+std_log_shrubs + std_log_agriculture,test_spdf,bw = bw_std)
 
 p1 <- f_plotspatial(test_set, var = predict_test$SDF$prediction, plottitle = "std_toc predicted")
 p2 <- f_plotspatial(test_set, var = test_set$std_log_toc, plottitle = "std_log_toc observed")
 
 grid.arrange(p2,p1,ncol=2)
 ```
+
+### Alternative variable selection with VIF 
+Method suggested by @Wheeler
+
+```{r var-sel, eval = F}
+source("variable_selection.R")
+```
+
+
+```{r model-vif}
+vif.selected.variables <- readRDS("vif.selected.variables.Rdata")
+fm1 <- paste(vif.selected.variables[1],"~",paste(vif.selected.variables[-1],collapse="+")) %>% as.formula(env = parent.frame())
+bw1.gwr <- bw.gwr(fm1,data = train_spdf, adaptive = T, kernel = "gaussian")
+gwr1 <- gwr.basic(fm1,data=train_spdf,bw=bw1.gwr,kernel = "gaussian",adaptive = T)
+
+gwr1.res <- gwr1$SDF@data
+f_plotspatial(train_set,gwr1.res$std_log_bogs, plottitle = "bogs")
+f_plotspatial(train_set,gwr1.res$std_log_runoff, plottitle = "runoff")
+f_plotspatial(train_set,gwr1.res$Local_R2,plottitle = "R2")
+f_plotspatial(train_set,gwr1.res$Stud_residual,plottitle = "Residuals")
+
+AIC(gwr1$lm)
+gwr1$GW.diagnostic$AICc
+
+```
+The selected variables are `r vif.selected.variables`.
+
+# Alternative varibale selection with VDP
+Same method, but removing the variable with the highest VDP. 
+
+```{r var-sel-vdp, eval = F}
+source("vdp_variable_selection.R")
+```
+
+
+```{r model-vdp}
+
+vdp.selected.variables <- readRDS("vdp.selected.variables.Rdata")
+fm2 <- paste(vdp.selected.variables[1],"~",paste(vdp.selected.variables[-1],collapse="+")) %>% as.formula(env = parent.frame())
+bw2.gwr <- bw.gwr(fm2,data = train_spdf, adaptive = T, kernel = "gaussian")
+gwr2 <- gwr.basic(fm2,data=train_spdf,bw=bw2.gwr,kernel = "gaussian",adaptive = T)
+
+gwr2.res <- gwr2$SDF@data
+f_plotspatial(train_set,gwr2.res$std_log_shrubs, plottitle = "shrubs")
+f_plotspatial(train_set,gwr2.res$std_log_water, plottitle = "water")
+f_plotspatial(train_set,gwr2.res$Local_R2,plottitle = "R2")
+f_plotspatial(train_set,gwr2.res$Stud_residual,plottitle = "Residuals")
+
+```
+
+The selected variables are `r vdp.selected.variables`. 
+
+
+### Individual fits
+
+```{r fit-function}
+
+
+fit.gwr <- function(variables, spdf, df){
+
+fm <- paste(variables[1],"~",paste(variables[-1],collapse = "+"))
+
+bw.x <- bw.gwr(fm,data = spdf, adaptive = T, kernel = "gaussian")
+gwr.x <- gwr.basic(fm,data=spdf,bw=bw.x,kernel = "gaussian",adaptive = T)
+
+gwr.res <- gwr.x$SDF@data
+
+for(i in 1:length(variables[-1])){
+  map <<- f_plotspatial(data = df,var = gwr.res[,i+1],plottitle = variables[i+1])
+  plot(map)
+}
+
+  map.sres <- f_plotspatial(data = df,var = gwr.res[,"Stud_residual"],plottitle = "Studentized residuals")
+  map.r2 <- f_plotspatial(data = df,var = gwr.res[,"Local_R2"],plottitle = "Local R2")
+  plot(map.sres)
+  plot(map.r2)
+}
+
+fit.gwr(c("std_log_toc","std_ndvi"),train_spdf,train_set)
+fit.gwr(c("std_log_toc","std_log_runoff"), train_spdf,train_set)
+fit.gwr(c("std_log_toc","std_log_so4"), train_spdf,train_set)
+fit.gwr(c("std_log_toc","std_log_population"), train_spdf,train_set)
+
+```
+
+´r knitr::knitr_exit()'
+
 #### Robust gwr
 @DeBellefon2018
 intercept = reference value
