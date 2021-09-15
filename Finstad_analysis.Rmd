@@ -592,6 +592,7 @@ bw.montecarlo <- bw.gwr(std_log_toc~std_log_totp + std_ndvi + std_log_runoff + s
 train_montecarlo <- gwr.montecarlo(std_log_toc~std_log_totp + std_ndvi + std_log_runoff + std_log_so4,data = train_spdf,adaptive = T,kernel = "gaussian", bw = bw_std)
 saveRDS(train_montecarlo,file = "train_gwr_montecarlo.Rdata")
 ```
+
 ```{r montecarlo-results, results = "asis", eval = T}
 train_montecarlo_load <- readRDS("train_gwr_montecarlo.Rdata", )
 knitr::kable(train_montecarlo_load, caption = "Monte-Carlo significance test results")
