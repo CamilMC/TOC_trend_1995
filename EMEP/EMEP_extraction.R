@@ -55,3 +55,7 @@ for (x in 1:site_n){
 }
 
 df_sox <- data.frame(site_name = site_name, site_lat = site_lat, site_long = site_long, tsox = tsox)
+saveRDS(df_sox, file = "df_sox.rds")
+
+no_test <- readRDS("Fennoscandia_NTNU/GADM_2.8_NOR_adm0.rds")
+se_test <- readRDS("Fennoscandia_NTNU/GADM_2.8_SWE_adm0.rds")
