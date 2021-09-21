@@ -1,0 +1,178 @@
+---
+title: "Space-for-time modelling of TOC concentration trends in Fennoscandia"
+author: "Camille M. Crapart"
+date: "20 9 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F, error = F, fig.align = "center")
+```
+
+```{r libraries, message = F}
+library(readxl)
+library(GWmodel)
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+library(RColorBrewer)
+library(rstatix)
+library(spdep)
+library(tidyr)
+library(gridExtra)
+library(grid)
+library(factoextra)
+library(stringr)
+
+source("f_plotspatial.R")
+```
+
+```{r load-data, fig.dim = c(2,2), fig.show='hold', results = F}
+dim_waterchem <- read_xlsx("waterchem_1995.xlsx") %>% dim()
+waterchem_1995 <- read_xlsx("waterchem_1995.xlsx",col_types = c("numeric","skip","skip","skip","text",rep("numeric",dim_waterchem[2]-6),"skip"),na = "NA")
+id <- waterchem_1995$ebint
+Longitude <- waterchem_1995$Longitude
+Latitude <- waterchem_1995$Latitude
+
+uneven <- seq(1,50,2)
+even <- seq(2,50,2)
+```
+
+```{r altitude}
+library(raster)
+alt.nor <- getData("alt",country = "NOR", mask = T)
+alt.swe <- getData("alt",country = "SWE", mask = T)
+alt.fin <- getData("alt",country = "FIN", mask = T)
+
+alt.list <- list(alt.nor,alt.swe,alt.fin)
+alt <- do.call(raster::merge,alt.list)
+
+alt.fennoscandia <- extract(alt,waterchem_1995[,c("Longitude","Latitude")])
+```
+
+# Explanatory variables
+
+The choosen variables are variables that need no sampling and can be obtained remotely: 
+
+* NDVI (Copernicus)
+* Proportion of bogs and shrub (land cover data)
+* Slope, runoff and temp (modelling)
+
+```{r remote-dataset}
+remote.variables <- c("ndvi_summer_lag1yr","slope","runoff","tempr")
+remote.set <- waterchem_1995 %>% dplyr::select(c("toc",remote.variables)) %>% cbind(alt.fennoscandia)
+
+```
+
+## Histogram of variables
+```{r hist, results = F}
+
+h_list <- c()
+
+for (i in names(remote.set)){
+  hi <- ggplot(data = remote.set,aes_string(i))+geom_histogram(stat = "bin",na.rm = T,binwidth = function(x) 2*IQR(x, na.rm = T)/(length(x)^(1/3)))+labs(y="",title = i)+theme_light()
+  h_list[[i]] <- hi
+}
+
+h_list
+```
+## Data preparation
+
+To remedy to the skewed distribution of the explanatory variables, a log transformation is applied to toc, bogs, shrub, slope, runoff and altitude. The distribution of NDVI was skewed to the left, so no transformation is applied. The temperature was more normally distributed so no transformatino is applied either. 
+
+All variables were scaled in order to be able to compare the effect sizes. 
+
+THe working dataset is then separated into a training set (with 75% of the observations) and a test set (with 25% of the observation), randomly selected. 
+
+
+```{r working-dataset}
+non.log <- c("ndvi_summer_lag1yr","tempr")
+working.set <- remote.set %>% dplyr::select(!all_of(non.log)) %>% +0.001 %>% sapply(log10) %>% cbind(dplyr::select(remote.set,non.log)) %>% scale() %>% as.data.frame() %>% cbind(id, Longitude, Latitude) 
+
+working.set <- working.set[-which(complete.cases(working.set) == F),]
+train.set <- working.set %>% sample_frac(.75)
+test.set <- working.set %>% anti_join(train.set, by = "id")
+
+working.spdf <- SpatialPointsDataFrame(working.set[c("Longitude","Latitude")], working.set)
+train.spdf <- SpatialPointsDataFrame(train.set[c("Longitude","Latitude")],train.set)
+test.spdf <- SpatialPointsDataFrame(test.set[c("Longitude","Latitude")],test.set)
+
+k.neigh.working <- knearneigh(working.spdf, k = 100)
+k.neigh.nb.working <- knn2nb(k.neigh.working)
+k.neigh.w.working <- nb2listw(k.neigh.nb.working)
+
+k.neigh.train <- knearneigh(train.spdf, k = 100)
+k.neigh.nb.train <- knn2nb(k.neigh.train)
+k.neigh.w.train <- nb2listw(k.neigh.nb.train)
+
+k.neigh.test <- knearneigh(test.spdf, k = 100)
+k.neigh.nb.test <- knn2nb(k.neigh.test)
+k.neigh.w.test <- nb2listw(k.neigh.nb.test)
+
+fm <- paste("toc","~",paste(names(remote.set[-1]),collapse = "+")) %>% as.formula()
+```
+```{r maps-train-set}
+
+map.list <- c()
+for(i in 1: length(remote.variables)){
+  map <<- f_plotspatial(train.set,train.set[,remote.variables[i]],plottitle = remote.variables[i])
+  map.list[[even[i]]] <- map
+}
+
+```
+
+# Ordinary least square regression
+```{r ols}
+lm.remote <- lm(fm, data = train.set)
+summary(lm.remote)
+lm.r2 <- summary(lm.remote)$adj.r.squared
+moran.I.res.lm <- lm.morantest(lm.remote, k.neigh.w.train, alternative = "two.sided")
+
+
+f_plotspatial(data = train.set, var = lm.remote$residuals,plottitle = "LM residuals")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(lm.r2,2)))+annotate("label",x=8,y=68,label = paste("Moran's I = ", round(moran.I.res.lm$estimate[1],3)))+annotate("label",x=8,y=67, label = paste("AIC = ", AIC(lm.remote)))
+
+lm.coef <- lm.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
+ggplot(lm.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+
+```
+
+# GWR 
+```{r GWR-remote}
+
+bw.remote <- bw.gwr(fm, data = train.spdf, kernel = "gaussian", adaptive = T)
+model.selection.remote <- gwr.model.selection(DeVar = "toc", InDeVars = names(remote.set)[-1], data = train.spdf,bw = bw.remote, kernel = "gaussian", adaptive = T)
+gwr.model.view(DeVar = "toc", InDeVars = names(remote.set)[-1], model.selection.remote[[1]])
+gwr.remote <- gwr.basic(fm, data = train.spdf, bw = bw.remote, kernel = "gaussian", adaptive = T)
+
+f_plotspatial(train.set,gwr.remote$SDF$Local_R2,plottitle = "Local R2")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(mean(gwr.remote$SDF$Local_R2),2)))+annotate("label", x = 8, y = 68, label = paste("AIC = ", gwr.remote$GW.diagnostic$AICc))
+
+
+moran.I.res.gwr <- moran.test(gwr.remote$SDF$residual, k.neigh.w.train)
+f_plotspatial(train.set, var=gwr.remote$SDF$Stud_residual,plottitle = "GWR residuals")+annotate("label",x = 8, y = 69, label = paste("Moran's I  =", round(moran.I.res.gwr$estimate[1],2)))
+```
+
+```{r map-coef, fig.dim=c(20,20)}
+for(i in 1:length(remote.variables)){
+  map <<- f_plotspatial(train.set,gwr.remote$SDF@data[,remote.variables[i]],plottitle = paste("coef",remote.variables[i]))
+  map.list[[uneven[i]]] <- map
+}
+
+cowplot::plot_grid(plotlist = map.list,ncol=2)
+```
+
+# Spatially lagged model
+
+```{r spatially-lagged-model}
+library(spatialreg)
+lm.LMtests(lm.remote,k.neigh.w.train,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+
+#RLMerr is the most significant
+sem.remote <- errorsarlm(fm,train.set,k.neigh.w.train)
+sem.coef <- sem.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
+ggplot(sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+f_plotspatial(data = train.set, var = sem.remote$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", sem.remote$AIC))
+
+
+```

@@ -7,7 +7,7 @@ f_plotspatial <- function(data,var,plottitle,lim = c(min(var),max(var)),midpoint
     aes(Longitude,Latitude,var) + 
     geom_point(aes(colour=var)) + 
     ggtitle(plottitle) 
-  pop + 
+  pop <- pop + 
     theme(axis.line = element_line(colour = "black"),
           legend.title=element_blank(),
           panel.background=element_blank(), 
@@ -19,4 +19,5 @@ f_plotspatial <- function(data,var,plottitle,lim = c(min(var),max(var)),midpoint
             fill = NA, colour = "grey50",xlim=c(0,35),ylim=c(55,73)) + 
     xlab("") + ylab("") +
     theme_void()
+  return(pop)
 }

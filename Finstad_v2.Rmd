@@ -117,6 +117,7 @@ waterchem_1995_log$log_water <- log10(waterchem_1995$water + 0.001)
 #waterchem_1995_log$log_woodland <- log10(waterchem_1995$woodland + 0.001)
 waterchem_1995_log$log_bogs <- log10(waterchem_1995$bogs + 0.001)
 waterchem_1995_log$log_runoff <- log10(waterchem_1995$runoff + 0.001)
+waterchem_1995_log$log_slope <- log10(waterchem_1995$slope + 0.001)
 waterchem_1995_log$log_flow <- log10(waterchem_1995$flow_accum + 0.001)
 waterchem_1995_log$log_population <- log10(waterchem_1995$population + 0.001)
 waterchem_1995_log$ndvi <- waterchem_1995$ndvi_summer_lag1yr
@@ -351,7 +352,85 @@ ggplot(prediction.df.2,aes(x=original))+geom_point(aes(y=global,col="linear mode
   theme_light()+
   scale_colour_viridis_d(end = 0.8)
 ```
-```{r test}
 
+### Model with remote variables only
+```{r model-remote}
+#import raster, extract elevation value
+library(raster)
+elev_map <- raster("elevation/elevation1x1_new/elevation1x1_new.tif",varname = "elevation")
+plot(elev_map)
+
+elev_values <- NA
+for (i in 1:dim(altitude.spdf)[1]){
+elev_values[i] <- extract(elev_map, altitude.spdf[i,])
+}
+
+alt_map <- raster("elevation/elevation1x1_new/elevation1x1_new.tif",varname = "altitude")
+plot(alt_map)
+
+alt_value <- extract(alt_map,altitude.spdf[1,])
+
+altitude.spdf <- SpatialPointsDataFrame(coords = data.frame(waterchem_1995$Longitude,waterchem_1995$Latitude), data = dplyr::select(waterchem_1995,toc), proj4string = CRS("+proj=longlat +ellps=WGS84"))
+
+remotes.variables 
+
+
+```
+
+```{r remote-variables}
+
+### start again from the beginning. 
+dep.var <- "std_log_toc"
+ind.var <- c("std_ndvi","std_log_slope","std_log_runoff","std_tempr")
+fm <- paste(dep.var,"~",paste(ind.var,collapse = "+"))
+```
+```{r hist-remote}
+binwidth_hist <- function(x){
+  if(IQR(x, na.rm = T) < 2){ 
+    bw <- length(x)/20
+  # }else if (IQR(x, na.rm = T) < 10) {
+  #   bw <- max(x)/10
+  }else{
+      bw <- 2*IQR(x, na.rm = T)/(length(x)^(1/3))
+    }
+return(bw)
+}
+
+h_list <- c()
+for (i in 1:length(ind.var)){
+  hi <- ggplot(waterchem_1995, aes_string(ind.var[i]))+geom_histogram(na.rm = TRUE, binwidth = function(x) max(x)/15)+labs(y = "", title = i)+theme_light()
+  h_list[[ind.var[i]]] <- hi
+}
+
+```
+```{r weighting-matrix}
+k_neigh <- knearneigh(train_spdf,k = 100)
+k_neigh_nb <- knn2nb(k_neigh)
+k_neigh_w <- nb2listw(k_neigh_nb)
+moran_I_toc <- moran.test(train_set$toc,k_neigh_w)
+
+```
+```{r ols-remote}
+
+lm.remote <- lm(fm, data = train_set)
+summary(lm.remote)
+# + spatial autocorrelation of residuals
+
+```
+
+
+```{r GWR-remote}
+
+bw.remote <- bw.gwr(fm, data = train_spdf, kernel = "gausian", adaptive = T)
+model.selection.remote <- gwr.model.selection(DeVar = dep.var, InDeVars = ind.var, data = train_spdf,bw = bw.remote, kernel = "gaussian", adaptive = T)
+gwr.model.view(DeVar = dep.var, InDeVars = ind.var, model.selection.remote[[1]])
+gwr.remote <- gwr.basic(fm, data = train_spdf, bw = bw.remote, kernel = "gausian", adaptive = T)
+# spatial autocorrelation of residuals?
+```
+```{r spatial-regression}
+library(spatialreg)
+lm.LMtests(lm.remote,k_neigh_w,c("LMerr","LMlag","RLMerr","RLMlag"))
+lagsarlm(fm, train_set,k_neigh_w)
+Wsparse <- as(k_neigh_w,"CsparseMatrix") %>% trW(type = "MC")
 
 ```
