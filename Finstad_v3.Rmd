@@ -1,8 +1,13 @@
 ---
 title: "Space-for-time modelling of TOC concentration trends in Fennoscandia"
 author: "Camille M. Crapart"
-date: "20 9 2021"
-output: html_document
+date: "24 9 2021"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+
 ---
 
 ```{r setup, include=FALSE}
@@ -61,33 +66,36 @@ The choosen variables are variables that need no sampling and can be obtained re
 ```{r remote-dataset}
 remote.variables <- c("ndvi_summer_lag1yr","slope","runoff","tempr")
 remote.set <- waterchem_1995 %>% dplyr::select(c("toc",remote.variables)) %>% cbind(alt.fennoscandia)
-
+names(remote.set) <- c("toc","ndvi","slope","runoff","temperature","altitude")
+remote.variables <- names(remote.set)[-1]
 ```
 
 ## Histogram of variables
-```{r hist, results = F}
+```{r hist, results = F, fig.dim = c(20,20)}
 
 h_list <- c()
 
 for (i in names(remote.set)){
-  hi <- ggplot(data = remote.set,aes_string(i))+geom_histogram(stat = "bin",na.rm = T,binwidth = function(x) 2*IQR(x, na.rm = T)/(length(x)^(1/3)))+labs(y="",title = i)+theme_light()
+  hi <- ggplot(data = remote.set,aes_string(i))+geom_histogram(stat = "bin",na.rm = T,binwidth = function(x) 2*IQR(x, na.rm = T)/(length(x)^(1/3)))+labs(y="",title = i)+theme_light(base_size = 20)
   h_list[[i]] <- hi
 }
 
-h_list
+cowplot::plot_grid(plotlist = h_list,ncol=2)
 ```
+
+
 ## Data preparation
 
 To remedy to the skewed distribution of the explanatory variables, a log transformation is applied to toc, bogs, shrub, slope, runoff and altitude. The distribution of NDVI was skewed to the left, so no transformation is applied. The temperature was more normally distributed so no transformatino is applied either. 
 
 All variables were scaled in order to be able to compare the effect sizes. 
 
-THe working dataset is then separated into a training set (with 75% of the observations) and a test set (with 25% of the observation), randomly selected. 
+The working dataset is then separated into a training set (with 75% of the observations) and a test set (with 25% of the observation), randomly selected. 
 
 
 ```{r working-dataset}
-non.log <- c("ndvi_summer_lag1yr","tempr")
-working.set <- remote.set %>% dplyr::select(!all_of(non.log)) %>% +0.001 %>% sapply(log10) %>% cbind(dplyr::select(remote.set,non.log)) %>% scale() %>% as.data.frame() %>% cbind(id, Longitude, Latitude) 
+non.log <- c("ndvi","temperature")
+working.set <- remote.set %>% dplyr::select(!all_of(non.log)) %>% +0.001 %>% sapply(log10) %>% cbind(dplyr::select(remote.set,all_of(non.log))) %>% scale() %>% as.data.frame() %>% cbind(id, Longitude, Latitude) 
 
 working.set <- working.set[-which(complete.cases(working.set) == F),]
 train.set <- working.set %>% sample_frac(.75)
@@ -109,70 +117,239 @@ k.neigh.test <- knearneigh(test.spdf, k = 100)
 k.neigh.nb.test <- knn2nb(k.neigh.test)
 k.neigh.w.test <- nb2listw(k.neigh.nb.test)
 
-fm <- paste("toc","~",paste(names(remote.set[-1]),collapse = "+")) %>% as.formula()
-```
-```{r maps-train-set}
-
-map.list <- c()
-for(i in 1: length(remote.variables)){
-  map <<- f_plotspatial(train.set,train.set[,remote.variables[i]],plottitle = remote.variables[i])
-  map.list[[even[i]]] <- map
-}
-
+#fm <- paste("toc","~",paste(names(remote.set[-1]),collapse = "+")) %>% as.formula()
 ```
 
-# Ordinary least square regression
-```{r ols}
+## Spatial autocorrelation of data
+
+All explanatory variables were spatially autocorrelated (> `r 1/(dim(working.set)[1]-1)`).
+
+```{r spatial-autocorrelation,eval = F}
+
+moran.list <- c() 
+    for (i in names(working.set)){
+     moran.list[[i]] <- moran.test(working.set[,i],k.neigh.w.working, na.action = na.omit, alternative = "two.sided")
+   }
+   
+ moran.df <- data.frame(names(working.set)) %>% setNames("parameter")
+   moran.df$I <- NA
+   moran.df$p <- NA
+   
+   for (i in 1:length(moran.list)){
+     moran.df$I[i] <- moran.list[[i]]$estimate[1]
+     moran.df$p[i] <- moran.list[[i]]$p.value
+   }
+   
+saveRDS(moran.df,"moran.df.Rdata")
+```
+```{r spatial-autocorrelation-plot}
+moran.df <- readRDS("moran.df.Rdata")
+moran.df <- moran.df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1"))
+
+moran.df$parameter <- factor(moran.df$parameter, levels = moran.df$parameter[order(moran.df$I)])
+
+
+g.moran <- ggplot(filter(moran.df,!parameter %in% c("Longitude","Latitude", "id")))+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 1/(dim(working.set)[1]-1))
+plot(g.moran)
+```
+
+## Correlation between variables
+
+```{r correlation matrix}
+working.cor <- cor_mat(remote.set)
+working.pmat <- cor_pmat(working.set)
+cor_plot(working.cor,p.mat = working.pmat,method = "circle", palette = brewer.pal(8,"RdYlBu"), label = T, type = "lower", insignificant = "blank",font.label = list(size = 1))
+```
+
+Choosen variables : *ndvi*, *runoff*. 
+
+# Ordinary least square regression with NDVI and runoff
+
+```{r ols, results = F, fig.dim = c(12,5)}
+remote.variables <- c("ndvi","runoff")
+fm <- paste("toc","~",paste(remote.variables,collapse = "+")) %>% as.formula()
+
 lm.remote <- lm(fm, data = train.set)
 summary(lm.remote)
 lm.r2 <- summary(lm.remote)$adj.r.squared
 moran.I.res.lm <- lm.morantest(lm.remote, k.neigh.w.train, alternative = "two.sided")
 
 
-f_plotspatial(data = train.set, var = lm.remote$residuals,plottitle = "LM residuals")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(lm.r2,2)))+annotate("label",x=8,y=68,label = paste("Moran's I = ", round(moran.I.res.lm$estimate[1],3)))+annotate("label",x=8,y=67, label = paste("AIC = ", AIC(lm.remote)))
+map <- f_plotspatial(data = train.set, var = lm.remote$residuals,plottitle = "LM residuals")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(lm.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(lm.remote),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(moran.I.res.lm$estimate[1],3)))
 
 lm.coef <- lm.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
-ggplot(lm.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+coef.plot <- ggplot(lm.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
 
-
+cowplot::plot_grid(map,coef.plot,ncol = 2)
 ```
 
-# GWR 
-```{r GWR-remote}
+# Spatially Error Model with NDVI and runoff
+
+```{r spatial-model, eval = F}
+library(spatialreg)
+lm.LMtests(lm.remote,k.neigh.w.train,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+
+#RLMerr is the most significant
+sem.remote <- errorsarlm(fm,train.set,k.neigh.w.train)
+saveRDS(sem.remote,"sem.remote.Rdata")
+```
+
+```{r resuts-spatial-model, fig.dim = c(12,5)}
+sem.remote <- readRDS("sem.remote.Rdata")
+moran.I.res.sem <- moran.test(sem.remote$residuals, k.neigh.w.train, alternative = "two.sided")
+
+map <- f_plotspatial(data = train.set, var = sem.remote$residuals,plottitle = "SEM residuals")+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.remote),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],3))))
+
+sem.coef <- sem.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
+coef.plot <- ggplot(sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+cowplot::plot_grid(map,coef.plot,ncol=2)
+```
+
+
+# GWR with NDVI and Runoff
+ 
+<!-- ## GWSS -->
+
+<!-- No geographical patterns in the correlation of the explanatory variables.  -->
+
+<!-- ```{r GWSS, eval = F} -->
+<!-- bw.gwss <- dim(working.set)[1]/10 -->
+<!-- gwss.remote <- gwss(working.spdf,vars=all_of(remote.variables), kernel = "gaussian", adaptive = T, bw = bw.gwss) -->
+<!-- saveRDS(gwss.remote,"gwss.remote.Rdata") -->
+<!-- ``` -->
+
+<!-- ```{r GWSS-plot, fig.dim = c(20,20)} -->
+<!-- gwss.remote <- readRDS("gwss.remote.Rdata") -->
+<!-- cor.remote.gwss <- gwss.remote$SDF@data[,grep("Corr_",names(gwss.remote$SDF@data))] -->
+<!-- cor.remote.gwss$Longitude <- working.set$Longitude -->
+<!-- cor.remote.gwss$Latitude <- working.set$Latitude -->
+
+<!-- c_list <- c() -->
+
+<!-- for (i in names(cor.remote.gwss)[-which(names(cor.remote.gwss) %in% c("Longitude","Latitude"))]){ -->
+<!-- ci <- ggplot(data = cor.remote.gwss, aes(x=Longitude,y=Latitude)) + geom_point(aes_string(col = i),size=3)+ -->
+<!--     scale_colour_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0, limits = c(-1,1))+ -->
+<!--     borders(database = "world", regions = c("Norway","Sweden","Finland"),  -->
+<!--     fill = NA, colour = "grey50",xlim=c(0,35),ylim=c(55,73)) +  -->
+<!--     xlab("") + ylab("") + -->
+<!--     theme_void(base_size = 20) -->
+<!-- c_list[[i]] <- ci -->
+<!-- } -->
+
+<!-- cowplot::plot_grid(plotlist = c_list, ncol = 2) -->
+<!-- ``` -->
+
+
+```{r GWR-remote, eval = F}
 
 bw.remote <- bw.gwr(fm, data = train.spdf, kernel = "gaussian", adaptive = T)
-model.selection.remote <- gwr.model.selection(DeVar = "toc", InDeVars = names(remote.set)[-1], data = train.spdf,bw = bw.remote, kernel = "gaussian", adaptive = T)
-gwr.model.view(DeVar = "toc", InDeVars = names(remote.set)[-1], model.selection.remote[[1]])
 gwr.remote <- gwr.basic(fm, data = train.spdf, bw = bw.remote, kernel = "gaussian", adaptive = T)
 
-f_plotspatial(train.set,gwr.remote$SDF$Local_R2,plottitle = "Local R2")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(mean(gwr.remote$SDF$Local_R2),2)))+annotate("label", x = 8, y = 68, label = paste("AIC = ", gwr.remote$GW.diagnostic$AICc))
+saveRDS(bw.remote, "bw.remote.Rdata")
 
-
-moran.I.res.gwr <- moran.test(gwr.remote$SDF$residual, k.neigh.w.train)
-f_plotspatial(train.set, var=gwr.remote$SDF$Stud_residual,plottitle = "GWR residuals")+annotate("label",x = 8, y = 69, label = paste("Moran's I  =", round(moran.I.res.gwr$estimate[1],2)))
+saveRDS(gwr.remote,"gwr.remote.Rdata")
 ```
 
-```{r map-coef, fig.dim=c(20,20)}
+
+
+
+```{r gwr-remote-plots, fig.dim = c(10,4)}
+bw.remote <- readRDS("bw.remote.Rdata")
+gwr.remote <- readRDS("gwr.remote.Rdata")
+
+plot.r2 <- f_plotspatial(train.set,gwr.remote$SDF$Local_R2,plottitle = "Local R2")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(mean(gwr.remote$SDF$Local_R2),2)))+annotate("label", x = 8, y = 68, label = paste("AIC = ", round(gwr.remote$GW.diagnostic$AICc,2)))
+gwr.remote$SDF$
+moran.I.res.gwr <- moran.test(gwr.remote$SDF$residual, k.neigh.w.train, alternative = "two.sided")
+plot.res <- f_plotspatial(train.set, var=gwr.remote$SDF$Stud_residual,plottitle = "GWR residuals")+annotate("label",x = 9, y = 69, label = paste("Moran's I of \n residuals =", round(moran.I.res.gwr$estimate[1],4)))
+
+cowplot::plot_grid(plot.r2,plot.res,ncol = 2)
+```
+
+THe local coefficients are not following the pattern of the explanatory variables (lower NDVI in the north, higher NDVI in the south; higher runoff on the West coast of Norway) and seem randomly distributed. Moran's I for NDVI coefficients is `{r moran.test(gwr.remote$SDF$ndvi, k.neigh.w.train )` and Moran's i for runoff coefficients is `r moran.test(gwr.remote$SDF$runoff, k.neigh.w.train )`
+
+```{r maps-train-set}
+
+map.list <- c()
+for(i in 1: length(remote.variables)){
+  map <<- f_plotspatial(train.set,train.set[,remote.variables[i]],plottitle = remote.variables[i])+theme_void(base_size = 15)
+  map.list[[even[i]]] <- map
+}
+
+```
+```{r map-coef, fig.dim=c(10,8)}
 for(i in 1:length(remote.variables)){
-  map <<- f_plotspatial(train.set,gwr.remote$SDF@data[,remote.variables[i]],plottitle = paste("coef",remote.variables[i]))
+  map <<- f_plotspatial(train.set,gwr.remote$SDF@data[,remote.variables[i]],plottitle = paste("coef",remote.variables[i]))+theme_void(base_size = 15)
   map.list[[uneven[i]]] <- map
 }
 
 cowplot::plot_grid(plotlist = map.list,ncol=2)
 ```
 
-# Spatially lagged model
+# GWR with variable selection
 
-```{r spatially-lagged-model}
-library(spatialreg)
-lm.LMtests(lm.remote,k.neigh.w.train,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+## Model selection
 
-#RLMerr is the most significant
-sem.remote <- errorsarlm(fm,train.set,k.neigh.w.train)
-sem.coef <- sem.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
-ggplot(sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+```{r plot-model-selection}
+#model.selection.remote <- gwr.model.selection(DeVar = "toc", InDeVars = names(remote.set)[-1], data = train.spdf,bw = bw.remote, kernel = "gaussian", adaptive = T)
+#saveRDS(model.selection.remote,"model.selection.remote.Rdata")
+model.selection.remote <- readRDS("model.selection.remote.Rdata")
+gwr.model.view(DeVar = "toc", InDeVars = names(remote.set)[-1], model.selection.remote[[1]])
+```
 
-f_plotspatial(data = train.set, var = sem.remote$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", sem.remote$AIC))
+## GWR with temperature and runoff
 
+```{r gwr-temp-runoff-model, eval = F}
+bw.tr <- bw.gwr(toc~temperature+runoff, data = train.spdf, kernel = "gaussian", adaptive = T)
+gwr.tr <- gwr.basic(toc~temperature+runoff, data = train.spdf, bw = bw.tr, kernel = "gaussian", adaptive = T)
+
+
+saveRDS(bw.tr, "bw.tr.Rdata")
+saveRDS(gwr.tr,"gwr.tr.Rdata")
+```
+```{r gwr-tr-plots, fig.dim = c(10,4)}
+bw.tr <- readRDS("bw.tr.Rdata")
+gwr.tr <- readRDS("gwr.tr.Rdata")
+
+plot.r2.tr <- f_plotspatial(train.set,gwr.tr$SDF$Local_R2,plottitle = "Local R2")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(mean(gwr.tr$SDF$Local_R2),2)))+annotate("label", x = 8, y = 68, label = paste("AIC = ", round(gwr.tr$GW.diagnostic$AICc,2)))
+
+moran.I.res.tr <- moran.test(gwr.tr$SDF$residual, k.neigh.w.train, alternative = "two.sided")
+plot.res.tr <- f_plotspatial(train.set, var=gwr.tr$SDF$Stud_residual,plottitle = "GWR residuals")+annotate("label",x = 9, y = 69, label = paste("Moran's I of \n residuals =", round(moran.I.res.tr$estimate[1],3)))
+
+cowplot::plot_grid(plot.r2.tr,plot.res.tr,ncol = 2)
 
 ```
+
+```{r maps-train-set-tr}
+tr.var <- c("temperature","runoff")
+
+map.list <- c()
+for(i in 1: length(tr.var)){
+  map <<- f_plotspatial(train.set,train.set[,tr.var[i]],plottitle = tr.var[i])+theme_void(base_size = 15)
+  map.list[[even[i]]] <- map
+}
+
+```
+```{r map-coef-tr, fig.dim=c(10,8)}
+for(i in 1:length(tr.var)){
+  map <<- f_plotspatial(train.set,gwr.tr$SDF@data[,tr.var[i]],plottitle = paste("coef",tr.var[i]))+theme_void(base_size = 15)
+  map.list[[uneven[i]]] <- map
+}
+
+cowplot::plot_grid(plotlist = map.list,ncol=2)
+```
+
+
+# Summary
+
+```{r summary-performances}
+models <- c("OLS","SEM","GWR","GWR-tr")
+AIC.models <- c(AIC(lm.remote),AIC(sem.remote),gwr.remote$GW.diagnostic$AICc,gwr.tr$GW.diagnostic$AICc)
+moran.res.models <- c(moran.I.res.lm$estimate[1],moran.I.res.sem$estimate[1],moran.I.res.gwr$estimate[1],moran.I.res.tr$estimate[1])
+
+summary.table <- data.frame(models = models, AIC = AIC.models, moran.I = moran.res.models)
+knitr::kable(summary.table)  
+```
+The model with best results is the GWR model with NDVI and runoff: lowest AIC and lowest autocorrelation of residuals. (Limit for autocorrelation: `r 1/(dim(train.set)[1]-1)`. 
+
+
