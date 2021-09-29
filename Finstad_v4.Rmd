@@ -1,0 +1,32 @@
+---
+title: "Remote sensing and toc concentration"
+author: "Camille M. Crapart"
+date: "29 9 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F, error = F, fig.align = "center")
+```
+
+
+# Catchment polygons
+
+Designed by ??? and stored on the PostgreSQL database ecco_biwa. Accessed through Rstudio using the st_read function + dplyr package. 
+Each catchment has an ebint, so that the catchment can be linked to a TOC concentration. 
+
+# TOC
+
+Downloaded from ecco_biwa. 
+
+
+# NDVI
+
+NDVI values are extracted from the GIMMS NDVI3g dataset, stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset. 
+And accessed via the "gimms" package on Rstudio. 
+Data is taken bi-monthly @Tucker2005. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximym NDVI value is taken for each pixel. 
+Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package. The values stored in the ecocast dataset are composed of the ndvi value and a flag value indicating the goodness of the data @Detsch2021. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula "floor(ndvi3g/10)/1000" @Detsch2021, and then the mean of the 3 summer values (june, july and august) was computed for each catchment. 
+
+
+# CORDEX
+See the cordex website (insert citation https://portal.enes.org/data/enes-model-data/cordex)
