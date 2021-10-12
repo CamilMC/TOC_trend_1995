@@ -29,4 +29,5 @@ Afterwards the NDVI values for each catchment polygon are extracted using the ex
 
 
 # CORDEX
-See the cordex website (insert citation https://portal.enes.org/data/enes-model-data/cordex)
+See the cordex website (insert citation https://portal.enes.org/data/enes-model-data/cordex) for info. Downloading at https://esg-dn1.nsc.liu.se/projects/esgf-liu/ 
+Names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
