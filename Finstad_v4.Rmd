@@ -2,32 +2,352 @@
 title: "Remote sensing and toc concentration"
 author: "Camille M. Crapart"
 date: "29 9 2021"
-output: html_document
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F, message = F, warning = F, error = F, fig.align = "center")
+knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center")
+```
+
+```{r library}
+library(DBI)
+library(sf)
+library(dplyr)
+library(gimms)
+library(ncdf4)
+
+library(ggplot2)
+library(cowplot)
+library(spdep)
+
+source("f_plotspatial.R")
+```
+
+# Data preparation
+
+## Data from ecco_biwa datavase
+
+The catchment and TOC data are stored on the PostgreSQL database ecco_biwa, accessed through Rstudio using the st_read function (sf package @Pebesma2021) and the dplyr package @Wickhman2021. 
+Each catchment polygon is linked to the corresponding TOC concentration via an ebint internal to the ecco_biwa database.
+
+The catchment polygons were designed by an elevation model and are assigned to the studied lake based on the distance to the sampling coordinates.
+
+```{r load-data}
+con <- dbConnect(RPostgreSQL::PostgreSQL(),user = "camille.crapart", password = "camille",host = "vm-srv-wallace.vm.ntnu.no", dbname = "nofa")
+#catchment.geom <- tbl(con,sql("SELECT ebint, geom FROM catchments.lake_catchments"))
+
+ebint.tbl <- tbl(con,sql("SELECT ebint FROM catchments.lake_catchments")) 
+ebint.catch <- pull(ebint.tbl,ebint)
+
+ebint.waterchem.tbl <- tbl(con,sql("SELECT ebint FROM environmental.north_euro_lake_surv_1995"))
+ebint.waterchem <- pull(ebint.waterchem.tbl,ebint)
+
+ebint <- intersect(ebint.waterchem, ebint.catch)
+```
+
+```{r catchment-poly, eval = F}
+catchment.poly.1000 <- st_read(con,query = "SELECT ebint, geom FROM catchments.lake_catchments WHERE ebint IN (SELECT ebint FROM environmental.north_euro_lake_surv_1995)")
+saveRDS(catchment.poly.1000,"catchment.poly.1000.Rdata")
+
+```
+
+```{r catchment-plot}
+catchment.poly.1000 <- readRDS("catchment.poly.1000.Rdata")
+catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
+#plot(catchment.poly.1000)
+```
+
+```{r toc}
+
+toc.tbl <- tbl(con,sql("SELECT ebint,toc_mg_l,longitude,latitude,dist_closest_ebint,dist_2nd_closest_ebint FROM environmental.north_euro_lake_surv_1995"))
+toc.df <- as.data.frame(toc.tbl)
+
 ```
 
 
-# Catchment polygons
+## NDVI
 
-Designed by ??? and stored on the PostgreSQL database ecco_biwa. Accessed through Rstudio using the st_read function + dplyr package. 
-Each catchment has an ebint, so that the catchment can be linked to a TOC concentration. 
+NDVI values are extracted from the GIMMS NDVI3g dataset @TheNationalCenterForAtmosphericResearch2018, stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package @Destch2021 on Rstudio. 
 
-# TOC
+Data is taken bi-monthly @Tucker2005. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximum NDVI value is taken for each pixel. Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package @Hijmans2018. 
 
-Downloaded from ecco_biwa. 
-
-
-# NDVI
-
-NDVI values are extracted from the GIMMS NDVI3g dataset, stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset. 
-And accessed via the "gimms" package on Rstudio. 
-Data is taken bi-monthly @Tucker2005. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximym NDVI value is taken for each pixel. 
-Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package. The values stored in the ecocast dataset are composed of the ndvi value and a flag value indicating the goodness of the data @Detsch2021. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula "floor(ndvi3g/10)/1000" @Detsch2021, and then the mean of the 3 summer values (june, july and august) was computed for each catchment. 
+The values stored in the ecocast dataset are composed of the ndvi value and a flag value indicating the goodness of the data @Detsch2021. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula "floor(ndvi3g/10)/1000" @Detsch2021, and then the mean of the 3 summer values (june, july and august) was computed for each catchment. 
 
 
-# CORDEX
-See the cordex website (insert citation https://portal.enes.org/data/enes-model-data/cordex) for info. Downloading at https://esg-dn1.nsc.liu.se/projects/esgf-liu/ 
+```{r ndvi, eval = F}
+# http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
+
+ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
+ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
+summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
+summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
+plot(summer.scandinavia)
+
+summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
+plot(summer.scan)
+
+summer.ndvi <- raster::extract(summer.mean,catchment.poly, fun = mean, df = T, sp = T)
+names(summer.ndvi) <- c("ebint","ndvi")
+summer.ndvi$ndvi.value <- (floor(summer.ndvi$ndvi)/10)/1000
+summer.ndvi$flag.value <- summer.ndvi$ndvi - (floor(summer.ndvi$ndvi)/10*10+1) 
+
+saveRDS(summer.ndvi, "summer.ndvi.Rdata")
+```
+## CORDEX
+See the cordex website (insert citation https://portal.enes.org/data/data-metadata-service/search-and-download/cordex-access
+) for info. Downloading at https://esg-dn1.nsc.liu.se/projects/esgf-liu/ 
 Names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
+For runoff the 30 years mean is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf )
+
+*** as of now the projection of the Cordex data doesn't work so I will use the runoff data stored in ecco-biwa. 
+
+```{r runoff, eval = F}
+#runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
+#runoff.df <- runoff.tbl %>% as.data.frame()
+
+runoff.file.60s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_196101-197012.nc"
+runoff.file.70s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_197101-198012.nc"
+runoff.file.80s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_198101-199012.nc"
+
+catchment.poly.wgs84 <- st_transform(catchment.poly.1000,st_crs("EPSG:4326")$proj4string)
+
+# get coordinates
+runoff.nc <- nc_open(runoff.file.60s)
+attr.runoff <- attr(runoff.info,"mdata")
+
+rot.info <- attr.runoff[grep("^rotated",attr(runoff.info,"mdata"))]
+coord <- sapply(rot.info, FUN = function(x) {
+  unlist(str_split(x, pattern = "="))[2]})
+coord.num<- round(as.numeric(coord[2:3]),2)
+
+y <- coord.num[1]
+x <- coord.num[2]
+
+target.crs <- paste0("+proj=ob_tran +o_proj=longlat +o_lon_p=" , 
+                     x, " +o_lat_p=", y, 
+                     " +lon_0=180 +to_meter=0.0174532925199433")
+
+# 60s
+runoff.60.stack <- stack(runoff.file.60s, varname = "mrros")
+runoff.60.mean  <- mean(runoff.60.stack)
+
+projection(runoff.60.mean) <- CRS("EPSG:4326")
+runoff.60.rotated <- projectRaster(runoff.60.mean,crs = target.crs)
+runoff.60.wgs84 <- runoff.60.rotated
+projection(runoff.60.wgs84) <- CRS("EPSG:4326")
+
+
+runoff.60s <- raster::extract(runoff.60.wgs84,catchment.poly.wgs84, fun = mean, na.rm = T, df = T, exact = F, sp = T)
+runoff.60.df <- runoff.60s@data
+names(runoff.60.df) <- c("ebint","runoff.60s")
+
+# 70s
+runoff.70.stack <- stack(runoff.file.70s, varname = "mrros")
+runoff.70.mean  <- mean(runoff.70.stack)
+
+projection(runoff.70.mean) <- CRS("EPSG:4326")
+runoff.70.rotated <- projectRaster(runoff.70.mean,crs = target.crs)
+runoff.70.wgs84 <- runoff.70.rotated
+projection(runoff.70.wgs84) <- CRS("EPSG:4326")
+
+
+runoff.70s <- raster::extract(runoff.70.wgs84,catchment.poly.wgs84, fun = mean, na.rm = T, df = T, exact = F, sp = T)
+runoff.70.df <- runoff.70s@data
+names(runoff.70.df) <- c("ebint","runoff.70s")
+
+# 80s
+runoff.80.stack <- stack(runoff.file.80s, varname = "mrros")
+runoff.80.mean  <- mean(runoff.80.stack)
+
+projection(runoff.80.mean) <- CRS("EPSG:4326")
+runoff.80.rotated <- projectRaster(runoff.80.mean,crs = target.crs)
+runoff.80.wgs84 <- runoff.80.rotated
+projection(runoff.80.wgs84) <- CRS("EPSG:4326")
+
+
+runoff.80s <- raster::extract(runoff.80.wgs84,catchment.poly.wgs84, fun = mean, na.rm = T, df = T, exact = F, sp = T)
+runoff.80.df <- runoff.80s@data
+names(runoff.80.df) <- c("ebint","runoff.80s")
+
+runoff.df <- merge(runoff.60.df,runoff.70.df, by = "ebint") %>% merge(runoff.80.df, by = "ebint")
+runoff.df$mean.runoff <- rowMeans(runoff.df[,2:4])
+saveRDS(runoff.df, "runoff.df.Rdta")
+```
+
+## Data gathering and cleaning
+
+```{r gather-data}
+summer.ndvi <- readRDS("summer.ndvi.Rdata")
+runoff.df <- readRDS("runoff.df.Rdata")
+
+remote.set <- merge(toc.df,summer.ndvi, by = "ebint") %>% merge(runoff.df,by = "ebint")
+
+remote.set$uncertain <- ifelse(remote.set$dist_closest_ebint/remote.set$dist_2nd_closest_ebint > 0.5, FALSE, TRUE)
+remote.set$uncertain[which(is.na(remote.set$uncertain)==TRUE)] <- FALSE
+
+remote.set <- remote.set %>% filter(toc_mg_l >= 0)
+remote.set <- remote.set %>% filter(uncertain == FALSE)
+remote.set <- remote.set %>% filter(mean.runoff < exp(20))
+remote.set <- remote.set %>% filter(ndvi.value > 0)
+dim(remote.set)
+
+remote.set$mean.runoff <- remote.set$mean.runoff * 1e6 # converts to mg/m2/s
+
+
+```
+
+# Analysis
+## Histogram
+```{r hist, results = F, fig.dim = c(20,20)}
+
+h_list <- c()
+
+for (i in c("toc_mg_l","ndvi.value","mean.runoff")){
+  if(IQR(remote.set[[i]]) > 0.1){
+  hi <- ggplot(data = remote.set,aes_string(i))+geom_histogram(stat = "bin",na.rm = T,binwidth = function(x) 2*IQR(x, na.rm = T)/(length(x)^(1/3)))+labs(y="",title = i)+theme_light(base_size = 20)
+  }else{
+    hi <- ggplot(data = remote.set,aes_string(i))+geom_histogram(stat = "bin",na.rm = T)+labs(y="",title = i)+theme_light(base_size = 20)
+  }
+  h_list[[i]] <- hi
+}
+
+cowplot::plot_grid(plotlist = h_list,ncol=3)
+```
+TOC and runoff are squewed to the right so they are log-transformed.
+
+```{r log-transform}
+remote.set$log.toc <- log10(remote.set$toc_mg_l+1e-3) %>% scale() #to avoid log tranform 0
+remote.set$log.runoff <- log10(remote.set$mean.runoff+1e-3) %>% scale() #to avoid log tranform 0
+remote.set$ndvi <- scale(remote.set$ndvi.value)
+
+remote.spdf <- SpatialPointsDataFrame(remote.set[,c("longitude","latitude")],remote.set)
+
+f_plotspatial(remote.set,var=remote.set$log.toc,plottitle="log(TOC)")
+f_plotspatial(remote.set,var=remote.set$ndvi.value,plottitle="NDVI GIMMS v3")
+f_plotspatial(remote.set,var=remote.set$log.runoff,plottitle="log(runoff)")
+f_plotspatial(waterchem_1995,var = waterchem_1995$ndvi_summer_lag1yr, plottitle = "NDVI waterchem")
+f_plotspatial(waterchem_1995,var = waterchem_1995$runoff, plottitle = "runoff waterchem")
+f_plotspatial(remote.set,var=remote.set$mean.runoff, plottitle = "mean runoff")
+
+```
+
+## Spatial autocorrelation
+
+```{r neighbour-matrix, eval = F}
+library(spdep)
+k.neigh.set <- knearneigh(remote.spdf, k = 100)
+k.neigh.nb.set <- knn2nb(k.neigh.set)
+k.neigh.w.set <- nb2listw(k.neigh.nb.set)
+saveRDS(k.neigh.w.set,"k.neigh.w.set.Rdata")
+```
+```{r spatial-autocorrelation, eval = T}
+k.neigh.w.set <- readRDS("k.neigh.w.set.Rdata")
+moran.list <- c() 
+for (i in c("toc_mg_l","log.toc","ndvi.value","mean.runoff","log.runoff")){
+     moran.list[[i]] <- moran.test(remote.set[,i],k.neigh.w.set, na.action = na.omit, alternative = "two.sided")
+}
+
+moran.df <- data.frame(c("toc_mg_l","log.toc","ndvi.value","runoff","log.runoff")) %>% setNames("parameter")
+moran.df$I <- NA
+moran.df$p <- NA
+   
+for (i in 1:length(moran.list)){
+     moran.df$I[i] <- moran.list[[i]]$estimate[1]
+     moran.df$p[i] <- moran.list[[i]]$p.value
+   }
+   
+saveRDS(moran.df,"moran.df.Rdata")
+```
+```{r spatial-autocorrelation-plot}
+moran.df <- readRDS("moran.df.Rdata")
+moran.df <- moran.df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1", p > 0.1 ~" > 0.1"))
+
+moran.df$parameter <- factor(moran.df$parameter, levels = moran.df$parameter[order(moran.df$I)])
+
+knitr::kable(moran.df)
+g.moran <- ggplot(filter(moran.df,!parameter %in% c("longitude","latitude", "id")))+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 1/(dim(remote.set)[1]-1))
+plot(g.moran)
+
+```
+# Ordinary least square regression with NDVI and runoff
+
+```{r ols, results = F, fig.dim = c(12,5)}
+remote.variables <- c("ndvi","log.runoff")
+fm <- paste("log.toc","~",paste(remote.variables,collapse = "+")) %>% as.formula()
+
+lm.remote <- lm(fm, data = remote.set)
+summary(lm.remote)
+lm.r2 <- summary(lm.remote)$adj.r.squared
+moran.I.res.lm <- lm.morantest(lm.remote, k.neigh.w.set, alternative = "two.sided")
+
+
+map <- f_plotspatial(data = remote.set, var = lm.remote$residuals,plottitle = "LM residuals")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(lm.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(lm.remote),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(moran.I.res.lm$estimate[1],3)))
+
+lm.coef <- lm.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
+coef.plot <- ggplot(lm.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+cowplot::plot_grid(map,coef.plot,ncol = 2)
+```
+# Spatially Error Model with NDVI and runoff
+
+```{r spatial-model, eval = F}
+library(spatialreg)
+lm.LMtests(lm.remote,k.neigh.w.set,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+
+#RLMerr is the most significant
+sem.remote <- errorsarlm(fm,remote.set,k.neigh.w.set)
+saveRDS(sem.remote,"sem.remote.Rdata")
+```
+
+```{r resuts-spatial-model, fig.dim = c(12,5)}
+sem.remote <- readRDS("sem.remote.Rdata")
+moran.I.res.sem <- moran.test(sem.remote$residuals, k.neigh.w.set, alternative = "two.sided")
+
+map <- f_plotspatial(data = remote.set, var = sem.remote$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.remote),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
+
+sem.coef <- sem.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
+coef.plot <- ggplot(sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+cowplot::plot_grid(map,coef.plot,ncol=2)
+```
+
+```{r GWR-remote, eval = F}
+library(GWmodel)
+bw.remote <- bw.gwr(fm, data = remote.spdf, kernel = "gaussian", adaptive = T)
+gwr.remote <- gwr.basic(fm, data = remote.spdf, bw = bw.remote, kernel = "gaussian", adaptive = T)
+
+saveRDS(bw.remote, "bw.remote.Rdata")
+saveRDS(gwr.remote, "gwr.remote.Rdata")
+
+```
+
+```{r local-coef-moran, eval = T, results = F}
+gwr.remote <- readRDS("gwr.remote.Rdata")
+ndvi.moran <- moran.test(gwr.remote$SDF$ndvi, k.neigh.w.set)
+runoff.moran <- moran.test(gwr.remote$SDF$log.runoff, k.neigh.w.set)
+```
+
+```{r maps-train-set}
+uneven <- seq(1,50,2)
+even <- seq(2,50,2)
+map.list <- c()
+for(i in 1: length(remote.variables)){
+  map <<- f_plotspatial(remote.set,remote.set[,remote.variables[i]],plottitle = remote.variables[i])+theme_void(base_size = 15)
+  map.list[[even[i]]] <- map
+}
+
+```
+```{r map-coef, fig.dim=c(10,8)}
+
+for(i in 1:length(remote.variables)){
+  map <<- f_plotspatial(remote.set,gwr.remote$SDF@data[,remote.variables[i]],plottitle = paste("coef",remote.variables[i]))+theme_void(base_size = 15)
+  map.list[[uneven[i]]] <- map
+}
+
+cowplot::plot_grid(plotlist = map.list,ncol=2)
+```

@@ -4,7 +4,7 @@
 f_plotspatial <- function(data,var,plottitle,lim = c(min(var),max(var)),midpoint = 0){
   require(ggplot2)
   pop <- ggplot(data) + 
-    aes(Longitude,Latitude,var) + 
+    aes(longitude,latitude) + 
     geom_point(aes(colour=var)) + 
     ggtitle(plottitle) 
   pop <- pop + 

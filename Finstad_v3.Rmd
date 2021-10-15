@@ -36,8 +36,8 @@ source("f_plotspatial.R")
 dim_waterchem <- read_xlsx("waterchem_1995.xlsx") %>% dim()
 waterchem_1995 <- read_xlsx("waterchem_1995.xlsx",col_types = c("numeric","skip","skip","skip","text",rep("numeric",dim_waterchem[2]-6),"skip"),na = "NA")
 id <- waterchem_1995$ebint
-Longitude <- waterchem_1995$Longitude
-Latitude <- waterchem_1995$Latitude
+Longitude <- waterchem_1995$longitude
+Latitude <- waterchem_1995$latitude
 
 uneven <- seq(1,50,2)
 even <- seq(2,50,2)

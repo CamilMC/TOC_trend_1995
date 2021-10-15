@@ -5,11 +5,13 @@ library(gimms)
 library(ncdf4)
 
 library(devtools)
-install_github("mitmat/eurocordexr")
+#install_github("mitmat/eurocordexr")
 library(eurocordexr)
 library(rgdal)
 library(stringr)
 
+
+library(stars)
 library(lwgeom)
 
 con <- dbConnect(RPostgreSQL::PostgreSQL(),user = "camille.crapart", password = "camille",host = "vm-srv-wallace.vm.ntnu.no", dbname = "nofa")
@@ -97,7 +99,7 @@ runoff.nc <- nc_open(runoff.file)
 runoff.st <- st_layers(runoff.nc)
 
 ## Change projection
-https://github.com/dquesadacr/CORDEX/blob/master/CORDEX_plot.R
+# https://github.com/dquesadacr/CORDEX/blob/master/CORDEX_plot.R
 
 runoff.info <- GDALinfo(runoff.nc)
 runoff.stack <- stack(runoff.file, varname = "mrros")
@@ -126,15 +128,37 @@ reproj.1 <- projectRaster(runoff.stack,crs = target.crs)
 plot(reproj.1)
 
 # with another file
-
 runoff.file <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_196101-197012.nc"
 runoff.nc <- nc_open(runoff.file)
+runoff.gdal <- GDAL.open(runoff.file)
+plot(getRasterTable(runoff.gdal)$band1)
+
+
+
 runoff.info <- GDALinfo(runoff.nc)
+
 attr.runoff <- attr(runoff.info,"mdata")
 
 runoff.stack <- stack(runoff.file, varname = "mrros")
 runoff.mean  <- mean(runoff.stack)
 plot(runoff.mean)
+
+rotate(runoff.stack)
+
+runoff.lon <- raster(runosff.file, varname = "lon")
+runoff.lat <- raster(runoff.file, varname = "lat")
+lat <- ncvar_get(runoff.nc,"lat")
+lon <- ncvar_get(runoff.nc,"lon")
+plot(runoff.lat)
+
+ts <- as.POSIXct(nc.get.time.series(runoff.nc))
+runoff <- ncvar_get(runoff.nc,"mrros",start = c(1,1,1), count = c(-1,-1,1))
+
+nc_close(runoff.nc)
+
+
+
+
 
 rot.info <- attr.runoff[grep("^rotated",attr(runoff.info,"mdata"))]
 coord <- sapply(rot.info, FUN = function(x) {
@@ -148,55 +172,39 @@ target.crs <- paste0("+proj=ob_tran +o_proj=longlat +o_lon_p=" ,
                      x, " +o_lat_p=", y, 
                      " +lon_0=180 +to_meter=0.0174532925199433")
 
-crs(runoff.mean) <- st_crs(4326)$proj4string
+crs(runoff.mean) <- st_crs(4326)$proj4string #WGS84
+crs(runoff.mean) <- CRS(SRS_string = "EPSG:4326")
+crs(runoff.mean) <- st_crs(25833)$proj4string #UTM 33
 
+catchment.poly.wgs84 <- st_transform(catchment.poly.1000,st_crs("EPSG:4326")$proj4string)
+catchment.poly <- st_transform_proj(catchment.poly.wgs84, crs = target.crs)
+ggplot()+geom_sf(data = head(catchment.poly.1000),aes(geometry = geom))
+ggplot()+geom_sf(data = head(catchment.poly.wgs84),aes(geometry = geom))
+ggplot()+geom_sf(data = head(catchment.poly),aes(geometry = geom))
+extent(catchment.poly)
+
+runoff.mean  <- mean(runoff.stack)
+extent(runoff.mean)
+
+projection(runoff.mean) <- CRS("EPSG:4326")
 reproj.1 <- projectRaster(runoff.mean,crs = target.crs)
-
 plot(reproj.1)
-
-runoff.60s <- extract(reproj.1,catchment.poly.1000)
-names(mean.tas.1995.nordic) <- ebint
-
-###
-
-
-
-
-
-
-
-runoff.stack <- stack(runoff.file, varname = "mrros")
-runoff.mean <- mean(runoff.stack)
-
-
-runoff.extent <- extent(runoff.stack)
-runoff.info <- GDALinfo(runoff.file, raw_output = F)
-runoff.gdal <- readGDAL(runoff.file)
-image(runoff.gdal)
-gridded(runoff.gdal)
-
-runoff.geo <- raster(extent(runoff.mean), nrow = 412, ncol = 424, crs = CRS("+proj=longlat +datum=WGS84"))
-runoff.proj <- projectRaster(from = runoff.mean,to = runoff.geo)
-plot(runoff.geo)
-
-
-attr(runoff.info,"rows")
+reproj.2 <- reproj.1
+projection(reproj.2) <- CRS("EPSG:4326")
+extent(reproj.2)
+plot(reproj.2)
+#europe <- crop(reproj.1,catchment.poly)
+#projection(europe) <- CRS("EPSG:4326")
+#plot(europe)
+#extent(europe)
+runoff.60s <- raster::extract(reproj.2,catchment.poly.wgs84, fun = mean, na.rm = T, df = T, exact = F, sp = T)
+View(runoff.60s@data)
 
 
 
 
 
-# other test to reproj
-crs(runoff.stack) <- st_crs(4326)$proj4string
-
-runoff.test <- raster(runoff.file,varname = "mrros", band = 54)
-runoff.proj <- projectRaster(from = runoff.test,to = temp.test, method = "bilinear")
-crs(runoff.test) <- st_crs(4326)$proj4string
-plot(runoff.test)
-
-
-spTransform(runoff.info,st_crs(4326)$proj4string)
-
+runoff.spdf <- as(reproj.1, "SpatialPixelsDataFrame")
 
 # get data
 dates <- getZ(runoff.stack)
