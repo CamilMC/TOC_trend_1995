@@ -9,6 +9,11 @@ output:
     toc_float: true
     number_sections: true
 ---
+# Introduction
+
+
+
+# Methods
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center")
@@ -109,7 +114,7 @@ See the cordex website (insert citation https://portal.enes.org/data/data-metada
 Names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
 For runoff the 30 years mean is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf )
 
-*** as of now the projection of the Cordex data doesn't work so I will use the runoff data stored in ecco-biwa. 
+
 
 ```{r runoff, eval = F}
 #runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
@@ -352,6 +357,7 @@ lm.remote <- lm(fm, data = remote.set)
 summary(lm.remote)
 lm.r2 <- summary(lm.remote)$adj.r.squared
 moran.I.res.lm <- lm.morantest(lm.remote, k.neigh.w.set, alternative = "two.sided")
+moran.test(lm.remote$residuals,k.neigh.w.set,randomisation=FALSE, alternative = "two.sided")
 moran.limit.remote <- 1/(dim(remote.set)[1]-1)
 
 map <- f_plotspatial(data = remote.set, var = lm.remote$residuals,plottitle = "OLS residuals")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(lm.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(lm.remote),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(moran.I.res.lm$estimate[1],3)))
@@ -368,18 +374,14 @@ knitr::kable(summary(lm.remote)$coefficients, digits = 2)
 
 # Spatially Error Model with NDVI and runoff
 
+Lagrange multiplier test to check whether we should apply an error model or a lag model. The error model has a much higher tet stat, even if all tests are significant; therefore we apply a spatial error model. 
+
 ```{r spatial-model, eval = F}
 library(spatialreg)
-#lm.LMtests(lm.remote,k.neigh.w.set,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+lagrange <- lm.LMtests(lm.remote,k.neigh.w.set,test = c("LMerr","LMlag","RLMerr","RLMlag"))
 
-#RLMerr is the most significant
 sem.remote <- errorsarlm(fm,remote.set,k.neigh.w.set)
 saveRDS(sem.remote,"sem.remote.Rdata")
-```
-```{r spatial-lag-model, eval = F}
-slm.remote <- lagsarlm(fm,remote.set,k.neigh.w.set)
-saveRDS(slm.remote,"slm.remote.Rdata")
-
 ```
 ```{r results-spatial-error-model}
 sem.remote <- readRDS("sem.remote.Rdata")
@@ -397,17 +399,6 @@ coef.plot <- ggplot(sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+the
 ```
 ```{r sem-coef}
 knitr::kable(sem.coef, digits = 2)
-```
-```{r results-spatial-lag-model, fig.dim = c(12,5), eval = F}
-slm.remote <- readRDS("slm.remote.Rdata")
-moran.I.res.slm <- moran.test(slm.remote$residuals, k.neigh.w.set, alternative = "two.sided")
-
-map <- f_plotspatial(data = remote.set, var = slm.remote$residuals,plottitle = "SLM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.remote),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
-
-slm.coef <- slm.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
-coef.plot <- ggplot(slm.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
-
-cowplot::plot_grid(map,coef.plot,ncol=2)
 ```
 
 # GWR 
@@ -477,4 +468,109 @@ moran.res.models <- c(moran.I.res.lm$estimate[1],moran.I.res.sem$estimate[1],mor
 
 summary.table <- data.frame(models = models, AIC = AIC.models, moran.I = moran.res.models)
 knitr::kable(summary.table)  
+```
+
+# Other tests with NDVI
+```{r yearly-ndvi}
+#ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
+#ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
+year.mean <- mean(ndvi.max)
+year.scandinavia <- raster::crop(year.mean,c(0,35,55,73))
+plot(summer.scandinavia)
+
+year.scan <- reclassify(year.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
+plot(year.scan)
+
+year.ndvi <- raster::extract(year.mean,catchment.poly, fun = mean, na.rm = T, df = T, sp = T)
+names(year.ndvi) <- c("ebint","ndvi")
+year.ndvi$ndvi.value <- (floor(year.ndvi$ndvi)/10)/1000
+year.ndvi$flag.value <- year.ndvi$ndvi - (floor(year.ndvi$ndvi)/10*10+1) 
+
+saveRDS(year.ndvi, "year.ndvi.Rdata")
+
+
+```
+
+```{r new-set}
+new.set <- remote.set %>% dplyr::select(!c("ndvi","ndvi.value","flag.value"))
+new.set <- merge(new.set,year.ndvi,by = "ebint") %>% dplyr::filter(! ndvi == "NaN")
+
+
+new.spdf <- SpatialPointsDataFrame(new.set[,c("longitude","latitude")],new.set) 
+
+new.kmat <- new.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
+
+```
+
+```{r sem-year, eval = F}
+new.sem <- errorsarlm(fm,new.set,k.neigh.w.set)
+saveRDS(sem.remote,"new.sem.Rdata")
+```
+
+```{r new-sem-results}
+new.sem <- readRDS("new.sem.Rdata")
+moran.I.new.sem <- moran.test(new.sem$residuals, new.kmat, randomisation = F, alternative = "two.sided")
+
+map <- f_plotspatial(data = new.set, var = new.sem$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.remote),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
+plot(map)
+
+AIC(new.sem)
+summary.new.sem <- new.sem %>% summary()
+
+
+new.sem.coef <- summary.new.sem$Coef %>% as.data.frame() %>% tibble::rownames_to_column("exp.var") 
+
+new.coef.plot <- ggplot(new.sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+#cowplot::plot_grid(map,coef.plot,ncol=2)
+```
+
+```{r new-sem-coef}
+knitr::kable(new.sem.coef, digits = 2)
+```
+
+# Modelling NDVI from T and precipitations
+
+```{r altitude}
+
+alt.nor <- getData("alt",country = "NOR", mask = T)
+alt.swe <- getData("alt",country = "SWE", mask = T)
+alt.fin <- getData("alt",country = "FIN", mask = T)
+
+alt.list <- list(alt.nor,alt.swe,alt.fin)
+alt <- do.call(raster::merge,alt.list)
+
+alt.fennoscandia <- extract(alt,remote.set[,c("longitude","latitude")])
+
+#monthly mean temperature for 1970-2000
+bio.fennoscandia <- getData(name = "worldclim", var = "bio", res = 2.5)
+annual.temp <- raster::extract(bio.fennoscandia[[1]], head(catchment.poly), fun = mean, df = T, sp = T)
+saveRDS(annual.temp,"annual.temp.Rdata")
+
+annual.prec <- raster::extract(bio.fennoscandia$bio12, catchment.poly, fun = mean, df = T, sp = T)
+saveRDS(annual.prec,"annual.prec.Rdata")
+boxplot(annual.prec$bio12)
+
+tmin.fennoscandia <- getData(name = "worldclim",var = "tmin",res=30)
+tmin.summer <- raster::stack(tmin.fennoscandia[[6]],tmin.fennoscandia[[7]],tmin.fennoscandia[[8]]) %>% mean()
+tmin.catch <- raster::extract(tmin.summer,catchment.poly,fun = mean, na.rm = T, df = T, sp = T)
+saveRDS(tmin.catch,"tmin.catch.Rdata")
+
+tmax.fennoscandia <- getData(name = "worldclim",var = "tmax",res=10)
+tmax.summer <- raster::stack(tmax.fennoscandia[[6]],tmax.fennoscandia[[7]],tmax.fennoscandia[[8]]) %>% mean()
+tmax.catch <- raster::extract(tmax.summer,catchment.poly,fun = mean, na.rm = T, df = T, sp = T)
+
+prec.fennoscandia <- getData(name = "worldclim",var = "prec",res=10)
+prec.summer <- raster::stack(prec.fennoscandia[[6]],prec.fennoscandia[[7]],prec.fennoscandia[[8]])
+prec.catch <- raster::extract(prec.summer,catchment.poly,fun = mean, na.rm = T, df = T, sp = T)
+
+
+alt.swe <- getData("alt",country = "SWE", mask = T)
+alt.fin <- getData("alt",country = "FIN", mask = T)
+
+alt.list <- list(alt.nor,alt.swe,alt.fin)
+alt <- do.call(raster::merge,alt.list)
+
+alt.fennoscandia <- extract(alt,remote.set[,c("longitude","latitude")])
+
 ```
