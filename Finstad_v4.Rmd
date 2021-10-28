@@ -574,3 +574,10 @@ alt <- do.call(raster::merge,alt.list)
 alt.fennoscandia <- extract(alt,remote.set[,c("longitude","latitude")])
 
 ```
+### Corine Land Cover
+
+```{r extract-land-cover}
+corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
+library(rgdal)
+corine_spdf <- readOGR(dsn= paste0(getwd(),"/Corine_Land_Cover/corine-land-cover.shp"))
+```
