@@ -69,6 +69,9 @@ saveRDS(catchment.poly.1000,"catchment.poly.1000.Rdata")
 ```{r catchment-plot}
 catchment.poly.1000 <- readRDS("catchment.poly.1000.Rdata")
 catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
+catchment.poly.corine <- st_transform(catchment.poly.1000, CRS("EPSG:3035"))
+plot(catchment.poly.corine)
+st_write(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.shp")
 #plot(catchment.poly.1000)
 ```
 
@@ -578,6 +581,13 @@ alt.fennoscandia <- extract(alt,remote.set[,c("longitude","latitude")])
 
 ```{r extract-land-cover}
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
+plot(corine)
 library(rgdal)
 corine_spdf <- readOGR(dsn= paste0(getwd(),"/Corine_Land_Cover/corine-land-cover.shp"))
+
+clc.remote <- raster::extract(corine,head(catchment.poly.corine))
+clc.tab <- sapply(clc.remote, function(x) tabulate(x,44))
+clc.tab.area <- clc.tab*prod(res(corine))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
 ```
