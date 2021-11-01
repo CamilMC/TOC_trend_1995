@@ -585,9 +585,14 @@ plot(corine)
 library(rgdal)
 corine_spdf <- readOGR(dsn= paste0(getwd(),"/Corine_Land_Cover/corine-land-cover.shp"))
 
-clc.remote <- raster::extract(corine,head(catchment.poly.corine))
-clc.tab <- sapply(clc.remote, function(x) tabulate(x,44))
+clc.remote <- raster::extract(corine,catchment.poly.corine)
+clc.tab <- sapply(clc.remote, function(x) tabulate(x,45))
 clc.tab.area <- clc.tab*prod(res(corine))
 catchment.area <- colSums(clc.tab.area)
 clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+
+#bogs are category 36 and inland marshes are 35
+# 23: broad-leaved forest
+# 24: coniferous forest
+# 25: mixed forest
 ```
