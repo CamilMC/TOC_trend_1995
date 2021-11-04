@@ -69,9 +69,9 @@ saveRDS(catchment.poly.1000,"catchment.poly.1000.Rdata")
 ```{r catchment-plot}
 catchment.poly.1000 <- readRDS("catchment.poly.1000.Rdata")
 catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
-catchment.poly.corine <- st_transform(catchment.poly.1000, CRS("EPSG:3035"))
-plot(catchment.poly.corine)
-st_write(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.shp")
+#catchment.poly.corine <- st_transform(catchment.poly.1000, CRS("EPSG:3035"))
+#plot(catchment.poly.corine)
+#st_write(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.shp")
 #plot(catchment.poly.1000)
 ```
 
@@ -393,8 +393,6 @@ moran.I.res.sem <- moran.test(sem.remote$residuals, k.neigh.w.set, alternative =
 map <- f_plotspatial(data = remote.set, var = sem.remote$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.remote),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
 plot(map)
 
-AIC(sem.remote)
-
 sem.coef <- sem.remote$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
 coef.plot <- ggplot(sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
 
@@ -473,13 +471,13 @@ summary.table <- data.frame(models = models, AIC = AIC.models, moran.I = moran.r
 knitr::kable(summary.table)  
 ```
 
-# Other tests with NDVI
-```{r yearly-ndvi}
-#ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
-#ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
+# Year NDVI
+```{r yearly-ndvi, eval = F}
+ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
+ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
 year.mean <- mean(ndvi.max)
 year.scandinavia <- raster::crop(year.mean,c(0,35,55,73))
-plot(summer.scandinavia)
+plot(year.scandinavia)
 
 year.scan <- reclassify(year.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
 plot(year.scan)
@@ -494,7 +492,7 @@ saveRDS(year.ndvi, "year.ndvi.Rdata")
 
 ```
 
-```{r new-set}
+```{r new-set, eval = F}
 new.set <- remote.set %>% dplyr::select(!c("ndvi","ndvi.value","flag.value"))
 new.set <- merge(new.set,year.ndvi,by = "ebint") %>% dplyr::filter(! ndvi == "NaN")
 
@@ -502,16 +500,18 @@ new.set <- merge(new.set,year.ndvi,by = "ebint") %>% dplyr::filter(! ndvi == "Na
 new.spdf <- SpatialPointsDataFrame(new.set[,c("longitude","latitude")],new.set) 
 
 new.kmat <- new.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
+saveRDS(new.kmat,"new.kmat.Rdata")
 
 ```
 
 ```{r sem-year, eval = F}
-new.sem <- errorsarlm(fm,new.set,k.neigh.w.set)
+new.sem <- errorsarlm(fm,new.set,new.kmat)
 saveRDS(sem.remote,"new.sem.Rdata")
 ```
 
-```{r new-sem-results}
+```{r new-sem-results, eval = F}
 new.sem <- readRDS("new.sem.Rdata")
+new.kmat <- readRDS("new.kmat.Rdata")
 moran.I.new.sem <- moran.test(new.sem$residuals, new.kmat, randomisation = F, alternative = "two.sided")
 
 map <- f_plotspatial(data = new.set, var = new.sem$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.remote),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
@@ -525,17 +525,28 @@ new.sem.coef <- summary.new.sem$Coef %>% as.data.frame() %>% tibble::rownames_to
 
 new.coef.plot <- ggplot(new.sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
 
+plot(new.coef.plot)
 #cowplot::plot_grid(map,coef.plot,ncol=2)
 ```
 
-```{r new-sem-coef}
+```{r new-sem-coef, eval = F}
 knitr::kable(new.sem.coef, digits = 2)
 ```
 
-# Modelling NDVI from T and precipitations
+# SEM model with bogs, temp and precipitation
 
-```{r altitude}
+Temperature and precipitation are downloaded from the database Worldclim. Temperature is the annual temperature in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation or bio12 in the bioclimatic dataset. 
+```{r altitude, eval = F}
+#monthly mean temperature for 1970-2000
+bio.fennoscandia <- getData(name = "worldclim", var = "bio", res = 2.5)
+annual.temp <- raster::extract(bio.fennoscandia[[1]], catchment.poly, fun = mean, df = T, sp = T)
+saveRDS(annual.temp,"annual.temp.Rdata")
 
+annual.prec <- raster::extract(bio.fennoscandia$bio12, catchment.poly, fun = mean, df = T, sp = T)
+saveRDS(annual.prec,"annual.prec.Rdata")
+boxplot(annual.prec$bio12)
+
+# altitude
 alt.nor <- getData("alt",country = "NOR", mask = T)
 alt.swe <- getData("alt",country = "SWE", mask = T)
 alt.fin <- getData("alt",country = "FIN", mask = T)
@@ -544,55 +555,97 @@ alt.list <- list(alt.nor,alt.swe,alt.fin)
 alt <- do.call(raster::merge,alt.list)
 
 alt.fennoscandia <- extract(alt,remote.set[,c("longitude","latitude")])
+alt.df <- data.frame(ebint = remote.set$ebint, alt = alt.fennoscandia )
+saveRDS(alt.df, "alt.df.Rdata")
 
-#monthly mean temperature for 1970-2000
-bio.fennoscandia <- getData(name = "worldclim", var = "bio", res = 2.5)
-annual.temp <- raster::extract(bio.fennoscandia[[1]], head(catchment.poly), fun = mean, df = T, sp = T)
-saveRDS(annual.temp,"annual.temp.Rdata")
+slope.nor <- terrain(alt.nor, unit = "degrees")
+slope.swe <- terrain(alt.swe, unit = "degrees")
+slope.fin <- terrain(alt.fin, unit = "degrees")
+slope.list <- list(slope.nor,slope.swe,slope.fin)
+slope <- do.call(raster::merge,slope.list)
 
-annual.prec <- raster::extract(bio.fennoscandia$bio12, catchment.poly, fun = mean, df = T, sp = T)
-saveRDS(annual.prec,"annual.prec.Rdata")
-boxplot(annual.prec$bio12)
-
-tmin.fennoscandia <- getData(name = "worldclim",var = "tmin",res=30)
-tmin.summer <- raster::stack(tmin.fennoscandia[[6]],tmin.fennoscandia[[7]],tmin.fennoscandia[[8]]) %>% mean()
-tmin.catch <- raster::extract(tmin.summer,catchment.poly,fun = mean, na.rm = T, df = T, sp = T)
-saveRDS(tmin.catch,"tmin.catch.Rdata")
-
-tmax.fennoscandia <- getData(name = "worldclim",var = "tmax",res=10)
-tmax.summer <- raster::stack(tmax.fennoscandia[[6]],tmax.fennoscandia[[7]],tmax.fennoscandia[[8]]) %>% mean()
-tmax.catch <- raster::extract(tmax.summer,catchment.poly,fun = mean, na.rm = T, df = T, sp = T)
-
-prec.fennoscandia <- getData(name = "worldclim",var = "prec",res=10)
-prec.summer <- raster::stack(prec.fennoscandia[[6]],prec.fennoscandia[[7]],prec.fennoscandia[[8]])
-prec.catch <- raster::extract(prec.summer,catchment.poly,fun = mean, na.rm = T, df = T, sp = T)
-
-
-alt.swe <- getData("alt",country = "SWE", mask = T)
-alt.fin <- getData("alt",country = "FIN", mask = T)
-
-alt.list <- list(alt.nor,alt.swe,alt.fin)
-alt <- do.call(raster::merge,alt.list)
-
-alt.fennoscandia <- extract(alt,remote.set[,c("longitude","latitude")])
-
+plot(slope)
+slope.fennoscandia <- raster::extract(slope,catchment.poly, sp = T, df = T, fun = mean)
+#slope.df <- data.frame(ebint = remote.set$ebint, slope = slope.fennoscandia )
+saveRDS(slope.fennoscandia, "slope.fennoscandia.Rdata")
 ```
 ### Corine Land Cover
 
-```{r extract-land-cover}
+```{r extract-land-cover, eval = F}
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
 plot(corine)
 library(rgdal)
 corine_spdf <- readOGR(dsn= paste0(getwd(),"/Corine_Land_Cover/corine-land-cover.shp"))
 
 clc.remote <- raster::extract(corine,catchment.poly.corine)
+saveRDS(clc.remote,"clc.remote.Rdata")
+
 clc.tab <- sapply(clc.remote, function(x) tabulate(x,45))
 clc.tab.area <- clc.tab*prod(res(corine))
 catchment.area <- colSums(clc.tab.area)
 clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+names(clc.tab.prop) <- catchment.poly.corine$ebint
+saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
 
 #bogs are category 36 and inland marshes are 35
 # 23: broad-leaved forest
 # 24: coniferous forest
 # 25: mixed forest
+```
+```{r use-extra-data}
+clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
+bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs")
+annual.temp <- readRDS("annual.temp.Rdata")
+annual.prec <- readRDS("annual.prec.Rdata")
+alt.df <- readRDS("alt.df.Rdata")
+slope.fennoscandia <- readRDS("slope.fennoscandia.Rdata")
+remote.2 <- merge(remote.set, bogs, by.x = "ebint", by.y = 0) %>% merge(annual.temp, by = "ebint") %>% merge(annual.prec, by = "ebint") %>% merge(slope.fennoscandia, by = "ebint") # %>% merge(alt.df, by = "ebint")
+remote.2$log.bogs <- log(remote.2$bogs +0.001) %>% scale()
+
+remote.2$temp <-  scale(remote.2$bio1/10)
+remote.2$prec <- log(remote.2$bio12+0.0001) %>% scale()
+remote.2$slope <- log(remote.2$layer+0.0001) %>% scale()
+
+```
+
+```{r sem-all-var, eval = F}
+all.sem <- errorsarlm(log.toc~log.runoff+ndvi.value+log.bogs+temp+prec+slope,remote.2,k.neigh.w.set, na.action = na.omit)
+saveRDS(all.sem,"all.sem.Rdata")
+```
+
+```{r all-sem-results}
+all.sem <- readRDS("all.sem.Rdata")
+moran.I.all.sem <- moran.test(all.sem$residuals, k.neigh.w.set, randomisation = F, alternative = "two.sided")
+
+map <- f_plotspatial(data = remote.2, var = all.sem$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.remote),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
+plot(map)
+
+AIC(all.sem)
+summary.all.sem <- all.sem %>% summary()
+
+
+all.sem.coef <- summary.all.sem$Coef %>% as.data.frame() %>% tibble::rownames_to_column("exp.var") 
+
+all.coef.plot <- ggplot(all.sem.coef[-1,])+geom_col(aes(x=exp.var,y=Estimate,fill=Estimate))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+plot(all.coef.plot)
+cor.exp.var <- remote.2 %>% dplyr::select(c("log.runoff","ndvi.value","log.bogs","temp","prec","slope")) %>% cor(use = "pairwise.complete.obs") 
+
+corrplot::corrplot(cor.exp.var, method = "number")
+#cowplot::plot_grid(map,coef.plot,ncol=2)
+```
+
+```{r all-sem-coef}
+knitr::kable(all.sem.coef, digits = 2)
+```
+
+bogs, runoff, prec and slope are logged
+All are scaled
+
+```{r delogdescale-coef}
+# ndvi unscaled
+all.sem.coef[3,2]*sd(remote.2$log.toc)/sd(remote.2$ndvi.value)
+# slope unscaled
+filter(all.sem.coef,exp.var == "slope")[2]*sd(remote.2$log.toc)/sd(remote.2$ndvi.value)
+
 ```
