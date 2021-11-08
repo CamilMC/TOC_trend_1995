@@ -45,161 +45,16 @@ Each catchment polygon is linked to the corresponding TOC concentration via an e
 
 The catchment polygons were designed by an elevation model and are assigned to the studied lake based on the distance to the sampling coordinates.
 
-```{r load-data}
-con <- dbConnect(RPostgreSQL::PostgreSQL(),user = "camille.crapart", password = "camille",host = "vm-srv-wallace.vm.ntnu.no", dbname = "nofa")
-#catchment.geom <- tbl(con,sql("SELECT ebint, geom FROM catchments.lake_catchments"))
-
-ebint.tbl <- tbl(con,sql("SELECT ebint FROM catchments.lake_catchments")) 
-ebint.catch <- pull(ebint.tbl,ebint)
-
-ebint.waterchem <- tbl(con,sql("SELECT ebint,nation FROM environmental.north_euro_lake_surv_1995")) %>% tbl_df()
-
-ebint <- intersect(ebint.waterchem$ebint, ebint.catch)
-
-waterchem <- filter(ebint.waterchem, ebint %in% ebint)
-
-```
-
-```{r catchment-poly, eval = F}
-catchment.poly.1000 <- st_read(con,query = "SELECT ebint, geom FROM catchments.lake_catchments WHERE ebint IN (SELECT ebint FROM environmental.north_euro_lake_surv_1995)")
-saveRDS(catchment.poly.1000,"catchment.poly.1000.Rdata")
-
-```
-
-```{r catchment-plot}
-catchment.poly.1000 <- readRDS("catchment.poly.1000.Rdata")
-catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
-#catchment.poly.corine <- st_transform(catchment.poly.1000, CRS("EPSG:3035"))
-#plot(catchment.poly.corine)
-#st_write(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.shp")
-#plot(catchment.poly.1000)
-```
-
-```{r toc}
-
-toc.tbl <- tbl(con,sql("SELECT ebint,toc_mg_l,longitude,latitude,dist_closest_ebint,dist_2nd_closest_ebint FROM environmental.north_euro_lake_surv_1995"))
-toc.df <- as.data.frame(toc.tbl)
-
-```
-
-
-## NDVI
-
-NDVI values are extracted from the GIMMS NDVI3g dataset @TheNationalCenterForAtmosphericResearch2018, stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package @Destch2021 on Rstudio. 
-
-Data is taken bi-monthly @Tucker2005. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximum NDVI value is taken for each pixel. Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package @Hijmans2018. 
-
-The values stored in the ecocast dataset are composed of the ndvi value and a flag value indicating the goodness of the data @Detsch2021. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula "floor(ndvi3g/10)/1000" @Detsch2021, and then the mean of the 3 summer values (june, july and august) was computed for each catchment. 
-
-
-```{r ndvi, eval = F}
-# http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
-
-ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
-ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
-summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
-summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
-plot(summer.scandinavia)
-
-summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
-plot(summer.scan)
-
-summer.ndvi <- raster::extract(summer.mean,catchment.poly, fun = mean, df = T, sp = T)
-names(summer.ndvi) <- c("ebint","ndvi")
-summer.ndvi$ndvi.value <- (floor(summer.ndvi$ndvi)/10)/1000
-summer.ndvi$flag.value <- summer.ndvi$ndvi - (floor(summer.ndvi$ndvi)/10*10+1) 
-
-saveRDS(summer.ndvi, "summer.ndvi.Rdata")
-```
-## CORDEX
-See the cordex website (insert citation https://portal.enes.org/data/data-metadata-service/search-and-download/cordex-access
-) for info. Downloading at https://esg-dn1.nsc.liu.se/projects/esgf-liu/ 
-Names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
-For runoff the 30 years mean is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf )
-
-
-
-```{r runoff, eval = F}
-#runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
-#runoff.df <- runoff.tbl %>% as.data.frame()
-
-runoff.file.60s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_196101-197012.nc"
-runoff.file.70s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_197101-198012.nc"
-runoff.file.80s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_198101-199012.nc"
-
-catchment.poly.wgs84 <- st_transform(catchment.poly.1000,st_crs("EPSG:4326")$proj4string)
-
-# get coordinates
-runoff.nc <- nc_open(runoff.file.60s)
-runoff.info <- GDALinfo(runoff.nc)
-attr.runoff <- attr(runoff.info,"mdata")
-
-rot.info <- attr.runoff[grep("^rotated",attr(runoff.info,"mdata"))]
-coord <- sapply(rot.info, FUN = function(x) {
-  unlist(str_split(x, pattern = "="))[2]})
-coord.num<- round(as.numeric(coord[2:3]),2)
-
-y <- coord.num[1]
-x <- coord.num[2]
-
-target.crs <- paste0("+proj=ob_tran +o_proj=longlat +o_lon_p=" , 
-                     x, " +o_lat_p=", y, 
-                     " +lon_0=180 +to_meter=0.0174532925199433")
-
-# 60s
-runoff.60.stack <- stack(runoff.file.60s, varname = "mrros")
-runoff.60.mean  <- mean(runoff.60.stack)
-
-projection(runoff.60.mean) <- CRS("EPSG:4326")
-runoff.60.rotated <- projectRaster(runoff.60.mean,crs = target.crs)
-runoff.60.wgs84 <- runoff.60.rotated
-projection(runoff.60.wgs84) <- CRS("EPSG:4326")
-
-
-runoff.60s <- raster::extract(runoff.60.wgs84,catchment.poly.wgs84, fun = mean, na.rm = T, df = T, exact = F, sp = T)
-runoff.60.df <- runoff.60s@data
-names(runoff.60.df) <- c("ebint","runoff.60s")
-
-# 70s
-runoff.70.stack <- stack(runoff.file.70s, varname = "mrros")
-runoff.70.mean  <- mean(runoff.70.stack)
-
-projection(runoff.70.mean) <- CRS("EPSG:4326")
-runoff.70.rotated <- projectRaster(runoff.70.mean,crs = target.crs)
-runoff.70.wgs84 <- runoff.70.rotated
-projection(runoff.70.wgs84) <- CRS("EPSG:4326")
-
-
-runoff.70s <- raster::extract(runoff.70.wgs84,catchment.poly.wgs84, fun = mean, na.rm = T, df = T, exact = F, sp = T)
-runoff.70.df <- runoff.70s@data
-names(runoff.70.df) <- c("ebint","runoff.70s")
-
-# 80s
-runoff.80.stack <- stack(runoff.file.80s, varname = "mrros")
-runoff.80.mean  <- mean(runoff.80.stack)
-
-projection(runoff.80.mean) <- CRS("EPSG:4326")
-runoff.80.rotated <- projectRaster(runoff.80.mean,crs = target.crs)
-runoff.80.wgs84 <- runoff.80.rotated
-projection(runoff.80.wgs84) <- CRS("EPSG:4326")
-
-
-runoff.80s <- raster::extract(runoff.80.wgs84,catchment.poly.wgs84, fun = mean, na.rm = T, df = T, exact = F, sp = T)
-runoff.80.df <- runoff.80s@data
-names(runoff.80.df) <- c("ebint","runoff.80s")
-
-runoff.df <- merge(runoff.60.df,runoff.70.df, by = "ebint") %>% merge(runoff.80.df, by = "ebint")
-runoff.df$mean.runoff <- rowMeans(runoff.df[,2:4])
-saveRDS(runoff.df, "runoff.df.Rdata")
-```
-
 ## Data gathering and cleaning
 
 ```{r gather-data}
+country <- readRDS("country.Rdata")
+toc.df <- readRDS("toc.df.Rdata")
+
 summer.ndvi <- readRDS("summer.ndvi.Rdata")
 runoff.df <- readRDS("runoff.df.Rdata")
 
-remote.set <- merge(waterchem,toc.df, by = "ebint") %>% merge(summer.ndvi, by = "ebint") %>% merge(runoff.df,by = "ebint")
+remote.set <- merge(country,toc.df, by = "ebint") %>% merge(summer.ndvi, by = "ebint") %>% merge(runoff.df,by = "ebint")
 
 remote.set$uncertain <- ifelse(remote.set$dist_closest_ebint/remote.set$dist_2nd_closest_ebint > 0.5, FALSE, TRUE)
 remote.set$uncertain[which(is.na(remote.set$uncertain)==TRUE)] <- FALSE
@@ -263,7 +118,7 @@ saveRDS(k.neigh.w.set,"k.neigh.w.set.Rdata")
 ```{r spatial-autocorrelation, eval = T}
 k.neigh.w.set <- readRDS("k.neigh.w.set.Rdata")
 moran.list <- c() 
-for (i in c("toc_mg_l","ndvi","mean.runoff")){
+for (i in c("toc_mg_l","ndvi.value","mean.runoff", pr)){
      moran.list[[i]] <- moran.test(remote.set[,i],k.neigh.w.set, na.action = na.omit, alternative = "two.sided")
 }
 
@@ -471,26 +326,7 @@ summary.table <- data.frame(models = models, AIC = AIC.models, moran.I = moran.r
 knitr::kable(summary.table)  
 ```
 
-# Year NDVI
-```{r yearly-ndvi, eval = F}
-ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
-ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
-year.mean <- mean(ndvi.max)
-year.scandinavia <- raster::crop(year.mean,c(0,35,55,73))
-plot(year.scandinavia)
 
-year.scan <- reclassify(year.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
-plot(year.scan)
-
-year.ndvi <- raster::extract(year.mean,catchment.poly, fun = mean, na.rm = T, df = T, sp = T)
-names(year.ndvi) <- c("ebint","ndvi")
-year.ndvi$ndvi.value <- (floor(year.ndvi$ndvi)/10)/1000
-year.ndvi$flag.value <- year.ndvi$ndvi - (floor(year.ndvi$ndvi)/10*10+1) 
-
-saveRDS(year.ndvi, "year.ndvi.Rdata")
-
-
-```
 
 ```{r new-set, eval = F}
 new.set <- remote.set %>% dplyr::select(!c("ndvi","ndvi.value","flag.value"))
@@ -533,65 +369,6 @@ plot(new.coef.plot)
 knitr::kable(new.sem.coef, digits = 2)
 ```
 
-# SEM model with bogs, temp and precipitation
-
-Temperature and precipitation are downloaded from the database Worldclim. Temperature is the annual temperature in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation or bio12 in the bioclimatic dataset. 
-```{r altitude, eval = F}
-#monthly mean temperature for 1970-2000
-bio.fennoscandia <- getData(name = "worldclim", var = "bio", res = 2.5)
-annual.temp <- raster::extract(bio.fennoscandia[[1]], catchment.poly, fun = mean, df = T, sp = T)
-saveRDS(annual.temp,"annual.temp.Rdata")
-
-annual.prec <- raster::extract(bio.fennoscandia$bio12, catchment.poly, fun = mean, df = T, sp = T)
-saveRDS(annual.prec,"annual.prec.Rdata")
-boxplot(annual.prec$bio12)
-
-# altitude
-alt.nor <- getData("alt",country = "NOR", mask = T)
-alt.swe <- getData("alt",country = "SWE", mask = T)
-alt.fin <- getData("alt",country = "FIN", mask = T)
-
-alt.list <- list(alt.nor,alt.swe,alt.fin)
-alt <- do.call(raster::merge,alt.list)
-
-alt.fennoscandia <- extract(alt,remote.set[,c("longitude","latitude")])
-alt.df <- data.frame(ebint = remote.set$ebint, alt = alt.fennoscandia )
-saveRDS(alt.df, "alt.df.Rdata")
-
-slope.nor <- terrain(alt.nor, unit = "degrees")
-slope.swe <- terrain(alt.swe, unit = "degrees")
-slope.fin <- terrain(alt.fin, unit = "degrees")
-slope.list <- list(slope.nor,slope.swe,slope.fin)
-slope <- do.call(raster::merge,slope.list)
-
-plot(slope)
-slope.fennoscandia <- raster::extract(slope,catchment.poly, sp = T, df = T, fun = mean)
-#slope.df <- data.frame(ebint = remote.set$ebint, slope = slope.fennoscandia )
-saveRDS(slope.fennoscandia, "slope.fennoscandia.Rdata")
-```
-### Corine Land Cover
-
-```{r extract-land-cover, eval = F}
-corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
-plot(corine)
-library(rgdal)
-corine_spdf <- readOGR(dsn= paste0(getwd(),"/Corine_Land_Cover/corine-land-cover.shp"))
-
-clc.remote <- raster::extract(corine,catchment.poly.corine)
-saveRDS(clc.remote,"clc.remote.Rdata")
-
-clc.tab <- sapply(clc.remote, function(x) tabulate(x,45))
-clc.tab.area <- clc.tab*prod(res(corine))
-catchment.area <- colSums(clc.tab.area)
-clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-names(clc.tab.prop) <- catchment.poly.corine$ebint
-saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
-
-#bogs are category 36 and inland marshes are 35
-# 23: broad-leaved forest
-# 24: coniferous forest
-# 25: mixed forest
-```
 ```{r use-extra-data}
 clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
 bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs")

@@ -51,8 +51,8 @@ ebint.waterchem <- tbl(con,sql("SELECT ebint,nation FROM environmental.north_eur
 
 ebint <- intersect(ebint.waterchem$ebint, ebint.catch)
 
-waterchem <- filter(ebint.waterchem, ebint %in% ebint)
-
+country <- filter(ebint.waterchem, ebint %in% ebint)
+saveRDS(country,"country.Rdata")
 ```
 
 ## Catchment extraction and transformation
@@ -64,8 +64,8 @@ saveRDS(catchment.poly.1000,"catchment.poly.1000.Rdata")
 ```
 
 ```{r catchment-plot}
-catchment.poly.1000 <- readRDS("catchment.poly.1000.Rdata")
 catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
+st_write(catchment.poly,"catchment.poly.shp")
 catchment.poly.corine <- st_transform(catchment.poly.1000, CRS("EPSG:3035"))
 st_write(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.shp")
 ```
@@ -76,8 +76,10 @@ st_write(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.shp")
 
 toc.tbl <- tbl(con,sql("SELECT ebint,toc_mg_l,longitude,latitude,dist_closest_ebint,dist_2nd_closest_ebint FROM environmental.north_euro_lake_surv_1995"))
 toc.df <- as.data.frame(toc.tbl)
+saveRDS(toc.df,"toc.df.Rdata")
 
 ```
+
 
 
 # NDVI

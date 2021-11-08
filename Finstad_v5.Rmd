@@ -1,0 +1,396 @@
+---
+  title: "Remote sensing and toc concentration"
+author: "Camille M. Crapart"
+date: "29 9 2021"
+output: 
+  html_document:
+  code_folding: hide
+toc: true
+toc_float: true
+number_sections: true
+---
+  # Introduction
+  
+  
+  
+  # Methods
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center")
+```
+
+```{r library}
+library(DBI)
+library(sf)
+library(dplyr)
+library(gimms)
+
+library(ncdf4)
+library(rgdal)
+
+library(stringr)
+library(ggplot2)
+library(cowplot)
+library(spdep)
+
+source("f_plotspatial.R")
+```
+
+# Data preparation
+
+## Data from ecco_biwa datavase
+
+The catchment and TOC data are stored on the PostgreSQL database ecco_biwa, accessed through Rstudio using the st_read function (sf package @Pebesma2021) and the dplyr package @Wickhman2021. 
+Each catchment polygon is linked to the corresponding TOC concentration via an ebint internal to the ecco_biwa database.
+
+The catchment polygons were designed by an elevation model and are assigned to the studied lake based on the distance to the sampling coordinates.
+
+## Data gathering and cleaning
+
+```{r gather-data}
+country <- readRDS("country.Rdata")
+toc.df <- readRDS("toc.df.Rdata")
+
+summer.ndvi <- readRDS("summer.ndvi.Rdata")
+runoff.df <- readRDS("runoff.df.Rdata")
+annual.temp <- readRDS("annual.temp.Rdata")
+annual.prec <- readRDS("annual.prec.Rdata")
+slope.fennoscandia <- readRDS("slope.fennoscandia.Rdata")
+clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
+bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% rownames_to_column(var = "ebint")
+
+fennoscandia <- merge(country,toc.df, by = "ebint") %>% 
+  merge(summer.ndvi, by = "ebint") %>% 
+  merge(runoff.df,by = "ebint") %>% 
+  merge(annual.temp, by ="ebint") %>% 
+  merge(annual.prec, by = "ebint") %>%
+  merge(slope.fennoscandia, by = "ebint") %>%
+  merge(bogs, by = "ebint")
+
+fennoscandia$uncertain <- ifelse(fennoscandia$dist_closest_ebint/fennoscandia$dist_2nd_closest_ebint > 0.5, FALSE, TRUE)
+fennoscandia$uncertain[which(is.na(fennoscandia$uncertain)==TRUE)] <- FALSE
+
+fennoscandia <- fennoscandia %>% filter(toc_mg_l >= 0)
+fennoscandia <- fennoscandia %>% filter(uncertain == FALSE)
+fennoscandia <- fennoscandia %>% filter(mean.runoff < exp(20))
+fennoscandia <- fennoscandia %>% filter(ndvi.value > 0)
+dim(fennoscandia)
+
+fennoscandia$mean.runoff <- fennoscandia$mean.runoff * 1e6 # converts to mg/m2/s
+
+```
+
+# Analysis
+## Histogram
+```{r hist, results = F, fig.dim = c(24,24)}
+
+h_list <- c()
+
+for (i in c("toc_mg_l","ndvi.value","mean.runoff","bio1","bio12","layer","bogs")){
+  if(IQR(fennoscandia[[i]], na.rm = T) > 0.1){
+    hi <- ggplot(data = fennoscandia,aes_string(i))+geom_histogram(stat = "bin",na.rm = T,binwidth = function(x) 2*IQR(x, na.rm = T)/(length(x)^(1/3)))+labs(y="",title = i)+theme_light(base_size = 20)
+  }else{
+    hi <- ggplot(data = fennoscandia,aes_string(i))+geom_histogram(stat = "bin",na.rm = T)+labs(y="",title = i)+theme_light(base_size = 20)
+  }
+  h_list[[i]] <- hi
+}
+
+cowplot::plot_grid(plotlist = h_list,ncol=3)
+```
+TOC, runoff, precipitation, slope and bogs are skewed to the right so they are log-transformed.
+
+```{r log-transform}
+
+fennoscandia$log.toc <- log10(fennoscandia$toc_mg_l+1e-3) %>% scale() #to avoid log tranform 0
+fennoscandia$log.runoff <- log10(fennoscandia$mean.runoff+1e-3) %>% scale() #to avoid log tranform 0
+fennoscandia$ndvi <- scale(fennoscandia$ndvi.value)
+fennoscandia$log.bogs <- log(fennoscandia$bogs +0.001) %>% scale()
+fennoscandia$asin.sqrt.bogs <- asin(sqrt(fennoscandia$bogs)) %>% scale()
+
+fennoscandia$temp <-  scale(fennoscandia$bio1/10)
+fennoscandia$log.prec <- log(fennoscandia$bio12+0.0001) %>% scale()
+fennoscandia$log.slope <- log(fennoscandia$layer+0.0001) %>% scale()
+
+fennoscandia.spdf <- SpatialPointsDataFrame(fennoscandia[,c("longitude","latitude")],fennoscandia)
+
+variables <- c("log.toc","log.runoff","ndvi","asin.sqrt.bogs","temp","log.prec","log.slope")
+fm <- paste("log.toc","~",paste(variables[-1],collapse = "+")) %>% as.formula()
+  
+```
+
+## Spatial autocorrelation
+
+```{r neighbour-matrix, eval = F}
+library(spdep)
+k.neigh.set <- knearneigh(fennoscandia.spdf, k = 100)
+k.neigh.nb.set <- knn2nb(k.neigh.set)
+k.neigh.w <- nb2listw(k.neigh.nb.set)
+saveRDS(k.neigh.w,"k.neigh.w.Rdata")
+```
+```{r spatial-autocorrelation, eval = T}
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+moran.list <- c() 
+for (i in variables){
+  moran.list[[i]] <- moran.test(fennoscandia[,i],k.neigh.w, na.action = na.omit, alternative = "two.sided")
+}
+
+moran.df <- data.frame(variables) %>% setNames("parameter")
+moran.df$I <- NA
+moran.df$p <- NA
+
+for (i in 1:length(moran.list)){
+  moran.df$I[i] <- moran.list[[i]]$estimate[1]
+  moran.df$p[i] <- moran.list[[i]]$p.value
+}
+
+saveRDS(moran.df,"moran.df.Rdata")
+```
+```{r spatial-autocorrelation-plot}
+moran.df <- readRDS("moran.df.Rdata")
+moran.df <- moran.df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1", p > 0.1 ~" > 0.1"))
+
+moran.df$parameter <- factor(moran.df$parameter, levels = moran.df$parameter[order(moran.df$I)])
+
+knitr::kable(moran.df, digits = 4)
+g.moran <- ggplot(filter(moran.df,!parameter %in% c("longitude","latitude", "id")))+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 1/(dim(fennoscandia)[1]-1))
+plot(g.moran)
+
+```
+
+# OLS for Norway
+
+```{r OLS-Norway}
+norge <- fennoscandia %>% filter(nation == "Norway")
+
+norge.lm <- lm(data = norge, formula = log.toc~ndvi+log.runoff+asin.sqrt.bogs)
+summary(norge.lm)
+
+norge.coef <- summary(norge.lm)$coefficients %>% as.data.frame() 
+norge.coef.backtransformed <- norge.coef[-1,1:2]
+norge.coef.backtransformed[1,] <- sapply(X = norge.coef[2,1:2], FUN = function(x) x*attr(fennoscandia$ndvi,'scaled:scale')+attr(fennoscandia$ndvi,'scaled:center'))
+
+norge.coef.backtransformed[2,] <- sapply(X = norge.coef[3,1:2], FUN = function(x) 10^(x*attr(fennoscandia$log.runoff,'scaled:scale')+attr(fennoscandia$log.runoff,'scaled:center')))
+
+norge.coef.backtransformed[3,] <- sapply(X = norge.coef[4,1:2], FUN = function(x) sin((x*attr(fennoscandia$asin.sqrt.bogs,'scaled:scale')+attr(fennoscandia$asin.sqrt.bogs,'scaled:center'))^2))
+
+
+norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
+
+norge.kmat <- norge.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
+saveRDS(norge.kmat,"norge.kmat.Rdata")
+
+norge.moran.res <- lm.morantest(norge.lm,norge.kmat,alternative = "two.sided")
+moran.limit.norge <- 1/(dim(norge)[1]-1)
+
+norge.r2 <- summary(norge.lm)$adj.r.squared
+
+map <- f_plotspatial(data = norge, var = norge.lm$residuals,plottitle = "OLS residuals for Norway")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(norge.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(norge.lm),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(norge.moran.res$estimate[1],3)))
+plot(map)
+```
+
+```{r coef-norge-lm}
+knitr::kable(norge.coef,digits = 2)
+knitr::kable(norge.coef.backtransformed)
+
+``` 
+
+```{r spatial-autocorrelation-norway, eval = T}
+norge.kmat <- readRDS("norge.kmat.Rdata")
+moran.list.norge <- c() 
+for (i in variables){
+  moran.list.norge[[i]] <- moran.test(norge[,i],norge.kmat, na.action = na.omit, alternative = "two.sided")
+}
+
+moran.df.norge <- data.frame(variables) %>% setNames("parameter")
+moran.df.norge$I <- NA
+moran.df.norge$p <- NA
+
+for (i in 1:length(moran.list.norge)){
+  moran.df.norge$I[i] <- moran.list.norge[[i]]$estimate[1]
+  moran.df.norge$p[i] <- moran.list.norge[[i]]$p.value
+}
+
+saveRDS(moran.df.norge,"moran.df.norge.Rdata")
+```
+```{r spatial-autocorrelation-plot-norway}
+moran.df.norge <- readRDS("moran.df.norge.Rdata")
+moran.df.norge <- moran.df.norge %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1", p > 0.1 ~" > 0.1"))
+moran.df.norge$p <- NULL
+moran.df.norge <- rbind(moran.df.norge,c("residuals",norge.moran.res$estimate[1], "< 0.001"))
+moran.df.norge$I <- as.numeric(moran.df.norge$I)
+
+moran.df.norge$parameter <- factor(moran.df.norge$parameter, levels = moran.df.norge$parameter[order(moran.df.norge$I)])
+
+knitr::kable(moran.df.norge, digits = 4)
+g.moran.norge <- ggplot(filter(moran.df.norge,!parameter %in% c("longitude","latitude", "id")))+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light(base_size = 20)+geom_vline(xintercept = 1/(dim(fennoscandia)[1]-1))
+plot(g.moran.norge)
+
+```
+
+# Ordinary least square regression for Fennoscandia
+
+```{r ols, results = F}
+
+lm.fennoscandia <- lm(fm, data = fennoscandia, na.action = na.exclude)
+summary(lm.fennoscandia)
+lm.r2 <- summary(lm.fennoscandia)$adj.r.squared
+moran.I.res.lm <- lm.morantest(lm.fennoscandia, k.neigh.w, alternative = "two.sided")
+moran.limit.fennoscandia <- 1/(dim(fennoscandia)[1]-1)
+
+map <- f_plotspatial(data = fennoscandia, var = lm.fennoscandia$residuals,plottitle = "OLS residuals")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(lm.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(lm.fennoscandia),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(moran.I.res.lm$estimate[1],3)))
+plot(map)
+
+lm.coef <- lm.fennoscandia$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
+
+lm.coef.backtransformed <- lm.coef[-1,1:2]
+lm.coef.backtransformed[1,] <- sapply(X = lm.coef[2,1:2], FUN = function(x) x*attr(fennoscandia$ndvi,'scaled:scale')+attr(fennoscandia$ndvi,'scaled:center'))
+
+lm.coef.backtransformed[2,] <- sapply(X = lm.coef[3,1:2], FUN = function(x) 10^(x*attr(fennoscandia$log.runoff,'scaled:scale')+attr(fennoscandia$log.runoff,'scaled:center')))
+
+lm.coef.backtransformed[3,] <- sapply(X = lm.coef[4,1:2], FUN = function(x) sin((x*attr(fennoscandia$asin.sqrt.bogs,'scaled:scale')+attr(fennoscandia$asin.sqrt.bogs,'scaled:center'))^2))
+
+coef.plot <- ggplot(lm.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+#cowplot::plot_grid(map,coef.plot,ncol = 2)
+```
+```{r ols-fennoscandia-coef}
+knitr::kable(summary(lm.fennoscandia)$coefficients, digits = 2)
+```
+
+# Spatially Error Model with NDVI and runoff
+
+Lagrange multiplier test to check whether we should apply an error model or a lag model. The error model has a much higher tet stat, even if all tests are significant; therefore we apply a spatial error model. 
+
+```{r spatial-model, eval = F}
+library(spatialreg)
+lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w.set,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+
+sem.fennoscandia <- errorsarlm(fm,fennoscandia,k.neigh.w.set)
+saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
+```
+```{r results-spatial-error-model}
+sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
+moran.I.res.sem <- moran.test(sem.fennoscandia$residuals, k.neigh.w.set, alternative = "two.sided")
+
+map <- f_plotspatial(data = fennoscandia, var = sem.fennoscandia$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.fennoscandia),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
+plot(map)
+
+sem.coef <- sem.fennoscandia$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
+coef.plot <- ggplot(sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+#cowplot::plot_grid(map,coef.plot,ncol=2)
+```
+```{r sem-coef}
+knitr::kable(sem.coef, digits = 2)
+```
+
+# GWR 
+
+```{r GWR-fennoscandia, eval = F}
+library(GWmodel)
+bw.fennoscandia <- bw.gwr(fm, data = fennoscandia.spdf, kernel = "gaussian", adaptive = T)
+gwr.fennoscandia <- gwr.basic(fm, data = fennoscandia.spdf, bw = bw.fennoscandia, kernel = "gaussian", adaptive = T)
+
+saveRDS(bw.fennoscandia, "bw.fennoscandia.Rdata")
+saveRDS(gwr.fennoscandia, "gwr.fennoscandia.Rdata")
+
+```
+```{r gwss, eval = F}
+gwss.fennoscandia <- gwss(data = fennoscandia.spdf, vars = c("toc_mg_l","mean.runoff","ndvi"),kernel = "gaussian", adaptive = T, bw = bw.fennoscandia)
+saveRDS(gwss.fennoscandia,"gwss.fennoscandia.Rdata")
+
+f_plotspatial(fennoscandia,var = gwss.fennoscandia$SDF$Corr_mean.runoff.ndvi,plottitle = "cor ndvi-runoff")
+```
+```{r plot-local-r2-res, fig.dim = c(24,10)}
+gwr.fennoscandia <- readRDS("gwr.fennoscandia.Rdata")
+plot.r2 <- f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$Local_R2,plottitle = "Local R2")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(mean(gwr.fennoscandia$SDF$Local_R2),2)))+annotate("label", x = 8, y = 68, label = paste("AIC = ", round(gwr.fennoscandia$GW.diagnostic$AICc,2)))
+
+moran.I.res.gwr <- moran.test(gwr.fennoscandia$SDF$residual, k.neigh.w.set, alternative = "two.sided")
+plot.res <- f_plotspatial(fennoscandia, var=gwr.fennoscandia$SDF$Stud_residual,plottitle = "GWR residuals")+annotate("label",x = 9, y = 69, label = paste("Moran's I of \n residuals =", round(moran.I.res.gwr$estimate[1],4)))
+
+cowplot::plot_grid(plot.r2,plot.res,ncol = 2)
+```
+```{r local-coef-moran, eval = F, results = F}
+gwr.fennoscandia <- readRDS("gwr.fennoscandia.Rdata")
+ndvi.moran <- moran.test(gwr.fennoscandia$SDF$ndvi, k.neigh.w.set)
+runoff.moran <- moran.test(gwr.fennoscandia$SDF$log.runoff, k.neigh.w.set)
+f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$ndvi,plottitle = "Local coefficients NDVI")
+mean(gwr.fennoscandia$SDF$ndvi)
+f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$log.runoff,plottitle = "Local coefficients runoff")
+mean(gwr.fennoscandia$SDF$log.runoff)
+
+
+```
+
+```{r maps-fennoscandia}
+uneven <- seq(1,50,2)
+even <- seq(2,50,2)
+map.list <- c()
+for(i in 1: length(variables)){
+  map <<- f_plotspatial(fennoscandia,fennoscandia[,variables[i]],plottitle = variables[i])+theme_void(base_size = 15)
+  map.list[[even[i]]] <- map
+}
+
+```
+```{r map-coef, fig.dim=c(10,8)}
+
+for(i in 1:length(variables)){
+  map <<- f_plotspatial(fennoscandia,gwr.remote$SDF@data[,variables[i]],plottitle = paste("coef",variables[i]))+theme_void(base_size = 15)
+  map.list[[uneven[i]]] <- map
+}
+
+cowplot::plot_grid(plotlist = map.list,ncol=2)
+```
+# Summary
+
+```{r summary-performances, eval= F}
+models <- c("OLS","SEM","GWR")
+AIC.models <- c(AIC(lm.remote),AIC(sem.remote),gwr.remote$GW.diagnostic$AICc)
+moran.res.models <- c(moran.I.res.lm$estimate[1],moran.I.res.sem$estimate[1],moran.I.res.gwr$estimate[1])
+
+
+summary.table <- data.frame(models = models, AIC = AIC.models, moran.I = moran.res.models)
+knitr::kable(summary.table)  
+```
+
+```{r sem-all-var, eval = F}
+all.sem <- errorsarlm(log.toc~log.runoff+ndvi.value+log.bogs+temp+prec+slope,remote.2,k.neigh.w.set, na.action = na.omit)
+saveRDS(all.sem,"all.sem.Rdata")
+```
+
+```{r all-sem-results}
+all.sem <- readRDS("all.sem.Rdata")
+moran.I.all.sem <- moran.test(all.sem$residuals, k.neigh.w.set, randomisation = F, alternative = "two.sided")
+
+map <- f_plotspatial(data = remote.2, var = all.sem$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.remote),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
+plot(map)
+
+AIC(all.sem)
+summary.all.sem <- all.sem %>% summary()
+
+
+all.sem.coef <- summary.all.sem$Coef %>% as.data.frame() %>% tibble::rownames_to_column("exp.var") 
+
+all.coef.plot <- ggplot(all.sem.coef[-1,])+geom_col(aes(x=exp.var,y=Estimate,fill=Estimate))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+
+plot(all.coef.plot)
+cor.exp.var <- remote.2 %>% dplyr::select(c("log.runoff","ndvi.value","log.bogs","temp","prec","slope")) %>% cor(use = "pairwise.complete.obs") 
+
+corrplot::corrplot(cor.exp.var, method = "number")
+#cowplot::plot_grid(map,coef.plot,ncol=2)
+```
+
+```{r all-sem-coef}
+knitr::kable(all.sem.coef, digits = 2)
+```
+
+bogs, runoff, prec and slope are logged
+All are scaled
+
+```{r delogdescale-coef}
+# ndvi unscaled
+all.sem.coef[3,2]*sd(remote.2$log.toc)/sd(remote.2$ndvi.value)
+# slope unscaled
+filter(all.sem.coef,exp.var == "slope")[2]*sd(remote.2$log.toc)/sd(remote.2$ndvi.value)
+
+```
