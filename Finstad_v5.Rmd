@@ -8,7 +8,7 @@ output:
     toc: true
     toc_float: true
     number_sections: true
-bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+#bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 link-citations: yes
 ---
 
@@ -35,8 +35,6 @@ source("f_plotspatial.R")
 fennoscandia <- readRDS("fennoscandia.Rdata")
 fennoscandia.spdf <- readRDS("fennoscandia.spdf.Rdata")
 
-variables <- c("log.toc","log.runoff","ndvi","asin.sqrt.bogs","temp","log.prec","log.slope")
-fm <- paste("log.toc","~",paste(variables[-1],collapse = "+")) %>% as.formula()
 ```
 
 # Introduction
@@ -103,18 +101,20 @@ plot(g.moran)
 
 ## OLS for Norway
 
-```{r OLS-Norway}
-norge <- fennoscandia %>% filter(nation == "Norway")
-
-norge.lm <- lm(data = norge, formula = log.toc~ndvi+log.runoff+asin.sqrt.bogs)
-summary(norge.lm)
-
-norge.coef <- summary(norge.lm)$coefficients %>% as.data.frame() 
-
+```{r kmat, eval = F}
 norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
 
 norge.kmat <- norge.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
 saveRDS(norge.kmat,"norge.kmat.Rdata")
+```
+
+```{r norge-OLS-scaled, fig.cap = "Residuals for scaled OLS"}
+norge <- fennoscandia %>% filter(nation == "Norway")
+
+norge.lm <- lm(data = norge, formula = s.log.toc~s.ndvi+s.log.runoff+s.bogs)
+summary(norge.lm)
+
+norge.coef <- summary(norge.lm)$coefficients %>% as.data.frame() 
 
 norge.moran.res <- lm.morantest(norge.lm,norge.kmat,alternative = "two.sided")
 moran.limit.norge <- 1/(dim(norge)[1]-1)
@@ -126,30 +126,53 @@ plot(map)
 ```
 
 ```{r coef-norge-lm, fig.cap = "Linear Model Coefficients for Norwegian fit"}
-knitr::kable(norge.coef,digits = 2)
+knitr::kable(norge.coef,digits = 2, caption = "OLS coefficients ")
 ``` 
 
-```{r coef-back-transformed}
-norge.coef.backtransformed <- norge.coef[-1,1:2]
-rownames(norge.coef.backtransformed) <- c("ndvi","runoff","bogs")
+```{r norge-OLS-relative-change, "Residuals for unscaled OLS"}
+norge.lm.rc <- lm(data = norge, formula = log.toc~ndvi.value+log.runoff+bogs)
+summary(norge.lm.rc)
 
-norge.coef.backtransformed[1,] <- sapply(X = norge.coef[2,1:2], FUN = function(x) x*attr(fennoscandia$ndvi,'scaled:scale')+attr(fennoscandia$ndvi,'scaled:center'))
+norge.coef.rc <- summary(norge.lm.rc)$coefficients %>% as.data.frame() 
 
-norge.coef.backtransformed[2,] <- sapply(X = norge.coef[3,1:2], FUN = function(x) 10^(x*attr(fennoscandia$log.runoff,'scaled:scale')+attr(fennoscandia$log.runoff,'scaled:center')))
+norge.rc.moran.res <- lm.morantest(norge.lm.rc,norge.kmat,alternative = "two.sided")
+moran.limit.norge <- 1/(dim(norge)[1]-1)
 
-norge.coef.backtransformed[3,] <- sapply(X = norge.coef[4,1:2], FUN = function(x) sin((x*attr(fennoscandia$asin.sqrt.bogs,'scaled:scale')+attr(fennoscandia$asin.sqrt.bogs,'scaled:center'))^2))
+norge.rc.r2 <- summary(norge.lm.rc)$adj.r.squared
 
-knitr::kable(norge.coef.backtransformed, digits = 2)
+map <- f_plotspatial(data = norge, var = norge.lm.rc$residuals,plottitle = "OLS residuals for Norway")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(norge.rc.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(norge.lm.rc),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(norge.rc.moran.res$estimate[1],3)))
+plot(map)
+
+norge.effect.size <- norge.coef.rc[-1,1:2]
+rownames(norge.effect.size) <- c("ndvi","runoff","bogs")
+colnames(norge.effect.size) <- c("effect.size","std.error")
+norge.effect.size$units <- c("Relative change in TOC concentration (mg/L) for 0.1 increase in NDVI",
+                             "Relative change in TOC concentration (mg/L) for 10% increase of runoff",
+                             "Relative change in TOC concentration (mg/L) for 1% increase of bog cover")
+
+# ndvi: relative change in TOC for 0,1 increase in NDVI
+norge.effect.size[1,1] <- 10^(norge.coef.rc[2,1]*0.1) # effect size
+norge.effect.size[1,2] <- 0.1*log(10)*10^(norge.coef.rc[2,1]*0.1)*norge.coef.rc[2,2] # delta method: SE(effect size)=d(effect size)/dx * SE(estimate)
+
+#runoff
+norge.effect.size[2,1] <- 1.1^(norge.coef.rc[3,1]) #log-log
+norge.effect.size[2,2] <- 1.1^(norge.coef.rc[3,1])*log(1.1)*norge.coef.rc[3,2]
+
+# bogs
+norge.effect.size[3,1] <- 10^(norge.coef.rc[4,1]*0.1) # effect size
+norge.effect.size[3,2] <- 0.1*log(10)*10^(norge.coef.rc[4,1]*0.1)*norge.coef.rc[4,2] 
+
+knitr::kable(norge.effect.size, digits = 2, caption = "Effect size for model fitted on Norwegian lakes")
 ```
 
 ```{r spatial-autocorrelation-norway, eval = T}
 norge.kmat <- readRDS("norge.kmat.Rdata")
 moran.list.norge <- c() 
-for (i in c("log.toc","ndvi","log.runoff","asin.sqrt.bogs")){
+for (i in c("toc_mg_l","ndvi.value","mean.runoff","bogs")){
   moran.list.norge[[i]] <- moran.test(norge[,i],norge.kmat, na.action = na.omit, alternative = "two.sided")
 }
 
-moran.df.norge <- data.frame(c("log.toc","ndvi","log.runoff","asin.sqrt.bogs")) %>% setNames("parameter")
+moran.df.norge <- data.frame(c("toc_mg_l","ndvi.value","mean.runoff","bogs")) %>% setNames("parameter")
 moran.df.norge$I <- NA
 moran.df.norge$p <- NA
 

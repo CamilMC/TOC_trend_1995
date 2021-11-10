@@ -265,6 +265,19 @@ saveRDS(slope.df, "slope.df.Rdata")
 
 The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/lcc-2000-2006. The previous version (1995-2000) excudes Norway so the 2000 version was preferred. 
 
+The land cover data was downloaded as a raster (.tiff file), which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were:
+
+Arable land:
+* 12: non-irrigated arable land
+* 16: fruit trees and berries plantations
+* 18: pastures
+* 19: annual crops associated with permanent crops
+* 20: Complex cultivation patterns
+
+Bogs:
+* 36: peat bogs
+* 35: inland marshes, exluded because all zeros in the studied area. 
+
 ```{r extract-land-cover, eval = F}
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
 plot(corine)
@@ -280,11 +293,6 @@ catchment.area <- colSums(clc.tab.area)
 clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
 names(clc.tab.prop) <- catchment.poly.corine$ebint
 saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
-
-#bogs are category 36 and inland marshes are 35
-# 23: broad-leaved forest
-# 24: coniferous forest
-# 25: mixed forest
 ```
 
 ## Data gathering and cleaning
@@ -295,11 +303,19 @@ toc.df <- readRDS("toc.df.Rdata")
 
 summer.ndvi <- readRDS("summer.ndvi.Rdata")
 runoff.df <- readRDS("runoff.df.Rdata")
+
 annual.temp <- readRDS("annual.temp.Rdata")
+names(annual.temp) <- c("ebint","temp")
+
 annual.prec <- readRDS("annual.prec.Rdata")
+names(annual.prec) <- c("ebint","prec")
+
 slope.fennoscandia <- readRDS("slope.fennoscandia.Rdata")
+names(slope.fennoscandia) <- c("ebint","slope")
+
 clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
 bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% rownames_to_column(var = "ebint")
+arable <- colSums(clc.tab.prop[c(12,18,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% rownames_to_column(var = "ebint")
 
 fennoscandia <- merge(country,toc.df, by = "ebint") %>% 
   merge(summer.ndvi, by = "ebint") %>% 
@@ -307,7 +323,8 @@ fennoscandia <- merge(country,toc.df, by = "ebint") %>%
   merge(annual.temp, by ="ebint") %>% 
   merge(annual.prec, by = "ebint") %>%
   merge(slope.fennoscandia, by = "ebint") %>%
-  merge(bogs, by = "ebint")
+  merge(bogs, by = "ebint") %>%
+  merge(arable, by = "ebint")
 
 fennoscandia$uncertain <- ifelse(fennoscandia$dist_closest_ebint/fennoscandia$dist_2nd_closest_ebint > 0.5, FALSE, TRUE)
 fennoscandia$uncertain[which(is.na(fennoscandia$uncertain)==TRUE)] <- FALSE
@@ -315,7 +332,7 @@ fennoscandia$uncertain[which(is.na(fennoscandia$uncertain)==TRUE)] <- FALSE
 fennoscandia <- fennoscandia %>% filter(toc_mg_l >= 0)
 fennoscandia <- fennoscandia %>% filter(mean.runoff < exp(20))
 fennoscandia <- fennoscandia %>% filter(ndvi.value > 0)
-fennoscandia <- fennoscandia %>% filter(is.na(layer) == F)
+fennoscandia <- fennoscandia %>% filter(is.na(slope) == F)
 fennoscandia <- fennoscandia %>% filter(uncertain == FALSE)
 fennoscandia$uncertain <- NULL
 dim(fennoscandia)
@@ -345,15 +362,18 @@ TOC, runoff, precipitation, slope and bogs are skewed to the right so they are l
 
 ```{r log-transform}
 
-fennoscandia$log.toc <- log10(fennoscandia$toc_mg_l+1e-3) %>% scale() #to avoid log tranform 0
-fennoscandia$log.runoff <- log10(fennoscandia$mean.runoff+1e-3) %>% scale() #to avoid log tranform 0
-fennoscandia$ndvi <- scale(fennoscandia$ndvi.value)
-fennoscandia$log.bogs <- log(fennoscandia$bogs +0.001) %>% scale()
-fennoscandia$asin.sqrt.bogs <- asin(sqrt(fennoscandia$bogs)) %>% scale()
-
-fennoscandia$temp <-  scale(fennoscandia$bio1/10)
-fennoscandia$log.prec <- log10(fennoscandia$bio12+0.0001) %>% scale()
-fennoscandia$log.slope <- log10(fennoscandia$layer+0.0001) %>% scale()
+fennoscandia$log.toc <- log10(fennoscandia$toc_mg_l+1e-5) #to avoid log tranform 0
+fennoscandia$s.log.toc <- scale(fennoscandia$log.toc) 
+fennoscandia$log.runoff <- log10(fennoscandia$mean.runoff+1e-5)  #to avoid log tranform 0
+fennoscandia$s.log.runoff <- scale(fennoscandia$log.runoff)
+fennoscandia$s.ndvi <- scale(fennoscandia$ndvi.value)
+fennoscandia$s.bogs <- scale(fennoscandia$bogs)
+fennoscandia$s.arable <- scale(fennoscandia$arable)
+fennoscandia$s.temp <-  scale(fennoscandia$temp/10) # divided by 10 because the temperature is stored in C*10
+fennoscandia$log.prec <- log10(fennoscandia$prec+1e-5)
+fennoscandia$s.log.prec <- scale(fennoscandia$log.prec)
+fennoscandia$log.slope <- log10(fennoscandia$slope+1e-5) 
+fennoscandia$s.log.slope <- scale(fennoscandia$log.slope)
 
 fennoscandia.spdf <- SpatialPointsDataFrame(fennoscandia[,c("longitude","latitude")],fennoscandia)
 
