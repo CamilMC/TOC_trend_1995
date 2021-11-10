@@ -121,7 +121,7 @@ plot(year.scandinavia)
 year.scan <- reclassify(year.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
 plot(year.scan)
 
-year.ndvi <- raster::extract(year.mean,catchment.poly, fun = mean, na.rm = T, df = T, sp = T)
+year.ndvi <- raster::extract(year.scan, catchment.poly, fun = mean, na.rm = T, df = T, sp = T)
 names(year.ndvi) <- c("ebint","ndvi")
 year.ndvi$ndvi.value <- (floor(year.ndvi$ndvi)/10)/1000
 year.ndvi$flag.value <- year.ndvi$ndvi - (floor(year.ndvi$ndvi)/10*10+1) 
@@ -253,8 +253,12 @@ slope.list <- list(slope.nor,slope.swe,slope.fin)
 slope <- do.call(raster::merge,slope.list)
 
 plot(slope)
+slope.nona <- reclassify(slope,cbind(NA,100), right = NA)
+plot(slope.nona)
+
 slope.fennoscandia <- raster::extract(slope,catchment.poly, sp = T, df = T, fun = mean)
 saveRDS(slope.df, "slope.df.Rdata")
+
 ```
 
 # Land cover
@@ -281,4 +285,78 @@ saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
 # 23: broad-leaved forest
 # 24: coniferous forest
 # 25: mixed forest
+```
+
+## Data gathering and cleaning
+
+```{r gather-data}
+country <- readRDS("country.Rdata")
+toc.df <- readRDS("toc.df.Rdata")
+
+summer.ndvi <- readRDS("summer.ndvi.Rdata")
+runoff.df <- readRDS("runoff.df.Rdata")
+annual.temp <- readRDS("annual.temp.Rdata")
+annual.prec <- readRDS("annual.prec.Rdata")
+slope.fennoscandia <- readRDS("slope.fennoscandia.Rdata")
+clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
+bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% rownames_to_column(var = "ebint")
+
+fennoscandia <- merge(country,toc.df, by = "ebint") %>% 
+  merge(summer.ndvi, by = "ebint") %>% 
+  merge(runoff.df,by = "ebint") %>% 
+  merge(annual.temp, by ="ebint") %>% 
+  merge(annual.prec, by = "ebint") %>%
+  merge(slope.fennoscandia, by = "ebint") %>%
+  merge(bogs, by = "ebint")
+
+fennoscandia$uncertain <- ifelse(fennoscandia$dist_closest_ebint/fennoscandia$dist_2nd_closest_ebint > 0.5, FALSE, TRUE)
+fennoscandia$uncertain[which(is.na(fennoscandia$uncertain)==TRUE)] <- FALSE
+
+fennoscandia <- fennoscandia %>% filter(toc_mg_l >= 0)
+fennoscandia <- fennoscandia %>% filter(mean.runoff < exp(20))
+fennoscandia <- fennoscandia %>% filter(ndvi.value > 0)
+fennoscandia <- fennoscandia %>% filter(is.na(layer) == F)
+fennoscandia <- fennoscandia %>% filter(uncertain == FALSE)
+fennoscandia$uncertain <- NULL
+dim(fennoscandia)
+
+fennoscandia$mean.runoff <- fennoscandia$mean.runoff*10^6 # converts in mg/m2.s
+
+```
+
+# Analysis
+## Histogram
+```{r hist, results = F, fig.dim = c(24,24)}
+
+h_list <- c()
+
+for (i in names(fennoscandia[,-c(1:2)])){
+  if(IQR(fennoscandia[[i]], na.rm = T) > 0.1){
+    hi <- ggplot(data = fennoscandia,aes_string(i))+geom_histogram(stat = "bin",na.rm = T,binwidth = function(x) 2*IQR(x, na.rm = T)/(length(x)^(1/3)))+labs(y="",title = i)+theme_light(base_size = 20)
+  }else{
+    hi <- ggplot(data = fennoscandia,aes_string(i))+geom_histogram(stat = "bin",na.rm = T)+labs(y="",title = i)+theme_light(base_size = 20)
+  }
+  h_list[[i]] <- hi
+}
+
+cowplot::plot_grid(plotlist = h_list,ncol=3)
+```
+TOC, runoff, precipitation, slope and bogs are skewed to the right so they are log-transformed.
+
+```{r log-transform}
+
+fennoscandia$log.toc <- log10(fennoscandia$toc_mg_l+1e-3) %>% scale() #to avoid log tranform 0
+fennoscandia$log.runoff <- log10(fennoscandia$mean.runoff+1e-3) %>% scale() #to avoid log tranform 0
+fennoscandia$ndvi <- scale(fennoscandia$ndvi.value)
+fennoscandia$log.bogs <- log(fennoscandia$bogs +0.001) %>% scale()
+fennoscandia$asin.sqrt.bogs <- asin(sqrt(fennoscandia$bogs)) %>% scale()
+
+fennoscandia$temp <-  scale(fennoscandia$bio1/10)
+fennoscandia$log.prec <- log10(fennoscandia$bio12+0.0001) %>% scale()
+fennoscandia$log.slope <- log10(fennoscandia$layer+0.0001) %>% scale()
+
+fennoscandia.spdf <- SpatialPointsDataFrame(fennoscandia[,c("longitude","latitude")],fennoscandia)
+
+saveRDS(fennoscandia, "fennoscandia.Rdata")
+saveRDS(fennoscandia.spdf,"fennoscandia.spdf.Rdata")
 ```
