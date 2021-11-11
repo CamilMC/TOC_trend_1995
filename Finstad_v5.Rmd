@@ -71,11 +71,13 @@ saveRDS(k.neigh.w,"k.neigh.w.Rdata")
 ```{r spatial-autocorrelation, eval = T}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 moran.list <- c() 
-for (i in variables){
+
+raw.variables <- c("toc_mg_l","ndvi.value","mean.runoff","temp","prec","slope","arable")
+for (i in raw.variables){
   moran.list[[i]] <- moran.test(fennoscandia[,i],k.neigh.w, na.action = na.omit, alternative = "two.sided")
 }
 
-moran.df <- data.frame(variables) %>% setNames("parameter")
+moran.df <- data.frame(raw.variables) %>% setNames("parameter")
 moran.df$I <- NA
 moran.df$p <- NA
 
@@ -93,7 +95,7 @@ moran.df <- moran.df %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05
 
 moran.df$parameter <- factor(moran.df$parameter, levels = moran.df$parameter[order(moran.df$I)])
 
-knitr::kable(moran.df, digits = 4)
+knitr::kable(moran.df, digits = 4, caption = "Moran'I of dependant and independant variable")
 g.moran <- ggplot(filter(moran.df,!parameter %in% c("longitude","latitude", "id")))+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 1/(dim(fennoscandia)[1]-1))
 plot(g.moran)
 
@@ -109,6 +111,7 @@ saveRDS(norge.kmat,"norge.kmat.Rdata")
 ```
 
 ```{r norge-OLS-scaled, fig.cap = "Residuals for scaled OLS"}
+norge.kmat <- readRDS("norge.kmat.Rdata")
 norge <- fennoscandia %>% filter(nation == "Norway")
 
 norge.lm <- lm(data = norge, formula = s.log.toc~s.ndvi+s.log.runoff+s.bogs)
@@ -165,44 +168,34 @@ norge.effect.size[3,2] <- 0.1*log(10)*10^(norge.coef.rc[4,1]*0.1)*norge.coef.rc[
 knitr::kable(norge.effect.size, digits = 2, caption = "Effect size for model fitted on Norwegian lakes")
 ```
 
-```{r spatial-autocorrelation-norway, eval = T}
-norge.kmat <- readRDS("norge.kmat.Rdata")
-moran.list.norge <- c() 
-for (i in c("toc_mg_l","ndvi.value","mean.runoff","bogs")){
-  moran.list.norge[[i]] <- moran.test(norge[,i],norge.kmat, na.action = na.omit, alternative = "two.sided")
-}
+```{r test-with-unscaling-coefficients}
+norge.coef.2 <- norge.coef[-1,1:2]
 
-moran.df.norge <- data.frame(c("toc_mg_l","ndvi.value","mean.runoff","bogs")) %>% setNames("parameter")
-moran.df.norge$I <- NA
-moran.df.norge$p <- NA
 
-for (i in 1:length(moran.list.norge)){
-  moran.df.norge$I[i] <- moran.list.norge[[i]]$estimate[1]
-  moran.df.norge$p[i] <- moran.list.norge[[i]]$p.value
-}
+# ndvi: relative change in TOC for 0,1 increase in NDVI
+unscaled.ndvi.coef <- norge.coef[2,1]*attr(fennoscandia$s.ndvi,'scaled:scale')+attr(fennoscandia$s.ndvi,'scaled:center')
+unscaled.ndvi.se <- norge.coef[2,2]*attr(fennoscandia$s.ndvi,'scaled:scale')+attr(fennoscandia$s.ndvi,'scaled:center')
+norge.coef.2[1,1] <- 10^(unscaled.ndvi.coef*0.1) # effect size
+norge.coef.2[1,2] <- 0.1*log(10)*10^(unscaled.ndvi.coef*0.1)*unscaled.ndvi.se # delta method: SE(effect size)=d(effect size)/dx * SE(estimate)
 
-saveRDS(moran.df.norge,"moran.df.norge.Rdata")
+#runoff
+unscaled.log.runoff.coef <- norge.coef[3,1]*attr(fennoscandia$s.log.runoff,'scaled:scale')+attr(fennoscandia$s.log.runoff,'scaled:center')
+unscaled.log.runoff.se <- norge.coef[3,2]*attr(fennoscandia$s.log.runoff,'scaled:scale')+attr(fennoscandia$s.log.runoff,'scaled:center')
+
+norge.coef.2[2,1] <- 1.1^(unscaled.log.runoff.coef) #log-log
+norge.coef.2[2,2] <- 1.1^(unscaled.log.runoff.coef)*log(1.1)*unscaled.log.runoff.se
+
+# bogs
+unscaled.bogs.coef <- norge.coef[4,1]*attr(fennoscandia$s.bogs,'scaled:scale')+attr(fennoscandia$s.bogs,'scaled:center')
+unscaled.bogs.se <- norge.coef[4,2]*attr(fennoscandia$s.bogs,'scaled:scale')+attr(fennoscandia$s.bogs,'scaled:center')
+
+norge.coef.2[3,1] <- 10^(unscaled.bogs.coef) # effect size
+norge.coef.2[3,2] <- 0.1*log(10)*10^(unscaled.bogs.coef*0.1)*unscaled.bogs.se 
 ```
-
-```{r spatial-autocorrelation-plot-norway}
-moran.df.norge <- readRDS("moran.df.norge.Rdata")
-moran.df.norge <- moran.df.norge %>% mutate(p_value = case_when(p < 0.001~"< 0.001",p < 0.05 ~ "< 0.05",p < 0.1 ~"< 0.1", p > 0.1 ~" > 0.1"))
-moran.df.norge$p <- NULL
-moran.df.norge <- rbind(moran.df.norge,c("residuals",norge.moran.res$estimate[1], "< 0.001"))
-moran.df.norge$I <- as.numeric(moran.df.norge$I)
-
-moran.df.norge$parameter <- factor(moran.df.norge$parameter, levels = moran.df.norge$parameter[order(moran.df.norge$I)])
-
-knitr::kable(moran.df.norge, digits = 4)
-g.moran.norge <- ggplot(filter(moran.df.norge,!parameter %in% c("longitude","latitude", "id")))+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light(base_size = 20)+geom_vline(xintercept = 1/(dim(fennoscandia)[1]-1))
-plot(g.moran.norge)
-
-```
-
 ## Ordinary least square regression for Fennoscandia
 
 ```{r ols, results = F}
-
+fm <- s.log.toc~s.log.ndvi+s.log.runoff+s.log.bogs+
 lm.fennoscandia <- lm(fm, data = fennoscandia, na.action = na.exclude)
 summary(lm.fennoscandia)
 lm.r2 <- summary(lm.fennoscandia)$adj.r.squared
