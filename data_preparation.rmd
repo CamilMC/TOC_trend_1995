@@ -1,10 +1,10 @@
 ---
-  title: "Data preparation"
+title: "Data preparation"
 author: "Camille M. Crapart"
 date: "29 9 2021"
 output: 
   html_document:
-  code_folding: hide
+    code_folding: hide
 toc: true
 toc_float: true
 number_sections: true
@@ -63,11 +63,11 @@ saveRDS(catchment.poly.1000,"catchment.poly.1000.Rdata")
 
 ```
 
-```{r catchment-plot}
+```{r catchment-plot, eval = F}
 catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
-st_write(catchment.poly,"catchment.poly.shp")
+saveRDS(catchment.poly,"catchment.poly.Rdata")
 catchment.poly.corine <- st_transform(catchment.poly.1000, CRS("EPSG:3035"))
-st_write(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.shp")
+saveRDS(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.Rdata")
 ```
 
 ## TOC
@@ -295,7 +295,7 @@ names(clc.tab.prop) <- catchment.poly.corine$ebint
 saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
 ```
 
-## NDEP - EMEP data
+# NDEP - EMEP data
 
 https://emep.int/mscw/mscw_moddata.html#Comp
 N-deposition (NOx and NH3)
@@ -304,69 +304,31 @@ N-deposition (NOx and NH3)
 + Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid
 + Wet deposition of reduced nitrogen WDEP_RDN
 
-```{r extract Ndep}
+```{r extract Ndep, eval = F}
 library(ncdf4)
-EMEP_file <- "EMEP/EMEP01_L20EC_rv4_33_year.2000met_2000emis_rep2019.nc"
+EMEP_file <- "EMEP/EMEP01deg_L20_rv4.7_3024_month.2013met_2013emis.nc"
+catchment_poly <- st_read("catchment.poly.shp")
 
-site_name <- waterchem_1995$lake_name2
-site_lat <- waterchem_1995$Latitude
-site_long <- waterchem_1995$Longitude
+woxn <- stack(EMEP_file, varname = "WDEP_OXN") %>% mean()
+doxn <- stack(EMEP_file, varname = "DDEP_OXN_m2Grid") %>% mean()
+wrdn <- stack(EMEP_file, varname = "WDEP_RDN") %>% mean()
+drdn <- stack(EMEP_file, varname = "DDEP_RDN_m2Grid") %>% mean()
 
-site_n <- length(site_name)
+woxn_df <- extract(woxn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean) 
+names(woxn_df) <- c("ebint","woxn")
+doxn_df <- extract(doxn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(doxn_df) <- c("ebint","doxn")
+wrdn_df <- extract(wrdn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(wrdn_df) <- c("ebint","wrdn")
+drdn_df <- extract(drdn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(drdn_df) <- c("ebint","drdn")
 
-nearest_grid_in_lat <- rep(0,site_n)
-nearest_grid_in_long <- rep(0,site_n)
+ndep.df <- merge(woxn_df,doxn_df, by = "ebint") %>% merge(wrdn_df, by = "ebint") %>% merge(drdn_df, by = "ebint")
+ndep.df$tndep <- rowSums(ndep.df@data[,c(2:5)])
 
-grid_data <- nc_open(EMEP_file)
+saveRDS(ndep.df,"ndep.df.Rdata")
 
-grid_lat <- grid_data$dim$lat$vals
-grid_long <- grid_data$dim$lon$vals
-
-n_lat_points <- length(grid_lat)
-n_long_points <- length(grid_long)
-
-total_SOX <- grid_data$var$WDEP_SOX$vals + grid_data$var$DDEP_SOX_m2Grid$vals
-
-for (i in 1:site_n){
-  for (j in 1:(n_lat_points-1)){
-    if (((site_lat[i]-grid_lat[j])*(site_lat[i]-grid_lat[j+1]) > 0) == TRUE) {
-      next
-    } else if (abs(site_lat[i] - grid_lat[j]) < abs(site_lat[i] - grid_lat[j+1])){
-      nearest_grid_in_lat[i] <- j-1
-    } else {
-      nearest_grid_in_lat[i] <- j
-    }
-  }
-}
-
-for (i in 1:site_n){
-  for (j in 1:(n_long_points-1)){
-    if (((site_long[i]-grid_long[j])*(site_long[i]-grid_long[j+1]) > 0 ) == TRUE){
-      next
-    } else if ((site_long[i] - grid_long[j]) < (site_long[i] - grid_long[j+1])){
-      nearest_grid_in_long[i] <- j
-    } else {
-      nearest_grid_in_long[i] <- j+1
-    }
-  }
-}
-
-
-wsox <- ncvar_get(grid_data,varid = "WDEP_SOX")
-dsox <- ncvar_get(grid_data,varid = "DDEP_SOX_m2Grid")
-
-tsox <- NA
-for (x in 1:site_n){
-  tsox[x] <- wsox[nearest_grid_in_long[x],nearest_grid_in_lat[x]]+
-    dsox[nearest_grid_in_long[x],nearest_grid_in_lat[x]]
-}
-
-df_sox <- data.frame(site_name = site_name, site_lat = site_lat, site_long = site_long, tsox = tsox)
-saveRDS(df_sox, file = "df_sox.rds")
-
-no_test <- readRDS("Fennoscandia_NTNU/GADM_2.8_NOR_adm0.rds")
-se_test <- readRDS("Fennoscandia_NTNU/GADM_2.8_SWE_adm0.rds")
-} 
+```
 
 
 ## Data gathering and cleaning
@@ -388,8 +350,10 @@ slope.fennoscandia <- readRDS("slope.fennoscandia.Rdata")
 names(slope.fennoscandia) <- c("ebint","slope")
 
 clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
-bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% rownames_to_column(var = "ebint")
-arable <- colSums(clc.tab.prop[c(12,18,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% rownames_to_column(var = "ebint")
+bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% tibble::rownames_to_column(var = "ebint")
+arable <- colSums(clc.tab.prop[c(12,18,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
+
+ndep <- readRDS("ndep.df.Rdata")
 
 fennoscandia <- merge(country,toc.df, by = "ebint") %>% 
   merge(summer.ndvi, by = "ebint") %>% 
@@ -398,7 +362,8 @@ fennoscandia <- merge(country,toc.df, by = "ebint") %>%
   merge(annual.prec, by = "ebint") %>%
   merge(slope.fennoscandia, by = "ebint") %>%
   merge(bogs, by = "ebint") %>%
-  merge(arable, by = "ebint")
+  merge(arable, by = "ebint")%>%
+  merge(ndep, by = "ebint")
 
 fennoscandia$uncertain <- ifelse(fennoscandia$dist_closest_ebint/fennoscandia$dist_2nd_closest_ebint > 0.5, FALSE, TRUE)
 fennoscandia$uncertain[which(is.na(fennoscandia$uncertain)==TRUE)] <- FALSE
@@ -417,7 +382,7 @@ fennoscandia$mean.runoff <- fennoscandia$mean.runoff*10^6 # converts in mg/m2.s
 
 # Analysis
 ## Histogram
-```{r hist, results = F, fig.dim = c(24,24)}
+```{r hist, results = F, fig.dim = c(24,96)}
 
 h_list <- c()
 
@@ -432,7 +397,9 @@ for (i in names(fennoscandia[,-c(1:2)])){
 
 cowplot::plot_grid(plotlist = h_list,ncol=3)
 ```
-TOC, runoff, precipitation, slope and bogs are skewed to the right so they are log-transformed.
+TOC, runoff, precipitation and slope are skewed to the right so they are log-transformed.
+Lots of 0 in N-dep, bogs and arable : not transformed
+
 
 ```{r log-transform}
 
