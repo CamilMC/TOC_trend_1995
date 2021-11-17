@@ -132,7 +132,7 @@ plot(map)
 knitr::kable(norge.coef,digits = 2, caption = "OLS coefficients ")
 ``` 
 
-```{r norge-OLS-relative-change, "Residuals for unscaled OLS"}
+```{r norge-OLS-relative-change, fig.cap = "Residuals for unscaled OLS"}
 norge.lm.rc <- lm(data = norge, formula = log.toc~ndvi.value+log.runoff+bogs)
 summary(norge.lm.rc)
 
@@ -216,9 +216,29 @@ plot(coef.plot)
 ```{r ols-fennoscandia-coef}
 knitr::kable(summary(lm.fennoscandia)$coefficients, digits = 2)
 ```
+```{r quick-ndvi-mode}
+ndvi.model <- lm(s.ndvi~s.temp+s.log.prec+s.tndep, data = fennoscandia)
+summary(ndvi.model)
+```
+* Precipitation
+https://www.eea.europa.eu/data-and-maps/indicators/european-precipitation-2/assessment
+5% is the minimum predicted increase in coastal regions in Norway, plutôt 20-30% à l'intéreur des terres
+
+* Temperature: https://www.eea.europa.eu/data-and-maps/figures/trends-in-annual-temperature-across-1
+
+RCP4.5 (intermediate scenario with a peak emission in 2040) = baseline scenario --> 3 to 4 degrees increase in Fennoscandia
+
+RCP8.5 = worst case scenario: 5 to 6 degree increase in Fennoscandia
+
+* Runoff
+Increase in fennoscandia even during the dryest month(0 to 15)
+https://www.eea.europa.eu/data-and-maps/indicators/river-flow-drought-3/assessment
+
+
+
 
 ```{r lm-relative-change}
-
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
 fm <- log.toc~ndvi.value+log.runoff+log.prec+temp+bogs+arable+tndep
 lm.fennoscandia.rc <- lm(fm, data = fennoscandia, na.action = na.exclude)
 summary(lm.fennoscandia.rc)
@@ -234,45 +254,104 @@ lm.coef.rc <- lm.coef.rc %>% rownames_to_column(var = "exp.var")
 
 
 lm.coef.backtransformed <- lm.coef.rc[-1,1:3]
+names(lm.coef.backtransformed) <- c("parameter","effect.size","std.error")
 
 i <- 2 # estimate column in lm.coef.rc
 j <- 3 # se column in lm.coef.rc
 
 
 # ndvi
-lm.coef.backtransformed[1,2] <- 10^(lm.coef.rc[1,i]*0.1) # effect size
+lm.coef.backtransformed[1,2] <- 100*(10^(lm.coef.rc[1,i]*0.1)-1) # effect size
 lm.coef.backtransformed[1,3] <- 0.1*log(10)*10^(lm.coef.rc[2,i]*0.1)*lm.coef.rc[2,j] # delta method: SE(effect size)=d(effect size)/dx * SE(estimate)
 
 # log.runoff
-lm.coef.backtransformed[2,2] <- 1.1^(lm.coef.rc[3,i]) #log-log
+lm.coef.backtransformed[2,2] <- 100*(1.1^(lm.coef.rc[3,i])-1) #log-log
 lm.coef.backtransformed[2,3] <- 1.1^(lm.coef.rc[3,i])*log(1.1)*lm.coef.rc[3,j]
 
 # log.prec
-lm.coef.backtransformed[3,2] <- 1.1^(lm.coef.rc[4,i]) #log-log
+lm.coef.backtransformed[3,2] <- 100*(1.1^(lm.coef.rc[4,i])-1) #log-log
 lm.coef.backtransformed[3,3] <- 1.1^(lm.coef.rc[4,i])*log(1.1)*lm.coef.rc[4,j]
 
 # temp
-lm.coef.backtransformed[4,2] <- 10^(lm.coef.rc[5,i]*0.1) # effect size
-lm.coef.backtransformed[4,3] <- 0.1*log(10)*10^(lm.coef.rc[5,i]*0.1)*lm.coef.rc[5,j]
+lm.coef.backtransformed[4,2] <- 100*(10^(lm.coef.rc[5,i]*1)-1) # effect size
+lm.coef.backtransformed[4,3] <- 0.1*log(10)*10^(lm.coef.rc[5,i]*4)*lm.coef.rc[5,j]
 
 # bogs
-lm.coef.backtransformed[5,2] <- 10^(lm.coef.rc[6,i]*0.1) # effect size
-lm.coef.backtransformed[5,3] <- 0.1*log(10)*10^(lm.coef.rc[6,i]*0.1)*lm.coef.rc[6,j]
+lm.coef.backtransformed[5,2] <- 100*(10^(lm.coef.rc[6,i]*0.01)-1) # effect size
+lm.coef.backtransformed[5,3] <- 0.1*log(10)*10^(lm.coef.rc[6,i]*0.01)*lm.coef.rc[6,j]
 
 # arable
-lm.coef.backtransformed[6,2] <- 10^(lm.coef.rc[7,i]*0.1) # effect size
-lm.coef.backtransformed[6,3] <- 0.1*log(10)*10^(lm.coef.rc[7,i]*0.1)*lm.coef.rc[7,j]
+lm.coef.backtransformed[6,2] <- 100*(10^(lm.coef.rc[7,i]*0.01)-1) # effect size
+lm.coef.backtransformed[6,3] <- 0.1*log(10)*10^(lm.coef.rc[7,i]*0.01)*lm.coef.rc[7,j]
 
 # tndep
-lm.coef.backtransformed[7,2] <- 10^(lm.coef.rc[8,i]*0.1) # effect size
+lm.coef.backtransformed[7,2] <- 100*(10^(lm.coef.rc[8,i]*0.3)-1) # effect size
 lm.coef.backtransformed[7,3] <- 0.1*log(10)*10^(lm.coef.rc[8,i]*0.1)*lm.coef.rc[8,j]
 
+lm.coef.backtransformed$unit <- c("% change of TOC concentration for a 0.01 increase in NDVI",
+                                         "% change of TOC concentration for a 10% increase in runoff",
+                                         "% change of TOC concentration for a 10% increase in precipitations",
+                                         "% change of TOC concentration for a 4 degree increase in temperature",
+                                         "% change of TOC concentration for a 1% increase in proportion of bogs",
+                                         "% change of TOC concentration for a 1% increase in proportion of arable land",
+                                         "% change of TOC concentration for a 10 ug decrease of N-dep / m2")
 
-
-coef.plot.backtransformed <- ggplot(lm.coef.backtransformed)+geom_col(aes(x=exp.var,y=Estimate,fill=Estimate))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+coef.plot.backtransformed <- ggplot(lm.coef.backtransformed)+
+  geom_col(aes(x=effect.size,y=parameter,fill=effect.size))+
+  theme_light()+
+  scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
+  labs(x="",y="")
 
 plot(coef.plot.backtransformed)
-knitr::kable(lm.coef.backtransformed, digits = 3)
+
+
+knitr::kable(lm.coef.backtransformed, digits = 3, "html")
+
+```
+```{r}
+knitr::knit_exit()
+```
+
+
+```{r arm-sim-test}
+sm.fennoscandia <- arm::sim(lm.fennoscandia.rc,n.sims = 100)
+
+ndvi.sim <- sm.fennoscandia@coef[,2]
+ndvi.mean <- mean(10^(ndvi.sim*0.1))
+ndvi.sd <- sd(10^(ndvi.sim*0.1))
+
+sm.runoff <- sm.fennoscandia@coef[,3]
+runoff.mean <- mean(1.1^sm.runoff)
+runoff.sd <- sd(1.1^sm.runoff) # similar
+
+sm.runoff <- sm.fennoscandia@coef[,3]
+runoff.mean <- mean(1.1^sm.runoff)
+runoff.sd <- sd(1.1^sm.runoff)
+
+sm.prec <- sm.fennoscandia@coef[,4]
+prec.mean <- mean(1.1^sm.prec)
+prec.sd <- sd(1.1^sm.prec)
+
+sm.temp <- sm.fennoscandia@coef[,5]
+temp.mean <- mean(10^(sm.temp*1))
+temp.sd <- sd(10^(sm.temp*1))
+
+sm.bogs <- sm.fennoscandia@coef[,6]
+bog.mean <- mean(10^(sm.bogs*0.01))
+bog.sd <- sd(10^(sm.bogs*0.01))
+
+sm.arable <- sm.fennoscandia@coef[,7]
+arable.mean <- mean(10^(sm.arable*0.01))
+arable.sd <- sd(10^(sm.arable*0.01))
+
+sm.tndep <- sm.fennoscandia@coef[,8]
+tndep.mean <- mean(10^(sm.tndep*0.3)) # mean(tndep)*0.01 = 0.3
+tndep.sd <- sd(10^(sm.tndep*0.01))
+
+lm.coef.backtransformed$sm.means <- c(ndvi.mean,runoff.mean,prec.mean,temp.mean,bog.mean,arable.mean,tndep.mean)
+lm.coef.backtransformed$sm.sd <- c(ndvi.sd,runoff.sd,prec.sd,temp.sd,bog.sd,arable.sd,tndep.sd)
+
+knitr::kable(lm.coef.backtransformed,digits=3)
 
 ```
 
@@ -334,8 +413,7 @@ plot(coef.plot)
 ## GWR model for Fennoscandia
 
 ```{r GWR-fennoscandia, eval = F}
-print(fm)
-
+fm <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.tndep
 library(GWmodel)
 bw.fennoscandia <- bw.gwr(fm, data = fennoscandia.spdf, kernel = "gaussian", adaptive = T)
 gwr.fennoscandia <- gwr.basic(fm, data = fennoscandia.spdf, bw = bw.fennoscandia, kernel = "gaussian", adaptive = T)
@@ -345,11 +423,13 @@ saveRDS(gwr.fennoscandia, "gwr.fennoscandia.Rdata")
 
 ```
 
-```{r gwss, eval = F}
+```{r gwss, eval = F, fig.dim= c(15,10)}
+bw.fennoscandia <- readRDS("bw.fennoscandia.Rdata")
+variables <- c("log.toc","ndvi.value","log.prec","log.runoff","temp","slope","bogs","arable","tndep")
 gwss.fennoscandia <- gwss(data = fennoscandia.spdf, vars = variables,kernel = "gaussian", adaptive = T, bw = bw.fennoscandia)
 saveRDS(gwss.fennoscandia,"gwss.fennoscandia.Rdata")
 
-f_plotspatial(fennoscandia,var = gwss.fennoscandia$SDF$Corr_mean.runoff.ndvi,plottitle = "cor ndvi-runoff")
+f_plotspatial(fennoscandia,var = gwss.fennoscandia$SDF$Corr_log.toc.temp,plottitle = "Correlation TOC-NDVI")
 ```
 
 ```{r plot-local-r2-res, fig.dim = c(24,10)}
