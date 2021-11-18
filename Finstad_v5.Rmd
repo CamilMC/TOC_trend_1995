@@ -295,6 +295,7 @@ lm.coef.backtransformed$unit <- c("% change of TOC concentration for a 0.01 incr
                                          "% change of TOC concentration for a 1% increase in proportion of bogs",
                                          "% change of TOC concentration for a 1% increase in proportion of arable land",
                                          "% change of TOC concentration for a 10 ug decrease of N-dep / m2")
+<<<<<<< Updated upstream
 
 coef.plot.backtransformed <- ggplot(lm.coef.backtransformed)+
   geom_col(aes(x=effect.size,y=parameter,fill=effect.size))+
@@ -306,7 +307,55 @@ plot(coef.plot.backtransformed)
 
 
 knitr::kable(lm.coef.backtransformed, digits = 3, "html")
+=======
 
+coef.plot.backtransformed <- ggplot(lm.coef.backtransformed)+
+  geom_col(aes(x=effect.size,y=parameter,fill=effect.size))+
+  theme_light()+
+  scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
+  labs(x="",y="")
+
+```
+>>>>>>> Stashed changes
+
+
+```{r arm-sim-test}
+sm.fennoscandia <- arm::sim(lm.fennoscandia.rc,n.sims = 100)
+
+ndvi.sim <- sm.fennoscandia@coef[,2]
+ndvi.mean <- mean(10^(ndvi.sim*0.1))
+ndvi.sd <- sd(10^(ndvi.sim*0.1))
+
+sm.runoff <- sm.fennoscandia@coef[,3]
+runoff.mean <- mean(1.1^sm.runoff)
+runoff.sd <- sd(1.1^sm.runoff) # similar
+
+sm.runoff <- sm.fennoscandia@coef[,3]
+runoff.mean <- mean(1.1^sm.runoff)
+runoff.sd <- sd(1.1^sm.runoff)
+
+sm.prec <- sm.fennoscandia@coef[,4]
+prec.mean <- mean(1.1^sm.prec)
+prec.sd <- sd(1.1^sm.prec)
+
+sm.temp <- sm.fennoscandia@coef[,5]
+temp.mean <- mean(10^(sm.temp*1))
+temp.sd <- sd(10^(sm.temp*1))
+
+sm.bogs <- sm.fennoscandia@coef[,6]
+bog.mean <- mean(10^(sm.bogs*0.01))
+bog.sd <- sd(10^(sm.bogs*0.01))
+
+sm.arable <- sm.fennoscandia@coef[,7]
+arable.mean <- mean(10^(sm.arable*0.01))
+arable.sd <- sd(10^(sm.arable*0.01))
+
+sm.tndep <- sm.fennoscandia@coef[,8]
+tndep.mean <- mean(10^(sm.tndep*0.3)) # mean(tndep)*0.01 = 0.3
+tndep.sd <- sd(10^(sm.tndep*0.01))
+
+lm.coef.backtransformed$sm.means <- c(ndvi.mean,runoff.mean,prec.mean,temp.mean,bog.mean,arable.mean,tndep.mean)
+lm.coef.backtransformed$sm.sd <- c(ndvi.sd,runoff.sd,prec.sd,temp.sd,bog.sd,arable.sd,tndep.sd)
 ```
 ```{r}
 knitr::knit_exit()
