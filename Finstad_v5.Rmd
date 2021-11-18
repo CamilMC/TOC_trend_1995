@@ -14,6 +14,7 @@ link-citations: yes
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center")
+options(knitr.kable.NA="")
 ```
 ```{r library}
 library(dplyr)
@@ -30,6 +31,8 @@ library(stringr)
 library(ggplot2)
 library(cowplot)
 library(spdep)
+
+library(kableExtra)
 
 source("f_plotspatial.R")
 fennoscandia <- readRDS("fennoscandia.Rdata")
@@ -97,7 +100,6 @@ moran.df$parameter <- factor(moran.df$parameter, levels = moran.df$parameter[ord
 
 knitr::kable(moran.df, digits = 4, caption = "Moran'I of dependant and independant variable")
 g.moran <- ggplot(filter(moran.df,!parameter %in% c("longitude","latitude", "id")))+geom_col(aes(x=I,y=parameter,fill=p_value))+scale_fill_viridis_d()+theme_light()+geom_vline(xintercept = 1/(dim(fennoscandia)[1]-1))
-plot(g.moran)
 
 ```
 
@@ -168,7 +170,7 @@ norge.effect.size[3,2] <- 0.1*log(10)*10^(norge.coef.rc[4,1]*0.1)*norge.coef.rc[
 knitr::kable(norge.effect.size, digits = 2, caption = "Effect size for model fitted on Norwegian lakes")
 ```
 
-```{r test-with-unscaling-coefficients}
+```{r test-with-unscaling-coefficients, eval = F}
 norge.coef.2 <- norge.coef[-1,1:2]
 
 
@@ -195,27 +197,68 @@ norge.coef.2[3,2] <- 0.1*log(10)*10^(unscaled.bogs.coef*0.1)*unscaled.bogs.se
 ## Ordinary least square regression for Fennoscandia
 
 ```{r ols, results = F}
-fm <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.tndep
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.tndep
+s.lm.fennoscandia <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
+
+fm <- log.toc~ndvi.value+log.runoff+log.prec+temp+bogs+arable+tndep
 lm.fennoscandia <- lm(fm, data = fennoscandia, na.action = na.exclude)
-summary(lm.fennoscandia)
+
+s.lm.r2 <- summary(s.lm.fennoscandia)$adj.r.squared
+s.moran.I.res.lm <- lm.morantest(s.lm.fennoscandia, k.neigh.w, alternative = "two.sided")
+
 lm.r2 <- summary(lm.fennoscandia)$adj.r.squared
 moran.I.res.lm <- lm.morantest(lm.fennoscandia, k.neigh.w, alternative = "two.sided")
+
 moran.limit.fennoscandia <- 1/(dim(fennoscandia)[1]-1)
 
-map <- f_plotspatial(data = fennoscandia, var = lm.fennoscandia$residuals,plottitle = "OLS residuals")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(lm.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(lm.fennoscandia),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(moran.I.res.lm$estimate[1],3)))
-plot(map)
+lm.comparison <- data.frame(model = c("lm.scaled", "lm"),
+                            r2 = c(s.lm.r2,lm.r2), 
+                            AIC = c(AIC(s.lm.fennoscandia),AIC(lm.fennoscandia)),
+                            moran.res = c(s.moran.I.res.lm$estimate[[1]], moran.I.res.lm$estimate[[1]]))
+
+  
+s.lm.coef <- summary(s.lm.fennoscandia)$coefficients %>% as.data.frame()
+s.lm.coef <- s.lm.coef %>% rownames_to_column(var = "Parameter")
 
 lm.coef <- summary(lm.fennoscandia)$coefficients %>% as.data.frame()
-lm.coef <- lm.coef %>% rownames_to_column(var = "exp.var")
+lm.coef <- lm.coef %>% rownames_to_column(var = "Parameter")
 
-coef.plot <- ggplot(lm.coef[-1,])+geom_col(aes(x=exp.var,y=Estimate,fill=Estimate))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
+lm.effectsize <- lm.coef[,1:3]
 
-plot(coef.plot)
+n <- length(lm.coef$Parameter)
+m <- lm.coef$Parameter
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    lm.effectsize[i,2] <- 1.1^(lm.coef[i,2])
+    lm.effectsize[i,3] <- 1.1^(lm.coef[i,2])*log(1.1)*lm.coef[i,3]
+  }else if(m[i] %in% c("ndvi.value","bogs","arable")){
+    lm.effectsize[i,2] <- 10^(lm.coef[i,2]*0.1)
+    lm.effectsize[i,3] <- 0.1*log(10)*10^(lm.coef[i,2]*0.1)*lm.coef[i,3]
+  }else if(m[i] %in% c("temp","tndep")){
+    lm.effectsize[i,2] <- 10^(lm.coef[i,2]*1)
+    lm.effectsize[i,3] <- 1*log(10)*10^(lm.coef[i,2]*1)*lm.coef[i,3]
+  }
+}
+
+lm.effectsize$Percent <- 100*(lm.effectsize$Estimate-1)
+
+summary.table <- cbind(select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4]) %>%
+                rbind(c("AIC",AIC(s.lm.fennoscandia),"",AIC(lm.fennoscandia),"","","","")) %>%
+                rbind(c("R2",s.lm.r2,"",lm.r2,"","","","")) %>%
+                rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","",""))
+summary.table[,-1] <- apply(summary.table[,-1],2,as.numeric)
+
+knitr::kable(summary.table,digits = 3) %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+
 ```
 
-```{r ols-fennoscandia-coef}
-knitr::kable(summary(lm.fennoscandia)$coefficients, digits = 2)
-```
+
 ```{r quick-ndvi-mode}
 ndvi.model <- lm(s.ndvi~s.temp+s.log.prec+s.tndep, data = fennoscandia)
 summary(ndvi.model)
@@ -295,20 +338,6 @@ lm.coef.backtransformed$unit <- c("% change of TOC concentration for a 0.01 incr
                                          "% change of TOC concentration for a 1% increase in proportion of bogs",
                                          "% change of TOC concentration for a 1% increase in proportion of arable land",
                                          "% change of TOC concentration for a 10 ug decrease of N-dep / m2")
-<<<<<<< Updated upstream
-
-coef.plot.backtransformed <- ggplot(lm.coef.backtransformed)+
-  geom_col(aes(x=effect.size,y=parameter,fill=effect.size))+
-  theme_light()+
-  scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
-  labs(x="",y="")
-
-plot(coef.plot.backtransformed)
-
-
-knitr::kable(lm.coef.backtransformed, digits = 3, "html")
-=======
-
 coef.plot.backtransformed <- ggplot(lm.coef.backtransformed)+
   geom_col(aes(x=effect.size,y=parameter,fill=effect.size))+
   theme_light()+
@@ -316,50 +345,8 @@ coef.plot.backtransformed <- ggplot(lm.coef.backtransformed)+
   labs(x="",y="")
 
 ```
->>>>>>> Stashed changes
 
 
-```{r arm-sim-test}
-sm.fennoscandia <- arm::sim(lm.fennoscandia.rc,n.sims = 100)
-
-ndvi.sim <- sm.fennoscandia@coef[,2]
-ndvi.mean <- mean(10^(ndvi.sim*0.1))
-ndvi.sd <- sd(10^(ndvi.sim*0.1))
-
-sm.runoff <- sm.fennoscandia@coef[,3]
-runoff.mean <- mean(1.1^sm.runoff)
-runoff.sd <- sd(1.1^sm.runoff) # similar
-
-sm.runoff <- sm.fennoscandia@coef[,3]
-runoff.mean <- mean(1.1^sm.runoff)
-runoff.sd <- sd(1.1^sm.runoff)
-
-sm.prec <- sm.fennoscandia@coef[,4]
-prec.mean <- mean(1.1^sm.prec)
-prec.sd <- sd(1.1^sm.prec)
-
-sm.temp <- sm.fennoscandia@coef[,5]
-temp.mean <- mean(10^(sm.temp*1))
-temp.sd <- sd(10^(sm.temp*1))
-
-sm.bogs <- sm.fennoscandia@coef[,6]
-bog.mean <- mean(10^(sm.bogs*0.01))
-bog.sd <- sd(10^(sm.bogs*0.01))
-
-sm.arable <- sm.fennoscandia@coef[,7]
-arable.mean <- mean(10^(sm.arable*0.01))
-arable.sd <- sd(10^(sm.arable*0.01))
-
-sm.tndep <- sm.fennoscandia@coef[,8]
-tndep.mean <- mean(10^(sm.tndep*0.3)) # mean(tndep)*0.01 = 0.3
-tndep.sd <- sd(10^(sm.tndep*0.01))
-
-lm.coef.backtransformed$sm.means <- c(ndvi.mean,runoff.mean,prec.mean,temp.mean,bog.mean,arable.mean,tndep.mean)
-lm.coef.backtransformed$sm.sd <- c(ndvi.sd,runoff.sd,prec.sd,temp.sd,bog.sd,arable.sd,tndep.sd)
-```
-```{r}
-knitr::knit_exit()
-```
 
 
 ```{r arm-sim-test}
@@ -403,6 +390,14 @@ lm.coef.backtransformed$sm.sd <- c(ndvi.sd,runoff.sd,prec.sd,temp.sd,bog.sd,arab
 knitr::kable(lm.coef.backtransformed,digits=3)
 
 ```
+```{r all-coef-table}
+all.coef <- cbind(lm.coef[-1,1:3], lm.coef.rc[-1,1:3],lm.coef.backtransformed)
+knitr::kable(all.coef, digits = 3)
+```
+
+```{r exit}
+knitr::knit_exit()
+```
 
 ## Spatial Error Model for Fennoscandia
 
@@ -411,6 +406,10 @@ Lagrange multiplier test to check whether we should apply an error model or a la
 ```{r spatial-model, eval = F}
 library(spatialreg)
 lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.
+sem.fennoscandia.s <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
+
 
 sem.fennoscandia <- errorsarlm(fm,fennoscandia,k.neigh.w)
 saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
