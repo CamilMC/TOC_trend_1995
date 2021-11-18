@@ -306,13 +306,13 @@ N-deposition (NOx and NH3)
 
 ```{r extract Ndep, eval = F}
 library(ncdf4)
-EMEP_file <- "EMEP/EMEP01deg_L20_rv4.7_3024_month.2013met_2013emis.nc"
+EMEP_file <- "EMEP/EMEP01_L20EC_rv4_33_year.2000met_2000emis_rep2019.nc"
 catchment_poly <- readRDS("catchment.poly.Rdata")
 
-woxn <- stack(EMEP_file, varname = "WDEP_OXN") %>% mean()
-doxn <- stack(EMEP_file, varname = "DDEP_OXN_m2Grid") %>% mean()
-wrdn <- stack(EMEP_file, varname = "WDEP_RDN") %>% mean()
-drdn <- stack(EMEP_file, varname = "DDEP_RDN_m2Grid") %>% mean()
+woxn <- raster(EMEP_file, varname = "WDEP_OXN") 
+doxn <- raster(EMEP_file, varname = "DDEP_OXN_m2Grid")
+wrdn <- raster(EMEP_file, varname = "WDEP_RDN")
+drdn <- raster(EMEP_file, varname = "DDEP_RDN_m2Grid")
 
 woxn_df <- extract(woxn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean) 
 names(woxn_df) <- c("ebint","woxn")
