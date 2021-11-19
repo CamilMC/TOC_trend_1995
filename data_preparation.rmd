@@ -306,7 +306,7 @@ N-deposition (NOx and NH3)
 
 ```{r extract Ndep, eval = F}
 library(ncdf4)
-EMEP_file <- "EMEP/EMEP01_L20EC_rv4_33_year.2000met_2000emis_rep2019.nc"
+EMEP_file <- "EMEP/EMEP01_rv4.42_year.2000met_2000emis_rep2021.nc"
 catchment_poly <- readRDS("catchment.poly.Rdata")
 
 woxn <- raster(EMEP_file, varname = "WDEP_OXN") 
@@ -416,6 +416,10 @@ fennoscandia$s.log.prec <- scale(fennoscandia$log.prec)
 fennoscandia$log.slope <- log10(fennoscandia$slope+1e-5) 
 fennoscandia$s.log.slope <- scale(fennoscandia$log.slope)
 fennoscandia$s.tndep <- scale(fennoscandia$tndep)
+fennoscandia$rdn <- fennoscandia$drdn+fennoscandia$wrdn
+fennoscandia$oxn <- fennoscandia$doxn+fennoscandia$woxn
+fennoscandia$s.rdn <- scale(fennoscandia$rdn)
+fennoscandia$s.oxn <- scale(fennoscandia$oxn)
 
 fennoscandia.spdf <- SpatialPointsDataFrame(fennoscandia[,c("longitude","latitude")],fennoscandia)
 
