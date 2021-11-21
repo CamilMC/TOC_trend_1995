@@ -31,6 +31,7 @@ library(stringr)
 library(ggplot2)
 library(cowplot)
 library(spdep)
+library(spatialreg)
 
 library(kableExtra)
 
@@ -111,98 +112,70 @@ norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
 norge.kmat <- norge.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
 saveRDS(norge.kmat,"norge.kmat.Rdata")
 ```
-
-```{r norge-OLS-scaled, fig.cap = "Residuals for scaled OLS"}
+```{r ols-norge, results = T}
 norge.kmat <- readRDS("norge.kmat.Rdata")
 norge <- fennoscandia %>% filter(nation == "Norway")
 
-norge.lm <- lm(data = norge, formula = s.log.toc~s.ndvi+s.log.runoff+s.bogs)
-summary(norge.lm)
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.bogs
+s.lm.norge <- lm(fm.s, data = norge, na.action = na.exclude)
 
-norge.coef <- summary(norge.lm)$coefficients %>% as.data.frame() 
+fm <- log.toc~ndvi.value+log.runoff+bogs
+lm.norge <- lm(fm, data = norge, na.action = na.exclude)
 
-norge.moran.res <- lm.morantest(norge.lm,norge.kmat,alternative = "two.sided")
+s.lm.r2 <- summary(s.lm.norge)$adj.r.squared
+s.moran.I.res.lm <- lm.morantest(s.lm.norge, norge.kmat, alternative = "two.sided")
+
+lm.r2 <- summary(lm.norge)$adj.r.squared
+moran.I.res.lm <- lm.morantest(lm.norge, norge.kmat, alternative = "two.sided")
+
 moran.limit.norge <- 1/(dim(norge)[1]-1)
+  
+s.lm.coef <- summary(s.lm.norge)$coefficients %>% as.data.frame()
+s.lm.coef <- s.lm.coef %>% rownames_to_column(var = "Parameter")
 
-norge.r2 <- summary(norge.lm)$adj.r.squared
+lm.coef <- summary(lm.norge)$coefficients %>% as.data.frame()
+lm.coef <- lm.coef %>% rownames_to_column(var = "Parameter")
 
-map <- f_plotspatial(data = norge, var = norge.lm$residuals,plottitle = "OLS residuals for Norway")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(norge.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(norge.lm),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(norge.moran.res$estimate[1],3)))
-plot(map)
+lm.effectsize <- lm.coef[,1:3]
+
+n <- length(lm.coef$Parameter)
+m <- lm.coef$Parameter
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    lm.effectsize[i,2] <- 1.1^(lm.coef[i,2])
+    lm.effectsize[i,3] <- 1.1^(lm.coef[i,2])*log(1.1)*lm.coef[i,3]
+  }else if(m[i] %in% c("ndvi.value","bogs")){
+    lm.effectsize[i,2] <- 10^(lm.coef[i,2]*0.1)
+    lm.effectsize[i,3] <- 0.1*log(10)*10^(lm.coef[i,2]*0.1)*lm.coef[i,3]
+  }
+}
+
+lm.effectsize$Percent <- 100*(lm.effectsize$Estimate-1)
+
+summary.table.norge <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4]) %>%
+                rbind(c("AIC",AIC(s.lm.norge),"",AIC(lm.norge),"","","","")) %>%
+                rbind(c("R2",s.lm.r2,"",lm.r2,"","","","")) %>%
+                rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","",""))
+summary.table.norge[,-1] <- apply(summary.table.norge[,-1],2,as.numeric)
+
+knitr::kable(summary.table.norge,digits = 3) %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+
 ```
 
-```{r coef-norge-lm, fig.cap = "Linear Model Coefficients for Norwegian fit"}
-knitr::kable(norge.coef,digits = 2, caption = "OLS coefficients ")
-``` 
 
-```{r norge-OLS-relative-change, fig.cap = "Residuals for unscaled OLS"}
-norge.lm.rc <- lm(data = norge, formula = log.toc~ndvi.value+log.runoff+bogs)
-summary(norge.lm.rc)
-
-norge.coef.rc <- summary(norge.lm.rc)$coefficients %>% as.data.frame() 
-
-norge.rc.moran.res <- lm.morantest(norge.lm.rc,norge.kmat,alternative = "two.sided")
-moran.limit.norge <- 1/(dim(norge)[1]-1)
-
-norge.rc.r2 <- summary(norge.lm.rc)$adj.r.squared
-
-map <- f_plotspatial(data = norge, var = norge.lm.rc$residuals,plottitle = "OLS residuals for Norway")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(norge.rc.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(norge.lm.rc),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(norge.rc.moran.res$estimate[1],3)))
-plot(map)
-
-norge.effect.size <- norge.coef.rc[-1,1:2]
-rownames(norge.effect.size) <- c("ndvi","runoff","bogs")
-colnames(norge.effect.size) <- c("effect.size","std.error")
-norge.effect.size$units <- c("Relative change in TOC concentration (mg/L) for 0.1 increase in NDVI",
-                             "Relative change in TOC concentration (mg/L) for 10% increase of runoff",
-                             "Relative change in TOC concentration (mg/L) for 1% increase of bog cover")
-
-# ndvi: relative change in TOC for 0,1 increase in NDVI
-norge.effect.size[1,1] <- 10^(norge.coef.rc[2,1]*0.1) # effect size
-norge.effect.size[1,2] <- 0.1*log(10)*10^(norge.coef.rc[2,1]*0.1)*norge.coef.rc[2,2] # delta method: SE(effect size)=d(effect size)/dx * SE(estimate)
-
-#runoff
-norge.effect.size[2,1] <- 1.1^(norge.coef.rc[3,1]) #log-log
-norge.effect.size[2,2] <- 1.1^(norge.coef.rc[3,1])*log(1.1)*norge.coef.rc[3,2]
-
-# bogs
-norge.effect.size[3,1] <- 10^(norge.coef.rc[4,1]*0.1) # effect size
-norge.effect.size[3,2] <- 0.1*log(10)*10^(norge.coef.rc[4,1]*0.1)*norge.coef.rc[4,2] 
-
-knitr::kable(norge.effect.size, digits = 2, caption = "Effect size for model fitted on Norwegian lakes")
-```
-
-```{r test-with-unscaling-coefficients, eval = F}
-norge.coef.2 <- norge.coef[-1,1:2]
-
-
-# ndvi: relative change in TOC for 0,1 increase in NDVI
-unscaled.ndvi.coef <- norge.coef[2,1]*attr(fennoscandia$s.ndvi,'scaled:scale')+attr(fennoscandia$s.ndvi,'scaled:center')
-unscaled.ndvi.se <- norge.coef[2,2]*attr(fennoscandia$s.ndvi,'scaled:scale')+attr(fennoscandia$s.ndvi,'scaled:center')
-norge.coef.2[1,1] <- 10^(unscaled.ndvi.coef*0.1) # effect size
-norge.coef.2[1,2] <- 0.1*log(10)*10^(unscaled.ndvi.coef*0.1)*unscaled.ndvi.se # delta method: SE(effect size)=d(effect size)/dx * SE(estimate)
-
-#runoff
-unscaled.log.runoff.coef <- norge.coef[3,1]*attr(fennoscandia$s.log.runoff,'scaled:scale')+attr(fennoscandia$s.log.runoff,'scaled:center')
-unscaled.log.runoff.se <- norge.coef[3,2]*attr(fennoscandia$s.log.runoff,'scaled:scale')+attr(fennoscandia$s.log.runoff,'scaled:center')
-
-norge.coef.2[2,1] <- 1.1^(unscaled.log.runoff.coef) #log-log
-norge.coef.2[2,2] <- 1.1^(unscaled.log.runoff.coef)*log(1.1)*unscaled.log.runoff.se
-
-# bogs
-unscaled.bogs.coef <- norge.coef[4,1]*attr(fennoscandia$s.bogs,'scaled:scale')+attr(fennoscandia$s.bogs,'scaled:center')
-unscaled.bogs.se <- norge.coef[4,2]*attr(fennoscandia$s.bogs,'scaled:scale')+attr(fennoscandia$s.bogs,'scaled:center')
-
-norge.coef.2[3,1] <- 10^(unscaled.bogs.coef) # effect size
-norge.coef.2[3,2] <- 0.1*log(10)*10^(unscaled.bogs.coef*0.1)*unscaled.bogs.se 
-```
 ## Ordinary least square regression for Fennoscandia
 
-```{r ols, results = F}
+```{r ols-fennoscandia, results = T}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
-fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.tndep
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.rdn+s.oxn
 s.lm.fennoscandia <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
 
-fm <- log.toc~ndvi.value+log.runoff+log.prec+temp+bogs+arable+tndep
+fm <- log.toc~ndvi.value+log.runoff+log.prec+temp+bogs+arable+rdn+oxn
 lm.fennoscandia <- lm(fm, data = fennoscandia, na.action = na.exclude)
 
 s.lm.r2 <- summary(s.lm.fennoscandia)$adj.r.squared
@@ -237,7 +210,7 @@ for(i in 1:n){
   }else if(m[i] %in% c("ndvi.value","bogs","arable")){
     lm.effectsize[i,2] <- 10^(lm.coef[i,2]*0.1)
     lm.effectsize[i,3] <- 0.1*log(10)*10^(lm.coef[i,2]*0.1)*lm.coef[i,3]
-  }else if(m[i] %in% c("temp","tndep")){
+  }else if(m[i] %in% c("temp","rdn","oxn")){
     lm.effectsize[i,2] <- 10^(lm.coef[i,2]*1)
     lm.effectsize[i,3] <- 1*log(10)*10^(lm.coef[i,2]*1)*lm.coef[i,3]
   }
@@ -245,17 +218,145 @@ for(i in 1:n){
 
 lm.effectsize$Percent <- 100*(lm.effectsize$Estimate-1)
 
-summary.table <- cbind(select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4]) %>%
+summary.table.lm <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4]) %>%
                 rbind(c("AIC",AIC(s.lm.fennoscandia),"",AIC(lm.fennoscandia),"","","","")) %>%
                 rbind(c("R2",s.lm.r2,"",lm.r2,"","","","")) %>%
                 rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","",""))
-summary.table[,-1] <- apply(summary.table[,-1],2,as.numeric)
+summary.table.lm[,-1] <- apply(summary.table.lm[,-1],2,as.numeric)
 
-knitr::kable(summary.table,digits = 3) %>%
+knitr::kable(summary.table.lm,digits = 3) %>%
   add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
   kable_styling(bootstrap_options = "bordered") %>%
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
 
+```
+## SEM
+
+```{r sem, eval = F}
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+library(spatialreg)
+
+lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.rdn+s.oxn
+s.sem.fennoscandia <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
+saveRDS(s.sem.fennoscandia,"s.sem.fennoscandia.Rdata")
+
+fm <- log.toc~ndvi.value+log.runoff+log.prec+temp+bogs+arable+rdn+oxn
+sem.fennoscandia <- errorsarlm(fm,fennoscandia,k.neigh.w)
+saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
+```
+
+```{r sem-results}
+s.sem.fennoscandia <- readRDS("s.sem.fennoscandia.Rdata")
+sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+
+
+s.sem.coef <- s.sem.fennoscandia$coefficients %>% as.data.frame() %>% 
+              setNames("Estimaste")
+s.sem.coef <- s.sem.coef %>% rownames_to_column(var = "Parameter")
+s.sem.coef$std.error <- s.sem.fennoscandia$rest.se
+
+sem.coef <- sem.fennoscandia$coefficients %>% as.data.frame() %>% 
+              setNames("Estimate")
+sem.coef <- sem.coef %>% rownames_to_column(var = "Parameter")
+sem.coef$std.error <- sem.fennoscandia$rest.se
+
+sem.effectsize <- sem.coef[,1:3]
+
+n <- length(sem.coef$Parameter)
+m <- sem.coef$Parameter
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    sem.effectsize[i,2] <- 1.1^(sem.coef[i,2])
+    sem.effectsize[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef[i,3]
+  }else if(m[i] %in% c("ndvi.value","bogs","arable")){
+    sem.effectsize[i,2] <- 10^(sem.coef[i,2]*0.1)
+    sem.effectsize[i,3] <- 0.1*log(10)*10^(sem.coef[i,2]*0.1)*sem.coef[i,3]
+  }else if(m[i] %in% c("temp","rdn","oxn")){
+    sem.effectsize[i,2] <- 10^(sem.coef[i,2]*1)
+    sem.effectsize[i,3] <- 1*log(10)*10^(sem.coef[i,2]*1)*sem.coef[i,3]
+  }
+}
+
+sem.effectsize$Percent <- 100*(sem.effectsize$Estimate-1)
+
+s.sem.AIC <- 2*(n-1)-2*s.sem.fennoscandia$LL
+sem.AIC <- 2*(n-1)-2*sem.fennoscandia$LL
+
+s.moran.I.res.sem <- moran.test(s.sem.fennoscandia$residuals, k.neigh.w, alternative = "two.sided")
+
+moran.I.res.sem <- moran.test(sem.fennoscandia$residuals, k.neigh.w, alternative = "two.sided")
+
+summary.table.sem <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize[,2:4]) %>%
+                rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
+                rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"", moran.I.res.sem$estimate[[1]], "","","",""))
+summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
+
+knitr::kable(summary.table.sem,digits = 4) %>%
+  add_header_above(c("Model"=1,"Scaled SEM" = 2, "SEM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+
+```
+
+## GWR model 
+
+```{r GWR-fennoscandia, eval = F}
+fm <- log.toc~ndvi.value+log.runoff+log.prec+temp+bogs+arable+rdn+oxn
+
+library(GWmodel)
+bw.fennoscandia <- bw.gwr(fm, data = fennoscandia.spdf, kernel = "gaussian", adaptive = T)
+gwr.fennoscandia <- gwr.basic(fm, data = fennoscandia.spdf, bw = 100, kernel = "gaussian", adaptive = T)
+
+saveRDS(bw.fennoscandia, "bw.fennoscandia.Rdata")
+saveRDS(gwr.fennoscandia, "gwr.fennoscandia.Rdata")
+```
+
+
+```{r gwr-results}
+bw.fennoscandia <- readRDS("bw.fennoscandia.Rdata")
+gwr.fennoscandia <- readRDS("gwr.fennoscandia.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+
+gwr.coef <- gwr.fennoscandia$SDF@data
+
+m <- c("ndvi.value","log.runoff","log.prec","temp","bogs","arable","rdn","oxn")
+n <- length(m)
+
+gwr.effectsize <- gwr.coef[,2:(n+1)]
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    gwr.effectsize[i,2] <- 1.1^(gwr.coef[i,2])
+#    gwr.effectsize[i,3] <- 1.1^(gwr.coef[i,2])*log(1.1)*gwr.coef[i,3]
+  }else if(m[i] %in% c("ndvi.value","bogs","arable")){
+    gwr.effectsize[i,2] <- 10^(gwr.coef[i,2]*0.1)
+#    gwr.effectsize[i,3] <- 0.1*log(10)*10^(gwr.coef[i,2]*0.1)*gwr.coef[i,3]
+  }else if(m[i] %in% c("temp","rdn","oxn")){
+    gwr.effectsize[i,2] <- 10^(gwr.coef[i,2]*1)
+#    gwr.effectsize[i,3] <- 1*log(10)*10^(gwr.coef[i,2]*1)*gwr.coef[i,3]
+  }
+}
+
+gwr.effectsize.percent <- 100*(gwr.effectsize)-1
+
+lapply(m,FUN = function(x)  f_plotspatial(data=fennoscandia,var=gwr.effectsize.percent[[x]],plottitle = x))
+
+gwr.AIC <- gwr.fennoscandia$GW.diagnostic$AICc
+gwr.r2 <- gwr.fennoscandia$GW.diagnostic$gwR2.adj
+gwr.moran <- moran.test(gwr.coef$Stud_residual,k.neigh.w,alternative = "two.sided")
+
+summary.table.gwr <- data.frame(AIC = gwr.AIC,R2 = gwr.r2,Moran.I =gwr.moran$estimate[[1]])
+                                
+knitr::kable(summary.table.gwr,digits = 3) %>%
+  kable_styling(bootstrap_options = "bordered")
+```
+
+```{r exit}
+knitr::knit_exit()
 ```
 
 
@@ -277,74 +378,6 @@ RCP8.5 = worst case scenario: 5 to 6 degree increase in Fennoscandia
 Increase in fennoscandia even during the dryest month(0 to 15)
 https://www.eea.europa.eu/data-and-maps/indicators/river-flow-drought-3/assessment
 
-
-
-
-```{r lm-relative-change}
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
-fm <- log.toc~ndvi.value+log.runoff+log.prec+temp+bogs+arable+tndep
-lm.fennoscandia.rc <- lm(fm, data = fennoscandia, na.action = na.exclude)
-summary(lm.fennoscandia.rc)
-lm.rc.r2 <- summary(lm.fennoscandia.rc)$adj.r.squared
-moran.I.res.lm.rc <- lm.morantest(lm.fennoscandia.rc, k.neigh.w, alternative = "two.sided")
-moran.limit.fennoscandia <- 1/(dim(fennoscandia)[1]-1)
-
-map <- f_plotspatial(data = fennoscandia, var = lm.fennoscandia.rc$residuals,plottitle = "OLS residuals")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(lm.rc.r2,2)))+annotate("label",x=8,y=68, label = paste("AIC = ", round(AIC(lm.fennoscandia.rc),2)))+annotate("label",x=8,y=66.5,label = paste("Moran's I of \n residuals = ", round(moran.I.res.lm.rc$estimate[1],3)))
-plot(map)
-
-lm.coef.rc <- summary(lm.fennoscandia.rc)$coefficients %>% as.data.frame()
-lm.coef.rc <- lm.coef.rc %>% rownames_to_column(var = "exp.var")
-
-
-lm.coef.backtransformed <- lm.coef.rc[-1,1:3]
-names(lm.coef.backtransformed) <- c("parameter","effect.size","std.error")
-
-i <- 2 # estimate column in lm.coef.rc
-j <- 3 # se column in lm.coef.rc
-
-
-# ndvi
-lm.coef.backtransformed[1,2] <- 100*(10^(lm.coef.rc[1,i]*0.1)-1) # effect size
-lm.coef.backtransformed[1,3] <- 0.1*log(10)*10^(lm.coef.rc[2,i]*0.1)*lm.coef.rc[2,j] # delta method: SE(effect size)=d(effect size)/dx * SE(estimate)
-
-# log.runoff
-lm.coef.backtransformed[2,2] <- 100*(1.1^(lm.coef.rc[3,i])-1) #log-log
-lm.coef.backtransformed[2,3] <- 1.1^(lm.coef.rc[3,i])*log(1.1)*lm.coef.rc[3,j]
-
-# log.prec
-lm.coef.backtransformed[3,2] <- 100*(1.1^(lm.coef.rc[4,i])-1) #log-log
-lm.coef.backtransformed[3,3] <- 1.1^(lm.coef.rc[4,i])*log(1.1)*lm.coef.rc[4,j]
-
-# temp
-lm.coef.backtransformed[4,2] <- 100*(10^(lm.coef.rc[5,i]*1)-1) # effect size
-lm.coef.backtransformed[4,3] <- 0.1*log(10)*10^(lm.coef.rc[5,i]*4)*lm.coef.rc[5,j]
-
-# bogs
-lm.coef.backtransformed[5,2] <- 100*(10^(lm.coef.rc[6,i]*0.01)-1) # effect size
-lm.coef.backtransformed[5,3] <- 0.1*log(10)*10^(lm.coef.rc[6,i]*0.01)*lm.coef.rc[6,j]
-
-# arable
-lm.coef.backtransformed[6,2] <- 100*(10^(lm.coef.rc[7,i]*0.01)-1) # effect size
-lm.coef.backtransformed[6,3] <- 0.1*log(10)*10^(lm.coef.rc[7,i]*0.01)*lm.coef.rc[7,j]
-
-# tndep
-lm.coef.backtransformed[7,2] <- 100*(10^(lm.coef.rc[8,i]*0.3)-1) # effect size
-lm.coef.backtransformed[7,3] <- 0.1*log(10)*10^(lm.coef.rc[8,i]*0.1)*lm.coef.rc[8,j]
-
-lm.coef.backtransformed$unit <- c("% change of TOC concentration for a 0.01 increase in NDVI",
-                                         "% change of TOC concentration for a 10% increase in runoff",
-                                         "% change of TOC concentration for a 10% increase in precipitations",
-                                         "% change of TOC concentration for a 4 degree increase in temperature",
-                                         "% change of TOC concentration for a 1% increase in proportion of bogs",
-                                         "% change of TOC concentration for a 1% increase in proportion of arable land",
-                                         "% change of TOC concentration for a 10 ug decrease of N-dep / m2")
-coef.plot.backtransformed <- ggplot(lm.coef.backtransformed)+
-  geom_col(aes(x=effect.size,y=parameter,fill=effect.size))+
-  theme_light()+
-  scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)+
-  labs(x="",y="")
-
-```
 
 
 
@@ -395,9 +428,7 @@ all.coef <- cbind(lm.coef[-1,1:3], lm.coef.rc[-1,1:3],lm.coef.backtransformed)
 knitr::kable(all.coef, digits = 3)
 ```
 
-```{r exit}
-knitr::knit_exit()
-```
+
 
 ## Spatial Error Model for Fennoscandia
 
@@ -460,16 +491,7 @@ plot(coef.plot)
 
 ## GWR model for Fennoscandia
 
-```{r GWR-fennoscandia, eval = F}
-fm <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.tndep
-library(GWmodel)
-bw.fennoscandia <- bw.gwr(fm, data = fennoscandia.spdf, kernel = "gaussian", adaptive = T)
-gwr.fennoscandia <- gwr.basic(fm, data = fennoscandia.spdf, bw = bw.fennoscandia, kernel = "gaussian", adaptive = T)
 
-saveRDS(bw.fennoscandia, "bw.fennoscandia.Rdata")
-saveRDS(gwr.fennoscandia, "gwr.fennoscandia.Rdata")
-
-```
 
 ```{r gwss, eval = F, fig.dim= c(15,10)}
 bw.fennoscandia <- readRDS("bw.fennoscandia.Rdata")
