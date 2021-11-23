@@ -418,8 +418,7 @@ fennoscandia$temp <- fennoscandia$temp / 10 # divided by 10 because the temperat
 fennoscandia$s.temp <-  scale(fennoscandia$temp) 
 fennoscandia$log.prec <- log10(fennoscandia$prec+1e-5)
 fennoscandia$s.log.prec <- scale(fennoscandia$log.prec)
-fennoscandia$log.slope <- log10(fennoscandia$slope+1e-5) 
-fennoscandia$s.log.slope <- scale(fennoscandia$log.slope)
+fennoscandia$s.slope <- scale(fennoscandia$slope)
 fennoscandia$s.tndep <- scale(fennoscandia$tndep)
 fennoscandia$rdn <- fennoscandia$drdn+fennoscandia$wrdn
 fennoscandia$oxn <- fennoscandia$doxn+fennoscandia$woxn
