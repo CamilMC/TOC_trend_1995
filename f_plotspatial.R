@@ -1,7 +1,7 @@
 # Convinience function for plotting fennoscandian waterchemistry data
 # and results using ggplot2 
 
-f_plotspatial <- function(data,var,plottitle,lim = c(min(var),max(var)),midpoint = 0){
+f_plotspatial <- function(data,var,plottitle,lim = c(min(var),max(var)),midpoint = median(var)){
   require(ggplot2)
   pop <- ggplot(data) + 
     aes(longitude,latitude) + 

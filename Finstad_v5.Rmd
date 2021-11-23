@@ -62,6 +62,15 @@ See data preparation
 
 # Results
 
+## Mapping of dependant and independant variables
+
+```{r map-variable}
+m <- c("log.toc","ndvi","log.runoff","log.prec","slope","temp","bogs","arable","rdn","oxn")
+u <- c("TOC concentration, log(mg/L)", "NDVI on scale 0 to 1", "Mean runoff, log(kg/m2/an)","Mean annual precipitation, log(mm)","Slope in degrees","Mean annual temperature, degree celsius","Proportion of bogs, %","Proportion of arable land, %","Reduced nitrogen deposition, ug/m2","Oxidized nitrogen deposition, ug/m2")
+list.map <- lapply(m,FUN = function(x)  f_plotspatial(data=fennoscandia,var=fennoscandia[[x]],plottitle = "")+annotate("label", x = 10, y = 70, label = u[grep(x,m)])+annotate("label",x = 10, y = 69, label = paste("(",m,")")))
+list.map
+```
+
 ## Spatial autocorrelation
 
 ```{r neighbour-matrix,  eval = F}
@@ -430,111 +439,6 @@ knitr::kable(all.coef, digits = 3)
 
 
 
-## Spatial Error Model for Fennoscandia
-
-Lagrange multiplier test to check whether we should apply an error model or a lag model. The error model has a much higher tet stat, even if all tests are significant; therefore we apply a spatial error model. 
-
-```{r spatial-model, eval = F}
-library(spatialreg)
-lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
-
-fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.temp+s.bogs+s.arable+s.
-sem.fennoscandia.s <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
-
-
-sem.fennoscandia <- errorsarlm(fm,fennoscandia,k.neigh.w)
-saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
-```
-
-```{r results-spatial-error-model}
-sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
-moran.I.res.sem <- moran.test(sem.fennoscandia$residuals, k.neigh.w, alternative = "two.sided")
-
-map <- f_plotspatial(data = fennoscandia, var = sem.fennoscandia$residuals,plottitle = "SEM residuals")#+annotate("label",x=8,y=67, label = paste("AIC = ", round(AIC(sem.fennoscandia),2)))+annotate("label",x=8,y=68.5, label = paste(paste("Moran's I of \n residuals = ", round(moran.I.res.sem$estimate[1],4))))
-plot(map)
-
-sem.coef <- sem.fennoscandia$coefficients %>% as.data.frame() %>% setNames("coef") %>% tibble::rownames_to_column("exp.var")
-coef.plot <- ggplot(sem.coef[-1,])+geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
-plot(coef.plot)
-
-```
-
-```{r sem-coef}
-
-knitr::kable(sem.coef, digits = 2)
-```
-
-```{r sem-coef-backtransformed}
-sem.coef.backtransformed <- sem.coef[-1,]
-sem.coef.backtransformed$exp.var <- c("runoff","ndvi","bogs","temp","prec","slope")
-
-# log.runoff
-sem.coef.backtransformed[1,2] <- 10^(sem.coef[2,2]*attr(fennoscandia$log.runoff,'scaled:scale')+attr(fennoscandia$log.runoff,'scaled:center'))
-# ndvi
-sem.coef.backtransformed[2,2] <- sem.coef[3,2]*attr(fennoscandia$ndvi,'scaled:scale')+attr(fennoscandia$ndvi,'scaled:center')
-# bogs
-sem.coef.backtransformed[3,2] <- sin((sem.coef[4,2]*attr(fennoscandia$asin.sqrt.bogs,'scaled:scale')+attr(fennoscandia$asin.sqrt.bogs,'scaled:center'))^2)
-# temp
-sem.coef.backtransformed[4,2] <- sem.coef[5,2]*attr(fennoscandia$temp,'scaled:scale')+attr(fennoscandia$temp,'scaled:center')
-# log.prec
-sem.coef.backtransformed[5,2] <- 10^(sem.coef[6,2]*attr(fennoscandia$log.prec,'scaled:scale')+attr(fennoscandia$log.prec,'scaled:center'))
-# log.slope
-sem.coef.backtransformed[6,2] <- 10^(sem.coef[7,2]*attr(fennoscandia$log.slope,'scaled:scale')+attr(fennoscandia$log.slope,'scaled:center'))
-
-sem.coef.backtransformed$unit <- c("mg/m2.s","","%", "degree celsius","mm/an","degree")
-knitr::kable(sem.coef.backtransformed, digits = 2)
-
-sem.plot.backtransformed <- ggplot(filter(sem.coef.backtransformed, exp.var != "prec"))+
-  geom_col(aes(x=exp.var,y=coef,fill=coef))+theme_light()+scale_fill_gradient2(low="#4575B4",mid="#FFFFBF",high = "#D73027",midpoint = 0)
-plot(coef.plot)
-```
-
-## GWR model for Fennoscandia
-
-
-
-```{r gwss, eval = F, fig.dim= c(15,10)}
-bw.fennoscandia <- readRDS("bw.fennoscandia.Rdata")
-variables <- c("log.toc","ndvi.value","log.prec","log.runoff","temp","slope","bogs","arable","tndep")
-gwss.fennoscandia <- gwss(data = fennoscandia.spdf, vars = variables,kernel = "gaussian", adaptive = T, bw = bw.fennoscandia)
-saveRDS(gwss.fennoscandia,"gwss.fennoscandia.Rdata")
-
-f_plotspatial(fennoscandia,var = gwss.fennoscandia$SDF$Corr_log.toc.temp,plottitle = "Correlation TOC-NDVI")
-```
-
-```{r plot-local-r2-res, fig.dim = c(24,10)}
-gwr.fennoscandia <- readRDS("gwr.fennoscandia.Rdata")
-plot.r2 <- f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$Local_R2,plottitle = "Local R2")+annotate("label",x = 8, y = 69, label = paste("Mean R2 =",round(mean(gwr.fennoscandia$SDF$Local_R2),2)))+annotate("label", x = 8, y = 68, label = paste("AIC = ", round(gwr.fennoscandia$GW.diagnostic$AICc,2)))
-
-moran.I.res.gwr <- moran.test(gwr.fennoscandia$SDF$residual, k.neigh.w, alternative = "two.sided")
-plot.res <- f_plotspatial(fennoscandia, var=gwr.fennoscandia$SDF$Stud_residual,plottitle = "GWR residuals")+annotate("label",x = 9, y = 69, label = paste("Moran's I of \n residuals =", round(moran.I.res.gwr$estimate[1],4)))
-
-cowplot::plot_grid(plot.r2,plot.res,ncol = 2)
-```
-
-```{r local-coef-moran, eval = F, results = F}
-gwr.fennoscandia <- readRDS("gwr.fennoscandia.Rdata")
-ndvi.moran <- moran.test(gwr.fennoscandia$SDF$ndvi, k.neigh.w)
-runoff.moran <- moran.test(gwr.fennoscandia$SDF$log.runoff, k.neigh.w)
-# coef ndvi
-f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$ndvi,plottitle = "Local coefficients NDVI")+
-  annotate("label", x = 8, y = 68, label = paste("Mean coef =",round(mean(gwr.fennoscandia$SDF$ndvi),digit = 2)))
-# coef runoff
-f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$log.runoff,plottitle = "Local coefficients runoff")+
- annotate("label", x = 8, y = 68, label = paste("Mean coef =",round(mean(gwr.fennoscandia$SDF$log.runoff),digit = 2)))
-# coef bogs
-f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$asin.sqrt.bogs,plottitle = "Local coefficients bogs")+
- annotate("label", x = 8, y = 68, label = paste("Mean coef =",round(mean(gwr.fennoscandia$SDF$asin.sqrt.bogs),digit = 2)))
-# coef temp
-f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$temp,plottitle = "Local coefficients temperature")+
- annotate("label", x = 8, y = 68, label = paste("Mean coef =",round(mean(gwr.fennoscandia$SDF$temp),digit = 2)))
-# coef prec
-f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$log.prec,plottitle = "Local coefficients precipitation")+
- annotate("label", x = 8, y = 68, label = paste("Mean coef =",round(mean(gwr.fennoscandia$SDF$log.prec),digit = 2)))
-# coef slope
-f_plotspatial(fennoscandia,gwr.fennoscandia$SDF$log.slope,plottitle = "Local coefficients slope")+
- annotate("label", x = 8, y = 68, label = paste("Mean coef =",round(mean(gwr.fennoscandia$SDF$log.slope),digit = 2)))
-```
 
 ```{r maps-fennoscandia}
 uneven <- seq(1,50,2)
@@ -568,5 +472,4 @@ summary.table <- data.frame(models = models, AIC = AIC.models, moran.I = moran.r
 knitr::kable(summary.table)  
 ```
 
-# Predictions
 

@@ -219,7 +219,9 @@ saveRDS(runoff.df, "runoff.df.Rdata")
 
 # Temperature,precipitation and slope
 
-Temperature and precipitation are downloaded from the database Worldclim. Temperature is the annual temperature in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation or bio12 in the bioclimatic dataset. 
+Temperature and precipitation are downloaded from the database Worldclim. Temperature is the annual temperature in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset. 
+
+https://www.worldclim.org/data/worldclim21.html 
 
 ```{r temp-prec, eval = F}
 #monthly mean temperature for 1970-2000
@@ -405,12 +407,15 @@ Lots of 0 in N-dep, bogs and arable : not transformed
 
 fennoscandia$log.toc <- log10(fennoscandia$toc_mg_l+1e-5) #to avoid log tranform 0
 fennoscandia$s.log.toc <- scale(fennoscandia$log.toc) 
+fennoscandia$runoff <- fennoscandia$mean.runoff*365*24*60*60 # from kg/m2/s to kg/m2/year
 fennoscandia$log.runoff <- log10(fennoscandia$mean.runoff+1e-5)  #to avoid log tranform 0
 fennoscandia$s.log.runoff <- scale(fennoscandia$log.runoff)
+fennoscandia$ndvi <- fennoscandia$ndvi.value
 fennoscandia$s.ndvi <- scale(fennoscandia$ndvi.value)
 fennoscandia$s.bogs <- scale(fennoscandia$bogs)
 fennoscandia$s.arable <- scale(fennoscandia$arable)
-fennoscandia$s.temp <-  scale(fennoscandia$temp/10) # divided by 10 because the temperature is stored in C*10
+fennoscandia$temp <- fennoscandia$temp / 10 # divided by 10 because the temperature is stored in C*10
+fennoscandia$s.temp <-  scale(fennoscandia$temp) 
 fennoscandia$log.prec <- log10(fennoscandia$prec+1e-5)
 fennoscandia$s.log.prec <- scale(fennoscandia$log.prec)
 fennoscandia$log.slope <- log10(fennoscandia$slope+1e-5) 
