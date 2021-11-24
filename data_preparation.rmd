@@ -333,7 +333,7 @@ saveRDS(ndep.df,"ndep.df.Rdata")
 ```
 
 
-## Data gathering and cleaning
+# Data gathering and cleaning
 
 ```{r gather-data}
 country <- readRDS("country.Rdata")
@@ -371,7 +371,7 @@ fennoscandia$uncertain <- ifelse(fennoscandia$dist_closest_ebint/fennoscandia$di
 fennoscandia$uncertain[which(is.na(fennoscandia$uncertain)==TRUE)] <- FALSE
 
 fennoscandia <- fennoscandia %>% filter(toc_mg_l >= 0)
-fennoscandia <- fennoscandia %>% filter(mean.runoff < exp(20))
+fennoscandia <- fennoscandia %>% filter(mean.runoff != 0)
 fennoscandia <- fennoscandia %>% filter(ndvi.value > 0)
 fennoscandia <- fennoscandia %>% filter(is.na(slope) == F)
 fennoscandia <- fennoscandia %>% filter(uncertain == FALSE)
@@ -408,7 +408,7 @@ Lots of 0 in N-dep, bogs and arable : not transformed
 fennoscandia$log.toc <- log10(fennoscandia$toc_mg_l+1e-5) #to avoid log tranform 0
 fennoscandia$s.log.toc <- scale(fennoscandia$log.toc) 
 fennoscandia$runoff <- fennoscandia$mean.runoff*365*24*60*60 # from kg/m2/s to kg/m2/year
-fennoscandia$log.runoff <- log10(fennoscandia$mean.runoff+1e-5)  #to avoid log tranform 0
+fennoscandia$log.runoff <- log10(fennoscandia$mean.runoff)  
 fennoscandia$s.log.runoff <- scale(fennoscandia$log.runoff)
 fennoscandia$ndvi <- fennoscandia$ndvi.value
 fennoscandia$s.ndvi <- scale(fennoscandia$ndvi.value)
