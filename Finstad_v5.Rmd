@@ -128,9 +128,6 @@ $$
 
 The end.
 
-```{r early-exit}
-knitr::knit_exit()
-```
 # Results
 
 ## Overview of variables
@@ -153,6 +150,7 @@ cor.mat <- cor(dplyr::select(fennoscandia,m[-1]))
 corrplot::corrplot(cor.mat, method = "number",type = "lower")
 
 ```
+
 
 ### Spatial autocorrelation & VIF
 
@@ -221,6 +219,7 @@ moran.vif.df %>%
         
 ```
 The most auto-correlated variables (precipitation, temperature, and N deposition) are also the ones with the highest VIF. All of them are related to atmospheric and topographic parameters. However, only temperature has a VIF higher than 5. This parameter will be removed. 
+
 
 ## Comparison of linear model and spatial error model
 
@@ -318,6 +317,7 @@ knitr::kable(summary.table.lm,digits = 3) %>%
 
 
 ```
+
 ### Spatial Error Model
 
 ```{r sem, eval = F}
@@ -398,9 +398,31 @@ o <- cbind.data.frame(s.sem.coef,model = "SEM")
   
 scaled.df <- rbind(m,o)
 
-ggplot(scaled.df)+geom_col(aes(x=Estimate,y=Parameter, fill = model, group = model),position="dodge")+
-  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error),position = "dodge")+
-  theme_light()
+scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=Parameter, fill = model), position = "dodge", width = 0.5)+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
+  labs(x = "Scaled Estimate", y = "Independent variable")+
+  theme_bw()+theme(legend.position = "none")
+  
+
+```
+
+```{r compare-effect-size}
+
+n <- c(names(sem.effectsize),"model")
+m <- cbind.data.frame(lm.effectsize,model = "LM") %>% setNames(n)
+o <- cbind.data.frame(sem.effectsize,model = "SEM")
+  
+h.df <- rbind(m,o)
+
+effectsize.plot <- ggplot(h.df, aes(group = model))+
+  geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "")+
+  theme_bw()
+
+```
+
+```{r compare-plots-1, fig.dim = c(8,4)}
+cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 
 ```
 
@@ -533,6 +555,40 @@ knitr::kable(summary.table.sem,digits = 4) %>%
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 
 ```
+
+### Comparison Norway
+```{r compare-estimates-simple-norway}
+n <- c(names(s.sem.coef),"model")
+m <- cbind.data.frame(s.lm.coef[,1:3],model = "LM") %>% setNames(n)
+o <- cbind.data.frame(s.sem.coef,model = "SEM")
+  
+scaled.df <- rbind(m,o)
+
+scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=Parameter, fill = model), position = "dodge", width = 0.5)+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
+  labs(x="Scaled Estimate", y = "Independent variables")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+```
+```{r compare-effect-size-simple-norway}
+
+n <- c(names(sem.effectsize),"model")
+m <- cbind.data.frame(lm.effectsize,model = "LM") %>% setNames(n)
+o <- cbind.data.frame(sem.effectsize,model = "SEM")
+  
+h.df <- rbind(m,o)
+
+effectsize.plot <- ggplot(h.df, aes(group = model))+
+  geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "")+
+  theme_bw()
+```
+```{r compare-plots-2, fig.dim = c(8,4)}
+cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
+
+```
+
 ### Simplified OLS for Fennoscandia
 
 ```{r simple-ols-fennoscandia, results = T}
@@ -583,6 +639,7 @@ knitr::kable(summary.table.norge,digits = 3) %>%
   kable_styling(bootstrap_options = "bordered") %>%
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
 ```
+
 
 ### Simplified SEM for Fennoscandia
 ```{r sem-simple-fennosandia, eval = F}
@@ -651,6 +708,40 @@ knitr::kable(summary.table.sem,digits = 4) %>%
 
 ```
 
+
+### Comparison Fennoscandia
+```{r compare-estimates-simple-fen}
+n <- c(names(s.sem.coef),"model")
+m <- cbind.data.frame(s.lm.coef[,1:3],model = "LM") %>% setNames(n)
+o <- cbind.data.frame(s.sem.coef,model = "SEM")
+  
+scaled.df <- rbind(m,o)
+
+scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=Parameter, fill = model), position = "dodge", width = 0.5)+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
+  labs(x = "Scaled estimates",y = "Independent variables")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+```
+```{r compare-effect-size-simple-fen}
+
+n <- c(names(sem.effectsize),"model")
+m <- cbind.data.frame(lm.effectsize,model = "LM") %>% setNames(n)
+o <- cbind.data.frame(sem.effectsize,model = "SEM")
+  
+h.df <- rbind(m,o)
+
+effectsize.plot <- ggplot(h.df, aes(group = model))+
+  geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "")+
+  theme_bw()
+```
+```{r compare-plots-3, fig.dim = c(8,4)}
+cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
+
+```
+
 ### GWR 
 
 ```{r GWR-fennoscandia, eval = F}
@@ -693,7 +784,7 @@ for(i in 1:n){
 gwr.effectsize.percent <- 100*(gwr.effectsize)-1
 
 coef.plot <- lapply(m,FUN = function(x)  f_plotspatial(data=fennoscandia,var=gwr.effectsize.percent[[x]],plottitle = x))
-coef.plot$toc <- f_plotspatial(fennoscandia,var=gwr.coef$y,plottitle = "Observed toc (log)")
+coef.plot$toc <- f_plotspatial(fennoscandia,var=gwr.coef$yhat,plottitle = "Predicted toc (log)")
 cowplot::plot_grid(plotlist = coef.plot,ncol=2)
 
 gwr.AIC <- gwr.fennoscandia$GW.diagnostic$AICc
