@@ -1,14 +1,15 @@
 ---
-title: "Remote sensing and toc concentration"
+title: "Space for time modelling of TOC concentration"
 author: "Camille M. Crapart"
 date: "29 9 2021"
 output: 
-  html_document:
+  bookdown::html_document2:
     code_folding: hide
     toc: true
     toc_float: true
     number_sections: true
-#bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+    fig_caption: true
+bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 link-citations: yes
 ---
 
@@ -39,19 +40,21 @@ source("f_plotspatial.R")
 fennoscandia <- readRDS("fennoscandia.Rdata")
 fennoscandia.spdf <- readRDS("fennoscandia.spdf.Rdata")
 norge <- fennoscandia %>% filter(nation == "Norway")
-dim(norge)
 
 ```
 
 # Introduction
 
-In boreal lakes, acid rains led to the acidification of the surface waters @Mens2004. Long-range transport of pollutants was first reported by Brøgger in Naturen in 1880. Then Dannevig in 1959 observed that acidification of water could lead to the death of fishes. In the 70s, Odén showed that the acidification of surface water in Norway originated from air pollution in the UK and in central Europe. Several studies emerged in order to follow-up the quality of surface water in Fennoscandia. A first regional study was conducted in 1986. It showed that most lakes had low ionic concentration, including nutrient concentration like nitrogen and phosphorus. It highlighted the gradient of precipitation and forested areas between the west of Norway and the east of Finland.  Between the period 76-85 and the period 95-2001, acid rains have been reduced by 50% @Mens2004. However, NOx deposition has decreased much less, due to the continued used of ammonia as a fertilizer. As a result, the pH of the lakes began to rise again. Reduced acidification affects the solubility of DOC @Finstad2016, therefore reducing the transport from terrestrial pools to lakes. This led to less dissolution of aluminium from bedrocks, and therefore less flocculation of TOC. Therefore, the TOC concentration in lakes began to rise as well.
+In boreal lakes, acid rains led to the acidification of the surface waters @Menz2004. Long-range transport of pollutants was first reported by Brøgger in Naturen in 1880. Then Dannevig in 1959 observed that acidification of water could lead to the death of fishes. In the 70s, Odén showed that the acidification of surface water in Norway originated from air pollution in the UK and in central Europe. Several studies emerged in order to follow-up the quality of surface water in Fennoscandia. A first regional study was conducted in 1986. It showed that most lakes had low ionic concentration, including nutrient concentration like nitrogen and phosphorus. It highlighted the gradient of precipitation and forested areas between the west of Norway and the east of Finland.  Between the period 76-85 and the period 95-2001, acid rains have been reduced by 50% @Menz2004. However, NOx deposition has decreased much less, due to the continued used of ammonia as a fertilizer. As a result, the pH of the lakes began to rise again. Reduced acidification affects the solubility of DOC @Finstad2016, therefore reducing the transport from terrestrial pools to lakes. This led to less dissolution of aluminium from bedrocks, and therefore less flocculation of TOC. Therefore, the TOC concentration in lakes began to rise as well.
 
 The second sulfur protocol was signed in Oslo in 1994. It aimed at limiting sulfur and nitrogen concentrations under new critical loads. Therefore, new data collection was needed to establish an up-to-date reference dataset for the follow up of this protocol. This survey included Norway, Sweden, Finland, Denmark, as well as Scotland, Wales and Russian Kola and Karelia. A larger survey was conducted in including the Northern European Lake Survey in 1995 @Henriksen1998. It included a lot of variables, such as pH, conductivity, major ion concentrations, labile and non-labile Al. The study showed an increasing gradient from west to east. This reflects the presence of thin soil, poorly vegetated areas, and high runoff in western Norway, contrasting with the forests with thick soils and low runoff in the east. 
-Based on this survey, Larsen et al. @Larsen2011 modelled the concentration of TOC with NDVI, bogs and runoff as independent variables. cite Heleen 2014 for runoff. Bogs? NDVI? They used a linear regression and obtained an R-squared of 0,82, showing that these 3 variables were good predictors of the TOC concentration in lakes. However they did not take into account the spatial autocorrelation of the variables. 
-De Wit et al @DeWit2015 observed a significant increase of TOC between 1990 and 2013 in all of Fennoscandia. This support the fact that the browning is due to global or regional factors, and not local factors. “Strong relationship between the change in median annual OC and median annual precipitation”. This relationship depends on the dryness of the place, from high positive change in dry site to almost no change in wet sites.  increased OC mobilization in dry sites and dilution effect with additional rainfall in wettest sites. Since climatic models predict a 10% increase in precipitations, they suggest that OC would subsequently increase except in oceanic regions. 30-50% rise, due to increased “lateral flow through carbon-rich top soils layers”. Wetter climates may reduce the rate of OC decay because of less water retention
 
-90% of TOC in boreal lakes is DOC source. It is the main source of food for heterotrophic bacteria. Increasing DOC concentration can turn the lake from a net autotrophic balance to a net heterotrophic balance. More DOC available means that less and less light will be available for autotrophic organisms. The light is indeed absorbed by the coloured DOC,  warming the upper layer of the lakes at the same time. 
+
+Based on this survey, Larsen et al. @Larsen2011 modelled the concentration of TOC with NDVI, bogs and runoff as independent variables. They obtained a strong positive effect of NDVI and bogs, but a negative effect of runoff. They used a linear regression and obtained an R-squared of 0,82, showing that these 3 variables were good predictors of the TOC concentration in lakes. However they did not take into account the spatial autocorrelation of the variables. De Wit et al. @DeWit2016a also observed a global increase of TOC in all of Scandinavia, but estimated that a 10% increase in precipitation would lead to an increased mobilization of DOC from the soil and therefore an increased concentrtion of DOC in lakes. However, they suggested that increased precipitation would have a stronger positive in effect in dry places compared to wet places.
+
+90% of TOC in boreal lakes is DOC source @Larsen2011a. It has several roles in the lake ecosystem, being the main source of food for heterotrophic bacteria. In addition, the sunlight is absorbed by the coloured DOC, warming the upper layer of the lakes in turn. Increasing DOC concentration can turn the lake from a net autotrophic balance to a net heterotrophic balance. The concentration of TOC in lakes is therfore a key proxy to estimate carbon fluxes from freshwater to the atmosphere, a flux often underestimated @Natchimuthu2016. 
+
+
 We decided to extend the model over the full gradient western Norway – eastern Finland. We used the same explanatory parameters as Larsen et al. but we implemented a spatial error model to include the spatial autocorrelation effect. 
 
   
@@ -64,7 +67,7 @@ See data preparation
 ## Models
 Description of models used
 
-## Effect size
+## Effect size {#effect-size}
 
 The effect size of each independent variable is expressed as the relative change of TOC depending on a given change of the independent variable. The conversion from model estimate to effect size is detailed below.
 
@@ -98,11 +101,12 @@ $$
 
 The evaluation of the standard error is based on the delta method @MacKenzie2018.
 
-$$
+$$ 
 Var(h(\hat{\theta})) = \left( \frac{\delta h(\theta)}{\delta \hat{\theta}} \right) ^2 \times Var(\hat{\theta}) \\
-Std(h(\hat{\theta})) = \sqrt{\left( \frac{\delta h(\theta)}{\delta \hat{\theta}} \right) ^2 \times Var(\hat{\theta})} = \frac{\delta h(\hat{\theta)}{\delta \hat{\theta}} \times Std(\hat{\theta}) \\
-\frac{\delta h(\hat{\theta)}{\delta \hat{\theta}} = ln(10) \times 10^{\hat{\theta} \times 0.1} \times 0.1 \\
-Std(h(\hat{\hat{\theta})) = 0.1 \times ln(10) \times 10^{\hat{\theta} \times 0.1} \times Std(\hat{\theta})
+Std(h(\hat{\theta})) = \sqrt{\left( \frac{\delta h(\theta)}{\delta \hat{\theta}} \right) ^2 \times Var(\hat{\theta})} \\
+Std(h(\hat{\theta})) = \frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} \times Std(\hat{\theta}) \\
+\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = ln(10) \times 10^{\hat{\theta} \times 0.1} \times 0.1 \\
+Std(h(\hat{\theta})) = 0.1 \times ln(10) \times 10^{\hat{\theta} \times 0.1} \times Std(\hat{\theta})
 $$
 
 
@@ -119,20 +123,19 @@ $$
 The corresponding standard error is: 
 
 $$
-Var(h(\hat{\theta})) = \left( \frac{\delta h(\theta)}{\delta \hat{\theta}} \right) ^2 \times Var(\hat{\theta}) \\
-Std(h(\hat{\theta})) = \sqrt{ \left( \frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} \right) ^2 \times Var(\hat{\theta})} \\
+Var(h(\hat{\theta})) = \left( \frac{\delta h(\theta)}{\delta \hat{\theta}} \right) ^2 \times Var(\hat{\theta})\\
+Std(h(\hat{\theta})) = \sqrt{ \left( \frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} \right) ^2 \times Var(\hat{\theta})}\\
 Std(h(\hat{\theta})) = \frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} \times Std(\hat{\theta}) \\
-\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = 1.1^{\hat{\theta}} \times ln(1.1) \times 0.1} \times 1 \\
-Std(h(\hat{\theta})) = 1.1^{\hat{\theta}} \times ln(1.1) \times 0.1 \times 1 \times Std(\hat{\theta})
+\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = 1.1^{\hat{\theta}} \times ln(1.1) \times 0.1 \times 1 \\ 
+Std(h(\hat{\theta})) = 1.1^{\hat{\theta}} \times ln(1.1) \times 0.1 \times 1 \times Std(\hat{\theta}) \\
 $$
 
-The end.
 
 # Results
 
 ## Overview of variables
 
-### Mapping of dependant and independant variables
+### Mapping of dependent and independent variables
 
 ```{r map-variable, fig.dim = c(10,13)}
 m <- c("log.toc","ndvi","log.runoff","log.prec","slope","temp","bogs","arable","tndep")
@@ -144,22 +147,21 @@ cowplot::plot_grid(plotlist = list.map,ncol=2)
 
 ### Correlation between independant variables
 
-```{r corrplot}
-
+```{r corrplot, fig.cap = "Correlation plot of independent variables"}
 cor.mat <- cor(dplyr::select(fennoscandia,m[-1]))
 corrplot::corrplot(cor.mat, method = "number",type = "lower")
-
 ```
-
 
 ### Spatial autocorrelation & VIF
 
-Moran's I
-$$
+The spatial autocorrelation of the independent variables is evaluated thanks to the Moran's I index. X is the variable of interest, N the number of spatial units, and w_ij a diagonal weight matrix.
 
 $$
+I = \frac{N}{\Sigma_i \Sigma_j w_{ij}} \frac{\Sigma_i \Sigma_j w_{ij} (X_i-\bar{X})(X_j-\bar{X})}{\Sigma_i (X_i-\bar{X})^2}
+$$
 
-VIF:obtained by regressing each independent variables towards the others, to investigate multicollinearity between the independent variables. 
+Moreover, the collinearity between the independent variables is assessed by using the Variance Inflation Factor (VIF). It is obtained by regressing each independent variables towards the others, and calculated using the resulting $R^2$.  
+
 $$
 VIF = \frac{1}{1-R_i^2}
 $$
@@ -207,9 +209,9 @@ moran.limit <- 1/(dim(fennoscandia)[1]-1)
 moran.vif.df <- merge(moran.df,lm.vif, by.x = "parameter", by.y = 0)
 moran.vif.df[,2:4] <- round(moran.vif.df[,2:4],2)
 
-moran.vif.df %>% 
+moran.vif.df[,-3] %>% 
   dplyr::mutate(
-    VIF = cell_spec(VIF,color = ifelse(VIF > 5,"red", "black"), bold = ifelse(VIF > 5, T, F)),
+    VIF = cell_spec(VIF,color = ifelse(VIF > 3,"red", "black"), bold = ifelse(VIF > 5, T, F)),
     moran.I = cell_spec(moran.I,bold = ifelse(moran.I > moran.limit, T, F),color = ifelse(moran.I > 0.8, "red","black"))) %>%
   knitr::kable(digits = 2, 
     caption = paste("Moran'I of dependant and independant variable (limit = ",
@@ -218,20 +220,22 @@ moran.vif.df %>%
   kable_styling(bootstrap_options = "bordered")
         
 ```
-The most auto-correlated variables (precipitation, temperature, and N deposition) are also the ones with the highest VIF. All of them are related to atmospheric and topographic parameters. However, only temperature has a VIF higher than 5. This parameter will be removed. 
+The most auto-correlated variables (precipitation, temperature, and N deposition) are also the ones with the highest VIF. Temperature has a VIF higher than 5 and was highly correlated to N-deposition (Figure \@ref(fig:corrplot)). Log.prec also has a high VIF value (`r round(lm.vif["log.prec",],2)`) and a high correlation with log.runoff
 
 
-## Comparison of linear model and spatial error model
+## Comparison of linear model and spatial error model for the Fennoscandian dataset 
 
-### Ordinary least square regression 
+An ordinary least square regression (OLS) and a Spatial Error Model (SEM) were fitted for the log.toc against the selected independent variables. The Spatial Error Model takes into account the spatial autocorrelation of the independent variables in the error term of the regression. To compare the two models, the Akaike Information Criterion was calculated.
+
+Both models were fitted with and without scaled variables. The effect size calculated using the raw (non-scaled) coefficients according to the method explained in \@ref(effect-size). A comparison of the regression coefficients and effect size for each independent variables is shown on figure \@ref(fig:compare-plots-1). 
 
 ```{r ols-fennoscandia, results = T}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
-fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.slope+s.bogs+s.arable+s.tndep
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.slope+s.bogs+s.arable+s.tndep
 s.lm.fennoscandia <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
 
-fm <- log.toc~ndvi+log.runoff+log.prec+slope+bogs+arable+tndep
+fm <- log.toc~ndvi+log.runoff+slope+bogs+arable+tndep
 lm.fennoscandia <- lm(fm, data = fennoscandia, na.action = na.exclude)
 
 s.lm.r2 <- summary(s.lm.fennoscandia)$adj.r.squared
@@ -242,15 +246,6 @@ moran.I.res.lm <- lm.morantest(lm.fennoscandia, k.neigh.w, alternative = "two.si
 
 moran.limit.fennoscandia <- 1/(dim(fennoscandia)[1]-1)
 
-lm.comparison <- data.frame(model = c("lm.scaled", "lm"),
-                            r2 = c(s.lm.r2,lm.r2), 
-                            AIC = c(AIC(s.lm.fennoscandia),AIC(lm.fennoscandia)),
-                            moran.res = c(s.moran.I.res.lm$estimate[[1]], moran.I.res.lm$estimate[[1]]))
-
-lm.vif <- car::vif(lm.fennoscandia)
-s.lm.vif <- car::vif(s.lm.fennoscandia)
-
-  
 s.lm.coef <- summary(s.lm.fennoscandia)$coefficients %>% as.data.frame()
 s.lm.coef <- s.lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
 
@@ -269,16 +264,19 @@ for(i in 1:n){
   }else if(m[i] %in% c("ndvi","bogs","arable")){
     lm.effectsize[i,2] <- 10^(lm.coef[i,2]*0.1)
     lm.effectsize[i,3] <- 0.1*log(10)*10^(lm.coef[i,2]*0.1)*lm.coef[i,3]
-  }else if(m[i] %in% c("slope","temp","tndep")){
+  }else if(m[i] %in% c("slope","temp")){
     lm.effectsize[i,2] <- 10^(lm.coef[i,2]*1)
     lm.effectsize[i,3] <- 1*log(10)*10^(lm.coef[i,2]*1)*lm.coef[i,3]
+  }else if(m[i] %in% c("tndep")){
+    lm.effectsize[i,2] <- 10^(lm.coef[i,2]*100)
+    lm.effectsize[i,3] <- 100*log(10)*10^(lm.coef[i,2]*100)*lm.coef[i,3]
   }
 }
 
 lm.effectsize$Percent <- 100*(lm.effectsize$Estimate-1)
 
-
 ```
+
 ```{r arm-sim-test-lm}
 sm.fennoscandia <- arm::sim(lm.fennoscandia,n.sims = 100)
 
@@ -295,41 +293,36 @@ for(i in 1:n){
   }else if(m[i] %in% c("ndvi","bogs","arable")){
     sm.effectsize[i,2] <- mean(10^(sm.coef[,i]*0.1))
     sm.effectsize[i,3] <- sd(0.1*log(10)*10^(sm.coef[,i]*0.1)*sm.coef[,i])
-  }else if(m[i] %in% c("slope","temp","tndep")){
+  }else if(m[i] %in% c("slope","temp")){
     sm.effectsize[i,2] <- mean(10^(sm.coef[,i]*1))
     sm.effectsize[i,3] <- sd(1*log(10)*10^(sm.coef[,i]*1)*sm.coef[,i])
+  }else if(m[i] %in% c("tndep")){
+    sm.effectsize[i,2] <- mean(10^(sm.coef[,i]*100))
+    sm.effectsize[i,3] <- sd(100*log(10)*10^(sm.coef[,i]*100)*sm.coef[,i])
   }
 }
 
 ```
-```{r lm-table-results}
+
+```{r summary-table-lm}
 summary.table.lm <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4],sm.effectsize[,2:3]) %>%
                 rbind(c("AIC",AIC(s.lm.fennoscandia),"",AIC(lm.fennoscandia),"","","","","","")) %>%
                 rbind(c("R2",s.lm.r2,"",lm.r2,"","","","","","")) %>%
                 rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","","","",""))
 summary.table.lm[,-1] <- apply(summary.table.lm[,-1],2,as.numeric)
 
-knitr::kable(summary.table.lm,digits = 3) %>%
-  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3,"SIM" = 2),italic = T) %>%
-  column_spec(column = 8, bold = T) %>% 
-  kable_styling(bootstrap_options = "bordered") %>%
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
-
-
 ```
-
-### Spatial Error Model
 
 ```{r sem, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
 lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
 
-fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.log.prec+s.slope+s.bogs+s.arable+s.tndep
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.slope+s.bogs+s.arable+s.tndep
 s.sem.fennoscandia <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
 saveRDS(s.sem.fennoscandia,"s.sem.fennoscandia.Rdata")
 
-fm <- log.toc~ndvi+log.runoff+log.prec+slope+bogs+arable+tndep
+fm <- log.toc~ndvi+log.runoff+slope+bogs+arable+tndep
 sem.fennoscandia <- errorsarlm(fm,fennoscandia,k.neigh.w)
 saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
 ```
@@ -362,9 +355,12 @@ for(i in 1:n){
   }else if(m[i] %in% c("ndvi","bogs","arable")){
     sem.effectsize[i,2] <- 10^(sem.coef[i,2]*0.1)
     sem.effectsize[i,3] <- 0.1*log(10)*10^(sem.coef[i,2]*0.1)*sem.coef[i,3]
-  }else if(m[i] %in% c("slope","temp","tndep")){
+  }else if(m[i] %in% c("slope","temp")){
     sem.effectsize[i,2] <- 10^(sem.coef[i,2]*1)
     sem.effectsize[i,3] <- 1*log(10)*10^(sem.coef[i,2]*1)*sem.coef[i,3]
+  }else if(m[i] %in% c("tndep")){
+    sem.effectsize[i,2] <- 10^(sem.coef[i,2]*100)
+    sem.effectsize[i,3] <- 100*log(10)*10^(sem.coef[i,2]*100)*sem.coef[i,3]
   }
 }
 
@@ -382,15 +378,8 @@ summary.table.sem <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],se
                 rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"", moran.I.res.sem$estimate[[1]], "","","",""))
 summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
 
-knitr::kable(summary.table.sem,digits = 4) %>%
-  add_header_above(c("Model"=1,"Scaled SEM" = 2, "SEM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  column_spec(column = 8, bold = T) %>% 
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
-
 ```
 
-### Comparative plot
 ```{r compare-estimates}
 n <- c(names(s.sem.coef),"model")
 m <- cbind.data.frame(s.lm.coef[,1:3],model = "LM") %>% setNames(n)
@@ -400,10 +389,9 @@ scaled.df <- rbind(m,o)
 
 scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=Parameter, fill = model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x = "Scaled Estimate", y = "Independent variable")+
+  labs(x = "Scaled Estimate", y = "Independent variable", subtitle = paste("LM: AIC =",round(AIC(s.lm.fennoscandia),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
   theme_bw()+theme(legend.position = "none")
   
-
 ```
 
 ```{r compare-effect-size}
@@ -416,19 +404,32 @@ h.df <- rbind(m,o)
 
 effectsize.plot <- ggplot(h.df, aes(group = model))+
   geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "")+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.fennoscandia),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
   theme_bw()
 
 ```
 
-```{r compare-plots-1, fig.dim = c(8,4)}
+**Reminder: the effect size is expressed as % change of TOC concentration for:**
+
+**- 10% increase of runoff**
+
+**- 0.1 unit increase of NDVI, bogs and arable land**
+
+**- 1 degree increase of slope**
+
+**- 100 ug increase of nitrogen deposition.**
+
+```{r compare-plots-1, fig.dim = c(8,4), fig.cap = "Comparison of OLS and SEM models"}
 cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 
 ```
 
 ## Simplified models on Norway and Fennoscandia
 
-### OLS for Norway
+In order to compare the results of this study to the results of Larsen et al. (@Larsen2011), we fitted two simpler models using only three predictors: NDVI, proportion of bogs and runoff. OLS and SEM models were fitted for the entire dataset as well as for the norwegian subset.The scaled estimates and the effect size were calculated similarly to the previous section.
+
+### Simple models for Norway
 
 ```{r kmat, eval = F}
 norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
@@ -436,6 +437,7 @@ norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
 norge.kmat <- norge.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
 saveRDS(norge.kmat,"norge.kmat.Rdata")
 ```
+
 ```{r ols-norge, results = T}
 norge.kmat <- readRDS("norge.kmat.Rdata")
 
@@ -482,13 +484,7 @@ summary.table.norge <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm
                 rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","",""))
 summary.table.norge[,-1] <- apply(summary.table.norge[,-1],2,as.numeric)
 
-knitr::kable(summary.table.norge,digits = 3) %>%
-  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
 ```
-
-### SEM for Norway
 
 ```{r sem-simple-norway, eval = F}
 norge.kmat <- readRDS("norge.kmat.Rdata")
@@ -502,6 +498,7 @@ sem.norge.simple <- errorsarlm(fm,norge,norge.kmat)
 saveRDS(sem.norge.simple,"sem.norge.simple.Rdata")
 
 ```
+
 ```{r sem-simple-results-norway}
 s.sem.norge.simple <- readRDS("s.sem.norge.simple.Rdata")
 sem.norge.simple <- readRDS("sem.norge.simple.Rdata")
@@ -543,20 +540,13 @@ s.moran.I.res.sem <- moran.test(s.sem.norge.simple$residuals, norge.kmat, altern
 sem.AIC <- 2*(n-1)-2*sem.norge.simple$LL
 moran.I.res.sem <- moran.test(sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
 
-summary.table.sem <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize[,2:4]) %>%
+summary.table.sem.norge <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize[,2:4]) %>%
                 rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
                 rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"",moran.I.res.sem$estimate[[1]], "","","",""))
-summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
-
-knitr::kable(summary.table.sem,digits = 4) %>%
-  add_header_above(c("Model"=1,"Scaled SEM" = 2,"SEM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  column_spec(column = 8, bold = T) %>% 
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+summary.table.sem.norge[,-1] <- apply(summary.table.sem.norge[,-1],2,as.numeric)
 
 ```
 
-### Comparison Norway
 ```{r compare-estimates-simple-norway}
 n <- c(names(s.sem.coef),"model")
 m <- cbind.data.frame(s.lm.coef[,1:3],model = "LM") %>% setNames(n)
@@ -566,11 +556,12 @@ scaled.df <- rbind(m,o)
 
 scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=Parameter, fill = model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x="Scaled Estimate", y = "Independent variables")+
+  labs(x="Scaled Estimate", y = "Independent variables", subtitle = paste("LM: AIC =",round(AIC(s.lm.norge),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
   theme_bw()+
   theme(legend.position = "none")
 
 ```
+
 ```{r compare-effect-size-simple-norway}
 
 n <- c(names(sem.effectsize),"model")
@@ -581,15 +572,23 @@ h.df <- rbind(m,o)
 
 effectsize.plot <- ggplot(h.df, aes(group = model))+
   geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "")+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.norge),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
   theme_bw()
 ```
-```{r compare-plots-2, fig.dim = c(8,4)}
+**Reminder: the effect size is expressed as % change of TOC concentration for:**
+
+**- 10% increase of runoff**
+
+**- 0.1 unit increase of NDVI and bogs.**
+
+
+```{r compare-plots-2, fig.dim = c(8,4), fig.cap = "Comparison of models for the Norwegian subset"}
 cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 
 ```
 
-### Simplified OLS for Fennoscandia
+### Simplified models for Fennoscandia
 
 ```{r simple-ols-fennoscandia, results = T}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
@@ -626,22 +625,19 @@ for(i in 1:n){
   }else if(m[i] %in% c("ndvi","bogs","arable")){
     lm.effectsize[i,2] <- 10^(lm.coef[i,2]*0.1)
     lm.effectsize[i,3] <- 0.1*log(10)*10^(lm.coef[i,2]*0.1)*lm.coef[i,3]
-  }else if(m[i] %in% c("slope","temp","tndep")){
-    lm.effectsize[i,2] <- 10^(lm.coef[i,2]*1)
-    lm.effectsize[i,3] <- 1*log(10)*10^(lm.coef[i,2]*1)*lm.coef[i,3]
   }
-}
+} 
 
 lm.effectsize$Percent <- 100*(lm.effectsize$Estimate-1)
 
-knitr::kable(summary.table.norge,digits = 3) %>%
-  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+summary.table.simple.lm <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4]) %>%
+                rbind(c("AIC",AIC(s.lm.fennoscandia),"",AIC(lm.fennoscandia),"","","","","","")) %>%
+                rbind(c("R2",s.lm.r2,"",lm.r2,"","","","","","")) %>%
+                rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","","","",""))
+summary.table.simple.lm[,-1] <- apply(summary.table.simple.lm[,-1],2,as.numeric)
+
 ```
 
-
-### Simplified SEM for Fennoscandia
 ```{r sem-simple-fennosandia, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
@@ -654,6 +650,7 @@ sem.fen.simple <- errorsarlm(fm,fennoscandia,k.neigh.w)
 saveRDS(sem.fen.simple,"sem.fen.simple.Rdata")
 
 ```
+
 ```{r sem-simple-results}
 s.sem.fen.simple <- readRDS("s.sem.fen.simple.Rdata")
 sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
@@ -681,9 +678,6 @@ for(i in 1:n){
   }else if(m[i] %in% c("ndvi","bogs","arable")){
     sem.effectsize[i,2] <- 10^(sem.coef[i,2]*0.1)
     sem.effectsize[i,3] <- 0.1*log(10)*10^(sem.coef[i,2]*0.1)*sem.coef[i,3]
-  }else if(m[i] %in% c("slope","temp","tndep")){
-    sem.effectsize[i,2] <- 10^(sem.coef[i,2]*1)
-    sem.effectsize[i,3] <- 1*log(10)*10^(sem.coef[i,2]*1)*sem.coef[i,3]
   }
 }
 
@@ -695,21 +689,13 @@ s.moran.I.res.sem <- moran.test(s.sem.fen.simple$residuals, k.neigh.w, alternati
 sem.AIC <- 2*(n-1)-2*sem.fen.simple$LL
 moran.I.res.sem <- moran.test(sem.fen.simple$residuals, k.neigh.w, alternative = "two.sided")
 
-summary.table.sem <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize[,2:4]) %>%
+summary.table.simple.sem <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize[,2:4]) %>%
                 rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
                 rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"",moran.I.res.sem$estimate[[1]], "","","",""))
-summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
-
-knitr::kable(summary.table.sem,digits = 4) %>%
-  add_header_above(c("Model"=1,"Scaled SEM" = 2,"SEM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  column_spec(column = 8, bold = T) %>% 
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+summary.table.simple.sem[,-1] <- apply(summary.table.simple.sem[,-1],2,as.numeric)
 
 ```
 
-
-### Comparison Fennoscandia
 ```{r compare-estimates-simple-fen}
 n <- c(names(s.sem.coef),"model")
 m <- cbind.data.frame(s.lm.coef[,1:3],model = "LM") %>% setNames(n)
@@ -719,11 +705,12 @@ scaled.df <- rbind(m,o)
 
 scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=Parameter, fill = model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x = "Scaled estimates",y = "Independent variables")+
+  labs(x = "Scaled estimates",y = "Independent variables", subtitle = paste("LM: AIC =",round(AIC(s.lm.fennoscandia),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
   theme_bw()+
   theme(legend.position = "none")
 
 ```
+
 ```{r compare-effect-size-simple-fen}
 
 n <- c(names(sem.effectsize),"model")
@@ -734,29 +721,37 @@ h.df <- rbind(m,o)
 
 effectsize.plot <- ggplot(h.df, aes(group = model))+
   geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "")+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.fennoscandia),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
   theme_bw()
 ```
-```{r compare-plots-3, fig.dim = c(8,4)}
-cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
+**Reminder: the effect size is expressed as % change of TOC concentration for:**
 
+**- 10% increase of runoff**
+
+**- 0.1 unit increase of NDVI and bogs.**
+
+
+```{r compare-plots-3, fig.dim = c(8,4), fig.cap = "Comparison of simplified models for Fennoscandia"}
+cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 ```
 
-### GWR 
+### Geographically Weighted Regression 
+
+A geographically weighted model was fitted on the Fennoscandian dataset. The objective is to examine the regional relationship with the dependent and independent variables. A geographically weighted model computes a linear regression giving a stronger weight to the closest neighbours. The neighbours here are choosen to be the 500 nearest lakes, where weight for each lake is attributed following a gaussian distribution. The local regression coefficients are shown on \@ref(fig:gwr-results)
 
 ```{r GWR-fennoscandia, eval = F}
 fm <- log.toc~ndvi+log.runoff+bogs
 
 library(GWmodel)
 bw.fennoscandia <- bw.gwr(fm, data = fennoscandia.spdf, kernel = "gaussian", adaptive = T)
-gwr.fennoscandia <- gwr.basic(fm, data = fennoscandia.spdf, bw = 100, kernel = "gaussian", adaptive = T)
+gwr.fennoscandia <- gwr.basic(fm, data = fennoscandia.spdf, bw = 500, kernel = "gaussian", adaptive = T)
 
 saveRDS(bw.fennoscandia, "bw.fennoscandia.Rdata")
 saveRDS(gwr.fennoscandia, "gwr.fennoscandia.Rdata")
 ```
 
-
-```{r gwr-results, fig.dim = c(10,6)}
+```{r gwr-results, fig.dim = c(10,6), fig.cap = "Maps of the GWR coefficients"}
 bw.fennoscandia <- readRDS("bw.fennoscandia.Rdata")
 gwr.fennoscandia <- readRDS("gwr.fennoscandia.Rdata")
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
@@ -784,7 +779,7 @@ for(i in 1:n){
 gwr.effectsize.percent <- 100*(gwr.effectsize)-1
 
 coef.plot <- lapply(m,FUN = function(x)  f_plotspatial(data=fennoscandia,var=gwr.effectsize.percent[[x]],plottitle = x))
-coef.plot$toc <- f_plotspatial(fennoscandia,var=gwr.coef$yhat,plottitle = "Predicted toc (log)")
+coef.plot$toc <- f_plotspatial(fennoscandia,var=gwr.coef$y,plottitle = "Observed toc (log)")
 cowplot::plot_grid(plotlist = coef.plot,ncol=2)
 
 gwr.AIC <- gwr.fennoscandia$GW.diagnostic$AICc
@@ -797,14 +792,68 @@ knitr::kable(summary.table.gwr,digits = 3) %>%
   kable_styling(bootstrap_options = "bordered")
 ```
 
+# Appendix
+
+## Summary table LM and SEM Fennoscandia
+
+```{r lm-table-results}
+knitr::kable(summary.table.lm,digits = 3) %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3,"SIM" = 2),italic = T) %>%
+  column_spec(column = 8, bold = T) %>% 
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+
+knitr::kable(summary.table.sem,digits = 4) %>%
+  add_header_above(c("Model"=1,"Scaled SEM" = 2, "SEM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
+## Summary tables simple model Norway
+
+```{r summary-table-norway}
+
+knitr::kable(summary.table.norge,digits = 3) %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+
+knitr::kable(summary.table.sem.norge,digits = 4) %>%
+  add_header_above(c("Model"=1,"Scaled SEM" = 2,"SEM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
+## Summary tables simple model Fennoscandia
+
+```{r summary-table-simple-fen}
+
+knitr::kable(summary.table.simple.lm,digits = 3) %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+
+knitr::kable(summary.table.simple.sem,digits = 4) %>%
+  add_header_above(c("Model"=1,"Scaled SEM" = 2,"SEM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
 ```{r exit}
 knitr::knit_exit()
 ```
 
+# some extra code
+
 
 ```{r quick-ndvi-mode}
-ndvi.model <- lm(s.ndvi~s.temp+s.log.prec+s.tndep, data = fennoscandia)
+ndvi.model <- lm(ndvi~alt*temp, data = fennoscandia)
+runoff.model <- lm(log.runoff~log.prec*slope, data = fennoscandia)
 summary(ndvi.model)
+summary(runoff.model)
 ```
 * Precipitation
 https://www.eea.europa.eu/data-and-maps/indicators/european-precipitation-2/assessment
@@ -846,15 +895,5 @@ for(i in 2:length(variables)){
 cowplot::plot_grid(plotlist = map.list,ncol=2)
 ```
 
-# Summary
-
-```{r summary-performances, eval= T}
-models <- c("OLS","SEM","GWR")
-AIC.models <- c(AIC(lm.fennoscandia),2*length(variables[-1])-2*sem.fennoscandia$LL,gwr.fennoscandia$GW.diagnostic$AICc)
-moran.res.models <- c(moran.I.res.lm$estimate[1],moran.I.res.sem$estimate[1],moran.I.res.gwr$estimate[1])
-
-summary.table <- data.frame(models = models, AIC = AIC.models, moran.I = moran.res.models)
-knitr::kable(summary.table)  
-```
 
 
