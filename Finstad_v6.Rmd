@@ -391,7 +391,7 @@ scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=P
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
   labs(x = "Scaled Estimate", y = "Independent variable", subtitle = paste("LM: AIC =",round(AIC(s.lm.fennoscandia),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
   theme_bw()+theme(legend.position = "none")
-  
+
 ```
 
 ```{r compare-effect-size}
@@ -406,7 +406,7 @@ effectsize.plot <- ggplot(h.df, aes(group = model))+
   geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.fennoscandia),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
-  theme_bw(base_size = 24)
+  theme_bw()
 
 ```
 
@@ -428,8 +428,6 @@ cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 ## Simplified models on Norway and Fennoscandia
 
 In order to compare the results of this study to the results of Larsen et al. (@Larsen2011), we fitted two simpler models using only three predictors: NDVI, proportion of bogs and runoff. OLS and SEM models were fitted for the entire dataset as well as for the norwegian subset.The scaled estimates and the effect size were calculated similarly to the previous section.
-
-### Simple models for Norway
 
 ```{r kmat, eval = F}
 norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
@@ -455,7 +453,8 @@ saveRDS(sem.norge.simple,"sem.norge.simple.Rdata")
 ```{r sem-simple-results-norway}
 s.sem.norge.simple <- readRDS("s.sem.norge.simple.Rdata")
 sem.norge.simple <- readRDS("sem.norge.simple.Rdata")
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
+norge.kmat <- readRDS("norge.kmat.Rdata")
+
 
 s.sem.coef.norge <- s.sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
@@ -594,14 +593,9 @@ effectsize.plot <- ggplot(h.df, aes(group = model))+
 
 **- 0.1 unit increase of NDVI and bogs.**
 
-
 ```{r compare-plots-2, fig.dim = c(8,4), fig.cap = "Comparison of models for the Norwegian subset"}
 cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
-
 ```
-
-
-
 
 **Reminder: the effect size is expressed as % change of TOC concentration for:**
 
@@ -616,7 +610,7 @@ cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 
 ### Model with forest instead of NDVI
 
-```{r sem-with-forest}
+```{r sem-with-forest, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 norge.kmat <- readRDS("norge.kmat.Rdata")
 
@@ -630,6 +624,10 @@ saveRDS(sem.forest.norge, "sem.forest.norge.Rdata")
 ```
 
 ```{r sem-forest-results}
+
+sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
+sem.forest.norge <- readRDS("sem.forest.norge.Rdata")
+
 # fennoscandia
 sem.coef <- sem.forest.fen$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
@@ -697,7 +695,7 @@ summary.table.sem.forest.norge[,-1] <- apply(summary.table.sem.forest.norge[,-1]
 
 ```
 
-```{r compare-effect-size-simple-fen}
+```{r compare-effect-size-simple-forest}
 
 n <- c(names(sem.effectsize),"model")
 m <- cbind.data.frame(sem.effectsize,model = "Fennoscandia") %>% setNames(n)
@@ -710,6 +708,7 @@ effectsize.plot <- ggplot(h.df, aes(group = model))+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "", subtitle = paste("Fennoscandia: AIC =",round(sem.AIC,2),"; Moran's I = ",round(moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(sem.AIC.norge,2),"; Moran's I =",round(moran.I.res.sem.norge$estimate[[1]],2)))+
   theme_bw()
+print(effectsize.plot)
 ```
 
 ### Geographically Weighted Regression 
@@ -789,12 +788,6 @@ knitr::kable(summary.table.sem,digits = 4) %>%
 ## Summary tables simple model Norway
 
 ```{r summary-table-norway}
-
-knitr::kable(summary.table.norge,digits = 3) %>%
-  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
-
 knitr::kable(summary.table.sem.norge,digits = 4) %>%
   add_header_above(c("Model"=1,"Scaled SEM" = 2,"SEM" = 2, "Effect size" = 3),italic = T) %>%
   kable_styling(bootstrap_options = "bordered") %>%
@@ -806,11 +799,6 @@ knitr::kable(summary.table.sem.norge,digits = 4) %>%
 
 ```{r summary-table-simple-fen}
 
-knitr::kable(summary.table.simple.lm,digits = 3) %>%
-  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
-
 knitr::kable(summary.table.simple.sem,digits = 4) %>%
   add_header_above(c("Model"=1,"Scaled SEM" = 2,"SEM" = 2, "Effect size" = 3),italic = T) %>%
   kable_styling(bootstrap_options = "bordered") %>%
@@ -818,11 +806,18 @@ knitr::kable(summary.table.simple.sem,digits = 4) %>%
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 ```
 
-```{r residual-plots}
-s.sem.fen.simple <- readRDS("s.sem.fen.simple.Rdata")
-sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+## Residual plots
 
+```{r residual-plots}
+s.sem.fennoscandia <- readRDS("s.sem.fennoscandia.Rdata")
+sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
+
+sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
+sem.forest.norge <- readRDS("sem.forest.norge.Rdata")
 ```
+
+
+# References
 
 ```{r exit}
 knitr::knit_exit()
