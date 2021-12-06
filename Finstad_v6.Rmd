@@ -438,53 +438,6 @@ norge.kmat <- norge.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
 saveRDS(norge.kmat,"norge.kmat.Rdata")
 ```
 
-```{r ols-norge, results = T}
-norge.kmat <- readRDS("norge.kmat.Rdata")
-
-fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.bogs
-s.lm.norge <- lm(fm.s, data = norge, na.action = na.exclude)
-
-fm <- log.toc~ndvi+log.runoff+bogs
-lm.norge <- lm(fm, data = norge, na.action = na.exclude)
-
-s.lm.r2 <- summary(s.lm.norge)$adj.r.squared
-s.moran.I.res.lm <- lm.morantest(s.lm.norge, norge.kmat, alternative = "two.sided")
-
-lm.r2 <- summary(lm.norge)$adj.r.squared
-moran.I.res.lm <- lm.morantest(lm.norge, norge.kmat, alternative = "two.sided")
-
-moran.limit.norge <- 1/(dim(norge)[1]-1)
-  
-s.lm.coef <- summary(s.lm.norge)$coefficients %>% as.data.frame()
-s.lm.coef <- s.lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
-
-lm.coef <- summary(lm.norge)$coefficients %>% as.data.frame()
-lm.coef <- lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
-
-lm.effectsize <- lm.coef[,1:3]
-
-n <- length(lm.coef$Parameter)
-m <- lm.coef$Parameter
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    lm.effectsize[i,2] <- 1.1^(lm.coef[i,2])
-    lm.effectsize[i,3] <- 1.1^(lm.coef[i,2])*log(1.1)*lm.coef[i,3]
-  }else if(m[i] %in% c("ndvi","bogs")){
-    lm.effectsize[i,2] <- 10^(lm.coef[i,2]*0.1)
-    lm.effectsize[i,3] <- 0.1*log(10)*10^(lm.coef[i,2]*0.1)*lm.coef[i,3]
-  }
-}
-
-lm.effectsize$Percent <- 100*(lm.effectsize$Estimate-1)
-
-summary.table.norge <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4]) %>%
-                rbind(c("AIC",AIC(s.lm.norge),"",AIC(lm.norge),"","","","")) %>%
-                rbind(c("R2",s.lm.r2,"",lm.r2,"","","","")) %>%
-                rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","",""))
-summary.table.norge[,-1] <- apply(summary.table.norge[,-1],2,as.numeric)
-
-```
 
 ```{r sem-simple-norway, eval = F}
 norge.kmat <- readRDS("norge.kmat.Rdata")
@@ -504,137 +457,46 @@ s.sem.norge.simple <- readRDS("s.sem.norge.simple.Rdata")
 sem.norge.simple <- readRDS("sem.norge.simple.Rdata")
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
-s.sem.coef <- s.sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
+s.sem.coef.norge <- s.sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
-s.sem.coef <- s.sem.coef %>% rownames_to_column(var = "Parameter")
-s.sem.coef$std.error <- s.sem.norge.simple$rest.se[-1]
+s.sem.coef.norge <- s.sem.coef.norge %>% rownames_to_column(var = "Parameter")
+s.sem.coef.norge$std.error <- s.sem.norge.simple$rest.se[-1]
 
-sem.coef <- sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
+sem.coef.norge <- sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
-sem.coef <- sem.coef %>% rownames_to_column(var = "Parameter")
-sem.coef$std.error <- sem.norge.simple$rest.se[-1]
+sem.coef.norge <- sem.coef.norge %>% rownames_to_column(var = "Parameter")
+sem.coef.norge$std.error <- sem.norge.simple$rest.se[-1]
 
-sem.effectsize <- sem.coef[,1:3]
+sem.effectsize.norge <- sem.coef.norge[,1:3]
 
-n <- length(sem.coef$Parameter)
-m <- sem.coef$Parameter
+n <- length(sem.coef.norge$Parameter)
+m <- sem.coef.norge$Parameter
 
 for(i in 1:n){
   if(grepl("log",m[i])==T){
-    sem.effectsize[i,2] <- 1.1^(sem.coef[i,2])
-    sem.effectsize[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef[i,3]
+    sem.effectsize.norge[i,2] <- 1.1^(sem.coef.norge[i,2])
+    sem.effectsize.norge[i,3] <- 1.1^(sem.coef.norge[i,2])*log(1.1)*sem.coef.norge[i,3]
   }else if(m[i] %in% c("ndvi","bogs","arable")){
-    sem.effectsize[i,2] <- 10^(sem.coef[i,2]*0.1)
-    sem.effectsize[i,3] <- 0.1*log(10)*10^(sem.coef[i,2]*0.1)*sem.coef[i,3]
+    sem.effectsize.norge[i,2] <- 10^(sem.coef.norge[i,2]*0.1)
+    sem.effectsize.norge[i,3] <- 0.1*log(10)*10^(sem.coef.norge[i,2]*0.1)*sem.coef.norge[i,3]
   }else if(m[i] %in% c("slope","temp","tndep")){
-    sem.effectsize[i,2] <- 10^(sem.coef[i,2]*1)
-    sem.effectsize[i,3] <- 1*log(10)*10^(sem.coef[i,2]*1)*sem.coef[i,3]
+    sem.effectsize.norge[i,2] <- 10^(sem.coef.norge[i,2]*1)
+    sem.effectsize.norge[i,3] <- 1*log(10)*10^(sem.coef.norge[i,2]*1)*sem.coef.norge[i,3]
   }
 }
 
-sem.effectsize$Percent <- 100*(sem.effectsize$Estimate-1)
+sem.effectsize.norge$Percent <- 100*(sem.effectsize.norge$Estimate-1)
 
-s.sem.AIC <- 2*(n-1)-2*s.sem.norge.simple$LL
-s.moran.I.res.sem <- moran.test(s.sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
+s.sem.AIC.norge <- 2*(n-1)-2*s.sem.norge.simple$LL
+s.moran.I.res.sem.norge <- moran.test(s.sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
 
-sem.AIC <- 2*(n-1)-2*sem.norge.simple$LL
-moran.I.res.sem <- moran.test(sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
+sem.AIC.norge <- 2*(n-1)-2*sem.norge.simple$LL
+moran.I.res.sem.norge <- moran.test(sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
 
-summary.table.sem.norge <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize[,2:4]) %>%
+summary.table.sem.norge <- cbind(dplyr::select(sem.coef.norge,Parameter),s.sem.coef.norge[,2:3],sem.coef.norge[,2:3],sem.effectsize.norge[,2:4]) %>%
                 rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
-                rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"",moran.I.res.sem$estimate[[1]], "","","",""))
+                rbind(c("Moran'I res", s.moran.I.res.sem.norge$estimate[[1]],"",moran.I.res.sem.norge$estimate[[1]], "","","",""))
 summary.table.sem.norge[,-1] <- apply(summary.table.sem.norge[,-1],2,as.numeric)
-
-```
-
-```{r compare-estimates-simple-norway}
-n <- c(names(s.sem.coef),"model")
-m <- cbind.data.frame(s.lm.coef[,1:3],model = "LM") %>% setNames(n)
-o <- cbind.data.frame(s.sem.coef,model = "SEM")
-  
-scaled.df <- rbind(m,o)
-
-scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=Parameter, fill = model), position = "dodge", width = 0.5)+
-  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x="Scaled Estimate", y = "Independent variables", subtitle = paste("LM: AIC =",round(AIC(s.lm.norge),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
-  theme_bw()+
-  theme(legend.position = "none")
-
-```
-
-```{r compare-effect-size-simple-norway}
-
-n <- c(names(sem.effectsize),"model")
-m <- cbind.data.frame(lm.effectsize,model = "LM") %>% setNames(n)
-o <- cbind.data.frame(sem.effectsize,model = "SEM")
-  
-h.df <- rbind(m,o)
-
-effectsize.plot <- ggplot(h.df, aes(group = model))+
-  geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
-  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.norge),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
-  theme_bw()
-```
-**Reminder: the effect size is expressed as % change of TOC concentration for:**
-
-**- 10% increase of runoff**
-
-**- 0.1 unit increase of NDVI and bogs.**
-
-
-```{r compare-plots-2, fig.dim = c(8,4), fig.cap = "Comparison of models for the Norwegian subset"}
-cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
-
-```
-
-### Simplified models for Fennoscandia
-
-```{r simple-ols-fennoscandia, results = T}
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
-
-fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.bogs
-s.lm.fennoscandia <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
-
-fm <- log.toc~ndvi+log.runoff+bogs
-lm.fennoscandia <- lm(fm, data = fennoscandia, na.action = na.exclude)
-
-s.lm.r2 <- summary(s.lm.fennoscandia)$adj.r.squared
-s.moran.I.res.lm <- lm.morantest(s.lm.fennoscandia, k.neigh.w, alternative = "two.sided")
-
-lm.r2 <- summary(lm.fennoscandia)$adj.r.squared
-moran.I.res.lm <- lm.morantest(lm.fennoscandia, k.neigh.w, alternative = "two.sided")
-
-moran.limit.fennoscandia <- 1/(dim(fennoscandia)[1]-1)
-
-s.lm.coef <- summary(s.lm.fennoscandia)$coefficients %>% as.data.frame()
-s.lm.coef <- s.lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
-
-lm.coef <- summary(lm.fennoscandia)$coefficients %>% as.data.frame()
-lm.coef <- lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
-
-lm.effectsize <- lm.coef[,1:3]
-
-n <- length(lm.coef$Parameter)
-m <- lm.coef$Parameter
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    lm.effectsize[i,2] <- 1.1^(lm.coef[i,2])
-    lm.effectsize[i,3] <- 1.1^(lm.coef[i,2])*log(1.1)*lm.coef[i,3]
-  }else if(m[i] %in% c("ndvi","bogs","arable")){
-    lm.effectsize[i,2] <- 10^(lm.coef[i,2]*0.1)
-    lm.effectsize[i,3] <- 0.1*log(10)*10^(lm.coef[i,2]*0.1)*lm.coef[i,3]
-  }
-} 
-
-lm.effectsize$Percent <- 100*(lm.effectsize$Estimate-1)
-
-summary.table.simple.lm <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4]) %>%
-                rbind(c("AIC",AIC(s.lm.fennoscandia),"",AIC(lm.fennoscandia),"","","","","","")) %>%
-                rbind(c("R2",s.lm.r2,"",lm.r2,"","","","","","")) %>%
-                rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","","","",""))
-summary.table.simple.lm[,-1] <- apply(summary.table.simple.lm[,-1],2,as.numeric)
 
 ```
 
@@ -696,35 +558,51 @@ summary.table.simple.sem[,-1] <- apply(summary.table.simple.sem[,-1],2,as.numeri
 
 ```
 
-```{r compare-estimates-simple-fen}
+```{r compare-estimates-simple}
 n <- c(names(s.sem.coef),"model")
-m <- cbind.data.frame(s.lm.coef[,1:3],model = "LM") %>% setNames(n)
-o <- cbind.data.frame(s.sem.coef,model = "SEM")
+m <- cbind.data.frame(s.sem.coef.norge, model = "Norway")
+o <- cbind.data.frame(s.sem.coef,model = "Fennoscandia")
   
 scaled.df <- rbind(m,o)
 
 scaled.plot <- ggplot(scaled.df, aes(group = model))+geom_col(aes(x=Estimate,y=Parameter, fill = model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x = "Scaled estimates",y = "Independent variables", subtitle = paste("LM: AIC =",round(AIC(s.lm.fennoscandia),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
+  labs(x = "Scaled estimates",y = "Independent variables", subtitle = paste("Fennoscandia: AIC =",round(s.sem.AIC,2),"; Moran's I = ",round(s.moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(s.sem.AIC.norge,2),"; Moran's I =",round(s.moran.I.res.sem.norge$estimate[[1]],2)))+
   theme_bw()+
   theme(legend.position = "none")
 
 ```
 
-```{r compare-effect-size-simple-fen}
+```{r compare-effect-size-simple}
 
 n <- c(names(sem.effectsize),"model")
-m <- cbind.data.frame(lm.effectsize,model = "LM") %>% setNames(n)
-o <- cbind.data.frame(sem.effectsize,model = "SEM")
+m <- cbind.data.frame(sem.effectsize.norge,model = "Norway")
+o <- cbind.data.frame(sem.effectsize,model = "Fennoscandia")
   
 h.df <- rbind(m,o)
 
 effectsize.plot <- ggplot(h.df, aes(group = model))+
   geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.fennoscandia),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSEM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
+  labs(x = "Effect size in %", y = "", subtitle = paste("Fennoscandia: AIC =",round(sem.AIC,2),"; Moran's I = ",round(moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(sem.AIC.norge,2),"; Moran's I =",round(moran.I.res.sem.norge$estimate[[1]],2)))+
   theme_bw()
 ```
+
+**Reminder: the effect size is expressed as % change of TOC concentration for:**
+
+**- 10% increase of runoff**
+
+**- 0.1 unit increase of NDVI and bogs.**
+
+
+```{r compare-plots-2, fig.dim = c(8,4), fig.cap = "Comparison of models for the Norwegian subset"}
+cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
+
+```
+
+
+
+
 **Reminder: the effect size is expressed as % change of TOC concentration for:**
 
 **- 10% increase of runoff**

@@ -351,9 +351,12 @@ names(annual.prec) <- c("ebint","prec")
 slope.fennoscandia <- readRDS("slope.fennoscandia.Rdata")
 names(slope.fennoscandia) <- c("ebint","slope")
 
+alt.df <- readRDS("alt.df.Rdata")
+
 clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
 bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% tibble::rownames_to_column(var = "ebint")
 arable <- colSums(clc.tab.prop[c(12,18,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
+forest <- colSums(clc.tab.prop[c(23,24,25),]) %>% as.data.frame() %>% setNames("forest") %>% tibble::rownames_to_column(var = "ebint")
 
 ndep <- readRDS("ndep.df.Rdata")
 
@@ -363,15 +366,17 @@ fennoscandia <- merge(country,toc.df, by = "ebint") %>%
   merge(annual.temp, by ="ebint") %>% 
   merge(annual.prec, by = "ebint") %>%
   merge(slope.fennoscandia, by = "ebint") %>%
+  merge(alt.df, by = "ebint") %>%
   merge(bogs, by = "ebint") %>%
   merge(arable, by = "ebint")%>%
+  merge(forest,by = "ebint") %>%
   merge(ndep, by = "ebint")
 
 fennoscandia$uncertain <- ifelse(fennoscandia$dist_closest_ebint/fennoscandia$dist_2nd_closest_ebint > 0.5, FALSE, TRUE)
 fennoscandia$uncertain[which(is.na(fennoscandia$uncertain)==TRUE)] <- FALSE
 
 fennoscandia <- fennoscandia %>% filter(toc_mg_l >= 0)
-fennoscandia <- fennoscandia %>% filter(mean.runoff != 0)
+fennoscandia <- fennoscandia %>% filter(mean.runoff > 1e-6)
 fennoscandia <- fennoscandia %>% filter(ndvi.value > 0)
 fennoscandia <- fennoscandia %>% filter(is.na(slope) == F)
 fennoscandia <- fennoscandia %>% filter(uncertain == FALSE)
@@ -414,6 +419,7 @@ fennoscandia$ndvi <- fennoscandia$ndvi.value
 fennoscandia$s.ndvi <- scale(fennoscandia$ndvi.value)
 fennoscandia$s.bogs <- scale(fennoscandia$bogs)
 fennoscandia$s.arable <- scale(fennoscandia$arable)
+fennoscandia$s.forest <- scale(fennoscandia$forest)
 fennoscandia$temp <- fennoscandia$temp / 10 # divided by 10 because the temperature is stored in C*10
 fennoscandia$s.temp <-  scale(fennoscandia$temp) 
 fennoscandia$log.prec <- log10(fennoscandia$prec+1e-5)
