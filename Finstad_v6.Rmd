@@ -9,7 +9,7 @@ output:
     toc_float: true
     number_sections: true
     fig_caption: true
-bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+#bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 link-citations: yes
 ---
 
@@ -232,10 +232,10 @@ Both models were fitted with and without scaled variables. The effect size calcu
 ```{r ols-fennoscandia, results = T}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
-fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.slope+s.bogs+s.arable+s.tndep
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.slope+s.bogs+s.arable+s.forest+s.tndep
 s.lm.fennoscandia <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
 
-fm <- log.toc~ndvi+log.runoff+slope+bogs+arable+tndep
+fm <- log.toc~ndvi+log.runoff+slope+bogs+arable+forest+tndep
 lm.fennoscandia <- lm(fm, data = fennoscandia, na.action = na.exclude)
 
 s.lm.r2 <- summary(s.lm.fennoscandia)$adj.r.squared
@@ -261,7 +261,7 @@ for(i in 1:n){
   if(grepl("log",m[i])==T){
     lm.effectsize[i,2] <- 1.1^(lm.coef[i,2])
     lm.effectsize[i,3] <- 1.1^(lm.coef[i,2])*log(1.1)*lm.coef[i,3]
-  }else if(m[i] %in% c("ndvi","bogs","arable")){
+  }else if(m[i] %in% c("ndvi","bogs","arable","forest")){
     lm.effectsize[i,2] <- 10^(lm.coef[i,2]*0.1)
     lm.effectsize[i,3] <- 0.1*log(10)*10^(lm.coef[i,2]*0.1)*lm.coef[i,3]
   }else if(m[i] %in% c("slope","temp")){
@@ -290,7 +290,7 @@ for(i in 1:n){
   if(grepl("log",m[i])==T){
     sm.effectsize[i,2] <- mean(1.1^(sm.coef[,i]))
     sm.effectsize[i,3] <- sd(1.1^(sm.coef[,i])*log(1.1)*sm.coef[,i])
-  }else if(m[i] %in% c("ndvi","bogs","arable")){
+  }else if(m[i] %in% c("ndvi","bogs","arable","forest")){
     sm.effectsize[i,2] <- mean(10^(sm.coef[,i]*0.1))
     sm.effectsize[i,3] <- sd(0.1*log(10)*10^(sm.coef[,i]*0.1)*sm.coef[,i])
   }else if(m[i] %in% c("slope","temp")){
@@ -316,13 +316,13 @@ summary.table.lm[,-1] <- apply(summary.table.lm[,-1],2,as.numeric)
 ```{r sem, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
-lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+#lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
 
-fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.slope+s.bogs+s.arable+s.tndep
+fm.s <- s.log.toc~s.ndvi+s.log.runoff+s.slope+s.bogs+s.arable+s.forest+s.tndep
 s.sem.fennoscandia <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
 saveRDS(s.sem.fennoscandia,"s.sem.fennoscandia.Rdata")
 
-fm <- log.toc~ndvi+log.runoff+slope+bogs+arable+tndep
+fm <- log.toc~ndvi+log.runoff+slope+bogs+arable+forest+tndep
 sem.fennoscandia <- errorsarlm(fm,fennoscandia,k.neigh.w)
 saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
 ```
@@ -352,7 +352,7 @@ for(i in 1:n){
   if(grepl("log",m[i])==T){
     sem.effectsize[i,2] <- 1.1^(sem.coef[i,2])
     sem.effectsize[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef[i,3]
-  }else if(m[i] %in% c("ndvi","bogs","arable")){
+  }else if(m[i] %in% c("ndvi","bogs","arable","forest")){
     sem.effectsize[i,2] <- 10^(sem.coef[i,2]*0.1)
     sem.effectsize[i,3] <- 0.1*log(10)*10^(sem.coef[i,2]*0.1)*sem.coef[i,3]
   }else if(m[i] %in% c("slope","temp")){
@@ -435,7 +435,6 @@ norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
 norge.kmat <- norge.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
 saveRDS(norge.kmat,"norge.kmat.Rdata")
 ```
-
 
 ```{r sem-simple-norway, eval = F}
 norge.kmat <- readRDS("norge.kmat.Rdata")
@@ -593,18 +592,7 @@ effectsize.plot <- ggplot(h.df, aes(group = model))+
 
 **- 0.1 unit increase of NDVI and bogs.**
 
-```{r compare-plots-2, fig.dim = c(8,4), fig.cap = "Comparison of models for the Norwegian subset"}
-cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
-```
-
-**Reminder: the effect size is expressed as % change of TOC concentration for:**
-
-**- 10% increase of runoff**
-
-**- 0.1 unit increase of NDVI and bogs.**
-
-
-```{r compare-plots-3, fig.dim = c(8,4), fig.cap = "Comparison of simplified models for Fennoscandia"}
+```{r compare-plots-2, fig.dim = c(8,4), fig.cap = "Comparison of models for the Norwegian and Fennoscandia sets"}
 cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 ```
 
@@ -711,7 +699,7 @@ effectsize.plot <- ggplot(h.df, aes(group = model))+
 print(effectsize.plot)
 ```
 
-### Geographically Weighted Regression 
+### Geographically Weighted Regression with NDVI
 
 A geographically weighted model was fitted on the Fennoscandian dataset. The objective is to examine the regional relationship with the dependent and independent variables. A geographically weighted model computes a linear regression giving a stronger weight to the closest neighbours. The neighbours here are choosen to be the 500 nearest lakes, where weight for each lake is attributed following a gaussian distribution. The local regression coefficients are shown on \@ref(fig:gwr-results)
 
@@ -742,7 +730,7 @@ for(i in 1:n){
   if(grepl("log",m[i])==T){
     gwr.effectsize[i,2] <- 1.1^(gwr.coef[i,2])
 #    gwr.effectsize[i,3] <- 1.1^(gwr.coef[i,2])*log(1.1)*gwr.coef[i,3]
-  }else if(m[i] %in% c("ndvi","bogs","arable")){
+  }else if(m[i] %in% c("ndvi","bogs","arable","forest")){
     gwr.effectsize[i,2] <- 10^(gwr.coef[i,2]*0.1)
 #    gwr.effectsize[i,3] <- 0.1*log(10)*10^(gwr.coef[i,2]*0.1)*gwr.coef[i,3]
   }else if(m[i] %in% c("slope","temp","tndep")){
@@ -767,6 +755,59 @@ knitr::kable(summary.table.gwr,digits = 3) %>%
   kable_styling(bootstrap_options = "bordered")
 ```
 
+### GWR with forest
+
+```{r GWR-fennoscandia-forest, eval = F}
+fm <- log.toc~forest+log.runoff+bogs
+
+library(GWmodel)
+bw.fennoscandia.forest <- bw.gwr(fm, data = fennoscandia.spdf, kernel = "gaussian", adaptive = T)
+gwr.fennoscandia.forest <- gwr.basic(fm, data = fennoscandia.spdf, bw = 500, kernel = "gaussian", adaptive = T)
+
+saveRDS(bw.fennoscandia.forest, "bw.fennoscandia.forest.Rdata")
+saveRDS(gwr.fennoscandia.forest, "gwr.fennoscandia.forest.Rdata")
+```
+
+```{r gwr-results-forest, fig.dim = c(10,6), fig.cap = "Maps of the GWR coefficients"}
+bw.fennoscandia.forest <- readRDS("bw.fennoscandia.forest.Rdata")
+gwr.fennoscandia.forest <- readRDS("gwr.fennoscandia.forest.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+
+gwr.coef <- gwr.fennoscandia.forest$SDF@data
+
+m <- c("forest","log.runoff","bogs")
+n <- length(m)
+
+gwr.effectsize <- gwr.coef[,2:(n+1)]
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    gwr.effectsize[i,2] <- 1.1^(gwr.coef[i,2])
+#    gwr.effectsize[i,3] <- 1.1^(gwr.coef[i,2])*log(1.1)*gwr.coef[i,3]
+  }else if(m[i] %in% c("ndvi","bogs","arable","forest")){
+    gwr.effectsize[i,2] <- 10^(gwr.coef[i,2]*0.1)
+#    gwr.effectsize[i,3] <- 0.1*log(10)*10^(gwr.coef[i,2]*0.1)*gwr.coef[i,3]
+  }else if(m[i] %in% c("slope","temp","tndep")){
+    gwr.effectsize[i,2] <- 10^(gwr.coef[i,2]*1)
+#    gwr.effectsize[i,3] <- 1*log(10)*10^(gwr.coef[i,2]*1)*gwr.coef[i,3]
+  }
+}
+
+gwr.effectsize.percent <- 100*(gwr.effectsize)-1
+
+coef.plot <- lapply(m,FUN = function(x)  f_plotspatial(data=fennoscandia,var=gwr.effectsize.percent[[x]],plottitle = x))
+coef.plot$toc <- f_plotspatial(fennoscandia,var=gwr.coef$y,plottitle = "Observed toc (log)")
+cowplot::plot_grid(plotlist = coef.plot,ncol=2)
+
+gwr.AIC <- gwr.fennoscandia.forest$GW.diagnostic$AICc
+gwr.r2 <- gwr.fennoscandia.forest$GW.diagnostic$gwR2.adj
+gwr.moran <- moran.test(gwr.coef$Stud_residual,k.neigh.w,alternative = "two.sided")
+
+summary.table.gwr.forest <- data.frame(AIC = gwr.AIC,R2 = gwr.r2,Moran.I =gwr.moran$estimate[[1]])
+                                
+knitr::kable(summary.table.gwr.forest,digits = 3) %>%
+  kable_styling(bootstrap_options = "bordered")
+```
 # Appendix
 
 ## Summary table LM and SEM Fennoscandia
@@ -809,11 +850,26 @@ knitr::kable(summary.table.simple.sem,digits = 4) %>%
 ## Residual plots
 
 ```{r residual-plots}
+# lm models: s.lm.fennoscandia and lm.fennoscandia
+
 s.sem.fennoscandia <- readRDS("s.sem.fennoscandia.Rdata")
 sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
 
+sem.norge.simple <- readRDS("sem.norge.simple.Rdata")
+sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+
 sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
 sem.forest.norge <- readRDS("sem.forest.norge.Rdata")
+
+f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia$residuals, plottitle = "Residuals for scaled LM")
+f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia$residuals, plottitle = "Residuals for scaled SEM")
+f_plotspatial(data = fennoscandia,var = lm.fennoscandia$residuals, plottitle = "Residuals for LM")
+f_plotspatial(data = fennoscandia,var = sem.fennoscandia$residuals, plottitle = "Residuals for SEM")
+f_plotspatial(data = fennoscandia,var = sem.fen.simple$residuals, plottitle = "Residuals for SEM with ndvi, runoff et bogs for Fennoscandia")
+f_plotspatial(data = norge,var = sem.norge.simple$residuals, plottitle = "Residuals for SEM with ndvi, runoff et bogs for Norway")
+f_plotspatial(data = fennoscandia,var = sem.forest.fen$residuals, plottitle = "Residuals for SEM with forest")
+f_plotspatial(data = norge,var = sem.forest.norge$residuals, plottitle = "Residuals for SEM with forest for Norway")
+
 ```
 
 
@@ -827,8 +883,27 @@ knitr::knit_exit()
 
 
 ```{r ndvi-forest}
-ndvi.model <- lm(ndvi~forest+temp+alt, data = fennoscandia)
+ndvi.model <- errorsarlm(ndvi~forest+temp+alt, data = fennoscandia, k.neigh.w)
 summary(ndvi.model)
+plot(fennoscandia$ndvi,ndvi.model$fitted.values)
+lm(fennoscandia$ndvi~ndvi.model$fitted.values) %>% summary()
+f_plotspatial(fennoscandia,var=ndvi.model$residuals, plottitle = "residuals")
+f_plotspatial(fennoscandia,var=ndvi.model$fitted.values, plottitle = "fitted values")
+
+
+lm(ndvi~forest, data = fennoscandia) %>% summary()
+lm(ndvi~forest+bogs, data = fennoscandia) %>% summary()
+lm(ndvi~forest+bogs+arable, data = fennoscandia) %>% summary()
+lm(ndvi~forest+bogs+temp+log.prec, data = fennoscandia) %>% summary()
+lm(ndvi~forest+bogs+temp+log.prec, data = fennoscandia) %>% summary()
+lm(ndvi~forest+bogs+temp+log.prec+slope, data = fennoscandia) %>% summary()
+lm(ndvi~forest+bogs+log.prec, data = fennoscandia) %>% summary()
+
+m <- c("log.toc","ndvi","log.runoff","log.prec","slope","temp","bogs","arable","forest","tndep")
+pcr.ndvi <- prcomp(select(fennoscandia,m),scale=T)
+factoextra::fviz_pca_var(pcr.ndvi)
+
+lm(ndvi~forest+slope,data=fennoscandia) %>% summary()
 ```
 * Precipitation
 https://www.eea.europa.eu/data-and-maps/indicators/european-precipitation-2/assessment
