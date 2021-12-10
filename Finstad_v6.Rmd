@@ -355,7 +355,7 @@ for(i in 1:n){
   }else if(m[i] %in% c("ndvi","bogs","arable","forest")){
     sem.effectsize[i,2] <- 10^(sem.coef[i,2]*0.1)
     sem.effectsize[i,3] <- 0.1*log(10)*10^(sem.coef[i,2]*0.1)*sem.coef[i,3]
-  }else if(m[i] %in% c("slope","temp")){
+  }elset if(m[i] %in% c("slope","temp")){
     sem.effectsize[i,2] <- 10^(sem.coef[i,2]*1)
     sem.effectsize[i,3] <- 1*log(10)*10^(sem.coef[i,2]*1)*sem.coef[i,3]
   }else if(m[i] %in% c("tndep")){
