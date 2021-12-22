@@ -21,6 +21,7 @@ library(DBI)
 library(sf)
 library(dplyr)
 library(gimms)
+library(raster)
 
 library(ncdf4)
 library(rgdal)
@@ -33,7 +34,9 @@ library(spdep)
 source("f_plotspatial.R")
 ```
 
-# Catchment polygons and TOC data from ecco_biwa datavase
+# Northern Lake Survey data
+
+## Catchment polygons and TOC data from ecco_biwa datavase
 
 The catchment and TOC data are stored on the PostgreSQL database ecco_biwa, accessed through Rstudio using the st_read function (sf package @Pebesma2021) and the dplyr package @Wickhman2021. 
 Each catchment polygon is linked to the corresponding TOC concentration via an ebint internal to the ecco_biwa database.
@@ -82,7 +85,7 @@ saveRDS(toc.df,"toc.df.Rdata")
 
 
 
-# NDVI
+## NDVI
 
 NDVI values are extracted from the GIMMS NDVI3g dataset @TheNationalCenterForAtmosphericResearch2018, stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package @Destch2021 on Rstudio. 
 
@@ -131,7 +134,7 @@ saveRDS(year.ndvi, "year.ndvi.Rdata")
 
 ```
 
-# CORDEX: runoff data
+## CORDEX: runoff data
 
 See the cordex website (insert citation https://portal.enes.org/data/data-metadata-service/search-and-download/cordex-access
 ) for info. Downloading at https://esg-dn1.nsc.liu.se/projects/esgf-liu/ 
@@ -217,7 +220,7 @@ saveRDS(runoff.df, "runoff.df.Rdata")
 
 ```
 
-# Temperature,precipitation and slope
+## Temperature,precipitation and slope
 
 Temperature and precipitation are downloaded from the database Worldclim. Temperature is the annual temperature in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset. 
 
@@ -263,7 +266,7 @@ saveRDS(slope.df, "slope.df.Rdata")
 
 ```
 
-# Land cover
+## Land cover
 
 The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/lcc-2000-2006. The previous version (1995-2000) excudes Norway so the 2000 version was preferred. 
 
@@ -297,7 +300,7 @@ names(clc.tab.prop) <- catchment.poly.corine$ebint
 saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
 ```
 
-# NDEP - EMEP data
+## NDEP - EMEP data
 
 https://emep.int/mscw/mscw_moddata.html#Comp
 N-deposition (NOx and NH3)
@@ -333,7 +336,7 @@ saveRDS(ndep.df,"ndep.df.Rdata")
 ```
 
 
-# Data gathering and cleaning
+## Data gathering and cleaning
 
 ```{r gather-data}
 country <- readRDS("country.Rdata")
@@ -387,7 +390,7 @@ fennoscandia$mean.runoff <- fennoscandia$mean.runoff*10^6 # converts in mg/m2.s
 
 ```
 
-# Analysis
+## Analysis
 ## Histogram
 ```{r hist, results = F, fig.dim = c(24,96)}
 
@@ -453,19 +456,223 @@ saveRDS(water.regions,"water.regions.Rdata")
 
 ```{r summer-ndvi-waterregions, eval = F}
 # http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
+water.regions <- readRDS("water.regions.Rdata")
 
 ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
 ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
+saveRDS(ndvi.max,"ndvi.max.Rdata")
+ndvi.max <- readRDS("ndvi.max.Rdata")
 summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
 summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
 
 summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
 plot(summer.scan)
 
-summer.ndvi.wr <- raster::extract(summer.mean,water.regions, fun = mean, df = T, sp = T)
+
+
+
+for(x in 248:287){
+  start.x <- (x-1)*1000+1
+  end.x <- x*1000
+  ndvi <- raster::extract(summer.scan,water.regions[start.x:end.x,], fun = mean, df = T, sp = T)
+  name.x <- paste("WR/NDVI/summer.ndvi.wr",x,"Rdata",sep = ".")
+saveRDS(ndvi,name.x)
+}
+
+start.x <- (288-1)*1000+1
+summer.ndvi.wr.288 <- raster::extract(summer.scan,water.regions[start.x:287886,], fun = mean, df = T, sp = T)
+saveRDS(summer.ndvi.wr.288,"summer.ndvi.wr.288.Rdata")
+
+summer.ndvi.wr.165 <- raster::extract(summer.scan,water.regions[164100:165000,], fun = mean, df = T, sp = T)
+saveRDS(summer.ndvi.wr.165,"WR/NDVI/summer.ndvi.wr.165.Rdata")
+
+list.ndvi.files <- list.files("WR/NDVI", full.names = T)
+list.ndvi <- lapply(list.ndvi.files[-165],readRDS)
+
+summer.ndvi.wr <- summer.ndvi.wr.165@data
+for(x in 1:length(list.ndvi)){
+  df <- list.ndvi[[x]]@data
+  summer.ndvi.wr <<- rbind(summer.ndvi.wr, df)
+  
+}
 names(summer.ndvi.wr) <- c("gid","ndvi")
 summer.ndvi.wr$ndvi.value <- (floor(summer.ndvi.wr$ndvi)/10)/1000
 summer.ndvi.wr$flag.value <- summer.ndvi.wr$ndvi - (floor(summer.ndvi.wr$ndvi)/10*10+1) 
 
 saveRDS(summer.ndvi.wr, "summer.ndvi.wr.Rdata")
 ```
+
+## Runoff
+
+```{r runoff-wr, eval = F}
+#runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
+#runoff.df <- runoff.tbl %>% as.data.frame()
+
+water.regions <- readRDS("water.regions.Rdata")
+
+runoff.file.60s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_196101-197012.nc"
+runoff.file.70s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_197101-198012.nc"
+runoff.file.80s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_198101-199012.nc"
+#runoff.file.80s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_19101-199012.nc"
+
+
+# get coordinates
+runoff.nc <- nc_open(runoff.file.60s)
+runoff.info <- GDALinfo(runoff.nc)
+attr.runoff <- attr(runoff.info,"mdata")
+
+rot.info <- attr.runoff[grep("^rotated",attr(runoff.info,"mdata"))]
+coord <- sapply(rot.info, FUN = function(x) {
+  unlist(str_split(x, pattern = "="))[2]})
+coord.num<- round(as.numeric(coord[2:3]),2)
+
+y <- coord.num[1]
+x <- coord.num[2]
+
+target.crs <- paste0("+proj=ob_tran +o_proj=longlat +o_lon_p=" , 
+                     x, " +o_lat_p=", y, 
+                     " +lon_0=180 +to_meter=0.0174532925199433")
+
+# 60s
+runoff.60.stack <- stack(runoff.file.60s, varname = "mrros")
+runoff.60.mean  <- mean(runoff.60.stack)
+
+projection(runoff.60.mean) <- CRS("EPSG:4326")
+runoff.60.rotated <- projectRaster(runoff.60.mean,crs = target.crs)
+runoff.60.wgs84 <- runoff.60.rotated
+projection(runoff.60.wgs84) <- CRS("EPSG:4326")
+
+for(x in 1:287){
+  start.x <- (x-1)*1000+1
+  end.x <- x*1000
+  runoff.60s <- raster::extract(runoff.60.wgs84,water.regions[start.x:end.x,], fun = mean, na.rm = T, df = T, exact = F, sp = T)
+  runoff.60.df <- runoff.60s@data
+  names(runoff.60.df) <- c("ebint","runoff.60s")
+  name.x <- paste("WR/runoff/runoff.60",x,"Rdata",sep = ".")
+  saveRDS(runoff.60.df,name.x)
+}
+
+start.x <- (288-1)*1000+1
+runoff.60.288 <- raster::extract(runoff.60.wgs84,water.regions[start.x:287886,], fun = mean, df = T, sp = T)
+saveRDS(runoff.60.288,"WR/runoff/runoff.60.288.Rdata")
+
+
+
+# 70s
+runoff.70.stack <- stack(runoff.file.70s, varname = "mrros")
+runoff.70.mean  <- mean(runoff.70.stack)
+
+projection(runoff.70.mean) <- CRS("EPSG:4326")
+runoff.70.rotated <- projectRaster(runoff.70.mean,crs = target.crs)
+runoff.70.wgs84 <- runoff.70.rotated
+projection(runoff.70.wgs84) <- CRS("EPSG:4326")
+
+for(x in 99:287){
+	start.x <- (x-1)*1000+1
+	end.x <- x*1000
+	runoff.70s <- raster::extract(runoff.70.wgs84,water.regions[start.x:end.x,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
+	runoff.70.df <- runoff.70s@data
+	names(runoff.70.df) <- c("ebint","runoff.70")
+	name.x <- paste("WR/runoff/runoff.70",x,"Rdata",sep = ".")
+	saveRDS(runoff.70.df,name.x)
+}
+
+start.x <- (288-1)*1000+1
+runoff.70.288 <- raster::extract(runoff.70.wgs84,water.regions[start.x:287886,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
+saveRDS(runoff.70.288,"WR/runoff/runoff.70.288.Rdata")
+
+
+
+# 80s
+runoff.80.stack <- stack(runoff.file.80s, varname = "mrros")
+runoff.80.mean  <- mean(runoff.80.stack)
+
+projection(runoff.80.mean) <- CRS("EPSG:4326")
+runoff.80.rotated <- projectRaster(runoff.80.mean,crs = target.crs)
+runoff.80.wgs84 <- runoff.80.rotated
+projection(runoff.80.wgs84) <- CRS("EPSG:4326")
+
+
+for(x in 1:287){
+	start.x <- (x-1)*1000+1
+	end.x <- x*1000
+	runoff.80s <- raster::extract(runoff.80.wgs84,water.regions[start.x:end.x,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
+	runoff.80.df <- runoff.80s@data
+	names(runoff.80.df) <- c("ebint","runoff.80")
+	name.x <- paste("WR/runoff/runoff.80",x,"Rdata",sep = ".")
+	saveRDS(runoff.80.df,name.x)
+}
+
+start.x <- (288-1)*1000+1
+runoff.80.288 <- raster::extract(runoff.80.wgs84,water.regions[start.x:287886,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
+saveRDS(runoff.80.288,"WR/runoff/runoff.80.288.Rdata")
+```
+
+```{r gather-runoff-wr}
+list.files.runoff.60 <- list.files("WR/runoff",pattern = "runoff.60",full.names = T)
+
+df.runoff.60 <- readRDS(list.files.runoff.60[210])@data %>% setNames(c("ebint","runoff.60s"))
+for(x in list.files.runoff.60[-210]){
+  df <- readRDS(x)
+  df.runoff.60 <<- rbind(df.runoff.60,df)
+}
+
+list.files.runoff.70 <- list.files("WR/runoff",pattern = "runoff.70",full.names = T)
+
+df.runoff.70 <- readRDS(list.files.runoff.70[210])@data %>% setNames(c("ebint","runoff.70"))
+for(x in list.files.runoff.70[-210]){
+  df <- readRDS(x)
+  df.runoff.70 <<- rbind(df.runoff.70,df)
+}
+
+list.files.runoff.80 <- list.files("WR/runoff",pattern = "runoff.80",full.names = T)
+
+df.runoff.80 <- readRDS(list.files.runoff.80[1])
+for(x in list.files.runoff.80[-1]){
+  df <- readRDS(x)
+  df.runoff.80 <<- rbind(df.runoff.80,df)
+}
+
+runoff.df.wr <- merge(df.runoff.60,df.runoff.70, by = "ebint") %>% merge(df.runoff.80, by = "ebint")
+runoff.df.wr$mean.runoff <- rowMeans(runoff.df.wr[,2:4])
+saveRDS(runoff.df.wr, "runoff.df.wr.Rdata")
+
+```
+## Bogs and forest
+
+```{r wr.bogs.forest}
+library(rgdal)
+water.regions <- readRDS("water.regions.Rdata")
+wr.corine <- st_transform(water.regions,CRS("EPSG:3035"))
+corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
+
+for(x in 92:2880){
+  start.x <- (x-1)*100+1
+  end.x <- x*100
+  clc <- raster::extract(corine,wr.corine[start.x:end.x,])
+  name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
+  saveRDS(clc,name.x)
+clc.tab <- sapply(clc, function(x) tabulate(x,45))
+clc.tab.area <- clc.tab*prod(res(corine))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+names(clc.tab.prop) <- wr.corine[start.x:end.x,]$gid
+saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
+}
+
+#miss 74, 91,133
+
+
+start.x <- (574-1)*500+1
+clc.wr.575 <- raster::extract(summer.scan,water.regions[start.x:287886,], fun = mean, df = T, sp = T)
+saveRDS(summer.ndvi.wr.575,"summer.ndvi.wr.575.Rdata")
+
+
+
+
+clc.tab.wr <- sapply(clc.wr, function(x) tabulate(x,45))
+clc.tab.area.wr <- clc.tab.wr*prod(res(corine))
+catchment.area.wr <- colSums(clc.tab.area.wr)
+clc.tab.prop.rw.wr <- sweep(clc.tab.area.wr,2,catchment.area.wr, FUN = "/")
+names(clc.tab.prop.rw.wr) <- water.regions$gid
+saveRDS(clc.tab.prop.rw,"clc.tab.prop.wr.Rdata")

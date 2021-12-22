@@ -2,15 +2,17 @@
 title: "Space for time modelling of TOC concentration"
 author: "Camille M. Crapart"
 date: "29 9 2021"
-output: 
-  bookdown::html_document2:
-    code_folding: hide
-    toc: true
-    toc_float: true
-    number_sections: true
-    fig_caption: true
-#bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
-link-citations: yes
+# output: 
+#   bookdown::html_document2:
+#     code_folding: hide
+#     toc: true
+#     toc_float: true
+#     number_sections: true
+#     fig_caption: true
+# bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+# link-citations: yes
+
+output:
 ---
 
 ```{r setup, include=FALSE}
@@ -355,7 +357,7 @@ for(i in 1:n){
   }else if(m[i] %in% c("ndvi","bogs","arable","forest")){
     sem.effectsize[i,2] <- 10^(sem.coef[i,2]*0.1)
     sem.effectsize[i,3] <- 0.1*log(10)*10^(sem.coef[i,2]*0.1)*sem.coef[i,3]
-  }elset if(m[i] %in% c("slope","temp")){
+  }else if (m[i] %in% c("slope","temp")){
     sem.effectsize[i,2] <- 10^(sem.coef[i,2]*1)
     sem.effectsize[i,3] <- 1*log(10)*10^(sem.coef[i,2]*1)*sem.coef[i,3]
   }else if(m[i] %in% c("tndep")){
