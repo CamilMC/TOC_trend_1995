@@ -646,7 +646,7 @@ water.regions <- readRDS("water.regions.Rdata")
 wr.corine <- st_transform(water.regions,CRS("EPSG:3035"))
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
 
-for(x in 92:2880){
+for(x in 2504:2880){
   start.x <- (x-1)*100+1
   end.x <- x*100
   clc <- raster::extract(corine,wr.corine[start.x:end.x,])
@@ -660,7 +660,7 @@ names(clc.tab.prop) <- wr.corine[start.x:end.x,]$gid
 saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
 }
 
-#miss 74, 91,133
+#miss 74, 91,133, 138, 161, 304, 668, 1354, 1391, 1592, 1634, 1825, 2000, 2014, 2040, 2048, 2078, 2327, 2503
 
 
 start.x <- (574-1)*500+1
