@@ -646,7 +646,7 @@ water.regions <- readRDS("water.regions.Rdata")
 wr.corine <- st_transform(water.regions,CRS("EPSG:3035"))
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
 
-for(x in 2504:2880){
+for(x in 2615:2880){
   start.x <- (x-1)*100+1
   end.x <- x*100
   clc <- raster::extract(corine,wr.corine[start.x:end.x,])
@@ -660,19 +660,64 @@ names(clc.tab.prop) <- wr.corine[start.x:end.x,]$gid
 saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
 }
 
-#miss 74, 91,133, 138, 161, 304, 668, 1354, 1391, 1592, 1634, 1825, 2000, 2014, 2040, 2048, 2078, 2327, 2503
+start.x <- 287801
+end.x <- 287886
+clc <- raster::extract(corine,wr.corine[start.x:end.x,])
+name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
+saveRDS(clc,name.x)
+clc.tab <- sapply(clc, function(x) tabulate(x,45))
+clc.tab.area <- clc.tab*prod(res(corine))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+names(clc.tab.prop) <- wr.corine[start.x:end.x,]$gid
+saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
+
+miss <- c(74, 91,133, 138, 161, 304, 668, 1354, 1391, 1592, 1634, 1825, 2000, 2014, 2040, 2048, 2078, 2327, 2503, 2542, 2614)
+
+library(R.utils)
+
+for(x in miss){
+  start.x <- (x-1)*100+1
+  end.x <- x*100
+  wr.x <- wr.corine[start.x:end.x,]
+  for (y in 1:100){
+  tryCatch(expr = {
+    withTimeout(expr = {
+    clc <- raster::extract(corine,wr.x[y,])
+    name.x <- paste("WR/clc/clc.wr",x,y,"Rdata",sep = ".")
+    saveRDS(clc,name.x)
+    clc.tab <- sapply(clc, function(x) tabulate(x,45))
+    clc.tab.area <- clc.tab*prod(res(corine))
+    catchment.area <- colSums(clc.tab.area)
+    clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+    names(clc.tab.prop) <- wr.x[y,]$gid
+    saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,y,"Rdata",sep="."))
+  }, 
+  substitute = F, timeout = 15*60, onTimeout = "error")
+  },
+  
+  finally = TimeoutException(next)
+  )
+  }
+}
+
+```
+```{r gather-clc-wr}
+
+list.clc.tabs <- list.files("WR/clc",pattern = "clc.tab.prop", full.names = T)
+list.clc <- lapply(list.clc.tabs,readRDS)
+
+clc.wr <- c()
+for(x in 1:length(list.clc)){
+  df <- list.clc[[x]] %>% as.data.frame()
+  clc.wr <<- rbind(clc.wr, df)
+}
 
 
-start.x <- (574-1)*500+1
-clc.wr.575 <- raster::extract(summer.scan,water.regions[start.x:287886,], fun = mean, df = T, sp = T)
-saveRDS(summer.ndvi.wr.575,"summer.ndvi.wr.575.Rdata")
+names(summer.ndvi.wr) <- c("gid","ndvi")
+summer.ndvi.wr$ndvi.value <- (floor(summer.ndvi.wr$ndvi)/10)/1000
+summer.ndvi.wr$flag.value <- summer.ndvi.wr$ndvi - (floor(summer.ndvi.wr$ndvi)/10*10+1) 
 
+saveRDS(summer.ndvi.wr, "summer.ndvi.wr.Rdata")
+```
 
-
-
-clc.tab.wr <- sapply(clc.wr, function(x) tabulate(x,45))
-clc.tab.area.wr <- clc.tab.wr*prod(res(corine))
-catchment.area.wr <- colSums(clc.tab.area.wr)
-clc.tab.prop.rw.wr <- sweep(clc.tab.area.wr,2,catchment.area.wr, FUN = "/")
-names(clc.tab.prop.rw.wr) <- water.regions$gid
-saveRDS(clc.tab.prop.rw,"clc.tab.prop.wr.Rdata")
