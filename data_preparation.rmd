@@ -748,9 +748,11 @@ saveRDS(clc.wr.sum,"WR/clc/clc.wr.sum.Rdata")
 summer.ndvi.wr <- readRDS("summer.ndvi.wr.Rdata")
 runoff.df.wr <- readRDS("runoff.df.wr.Rdata")
 clc.wr.sum <- readRDS("WR/clc/clc.wr.sum.Rdata")
+water.regions <- readRDS("water.regions.Rdata")
 
 wr.df <- merge(summer.ndvi.wr,runoff.df.wr, by.x = "gid",by.y = "ebint") %>% merge(clc.wr.sum, by.x = "gid", by.y = "gid")
+wr.sf <- merge(water.regions,summer.ndvi.wr,by.x="gid",by.y="gid") %>% merge(runoff.df.wr,by.x = "gid", by.y="ebint") %>% merge(clc.wr.sum,by.x = "gid",by.y= "gid")
 
 saveRDS(wr.df, "wr.df.Rdata")
-
+saveRDS(wr.sf, "wr.sf.Rdata")
 ```

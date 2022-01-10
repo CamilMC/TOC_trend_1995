@@ -48,12 +48,13 @@ wr.df <- readRDS("wr.df.Rdata")
 
 water.regions <- readRDS("water.regions.Rdata")
 
-wr.sf <- merge(wr.df,water.regions,by.x="gid",by.y="gid")
+wr.sf <- merge(water.regions,wr.df,all.x = F,by.x="gid",by.y="gid")
 
 wr.sf.1 <- wr.sf %>% filter(mean.runoff == 0)
-plot.new()
 plot(wr.sf.1$geom)
 
+wr.sf.2 <- wr.sf %>% filter(is.na(bogs) == T)
+plot(wr.sf.2)
 wr.df <- filter(wr.df, mean.runoff != 0)
 wr.df$runoff <- wr.df$mean.runoff*10^6 *365*24*60*60 # converts in mg/m2.s and then to mg/m2/year
 
