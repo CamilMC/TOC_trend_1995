@@ -45,10 +45,21 @@ wr.sf <- readRDS("wr.sf.Rdata")
 # WR dataframe
 
 ```{r final-df}
-ggplot(wr.sf)+geom_sf(aes(col = "bogs"))
 
-wr.sf.1 <- wr.sf %>% filter(mean.runoff == 0)
-plot(wr.sf.1$geom)
+wr.sf$size <- st_area(wr.sf) %>% as.numeric()
+
+ggplot()+geom_sf(data = wr.sf,aes(fill = bogs))
+ggsave("wr.bogs.png")
+
+ggplot()+geom_sf(data = wr.sf,aes(fill = ndvi.value))
+ggsave("wr.ndvi.png")
+
+ggplot()+geom_sf(data = wr.sf,aes(fill = mean.runoff))
+ggsave("wr.runoff.png")
+
+
+wr.sf.1 <- wr.sf %>% filter(size > 1000)
+plot(wr.sf.1[,"ndvi.value"])
 
 wr.sf.2 <- wr.sf %>% filter(is.na(bogs) == T)
 plot(wr.sf.2$geom)
