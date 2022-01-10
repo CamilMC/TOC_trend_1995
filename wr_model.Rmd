@@ -1,0 +1,100 @@
+---
+title: "TOC model extended"
+author: "Camille M. Crapart"
+date: "5 1 2022"
+ output: 
+   bookdown::html_document2:
+     code_folding: hide
+     toc: true
+     toc_float: true
+     number_sections: true
+     fig_caption: true
+ bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+ link-citations: yes
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center")
+options(knitr.kable.NA="", knitr.kable.format ="html")
+```
+```{r library}
+library(dplyr)
+library(tibble)
+
+library(DBI)
+library(sf)
+library(gimms)
+
+library(ncdf4)
+library(rgdal)
+
+library(stringr)
+library(ggplot2)
+library(cowplot)
+library(spdep)
+library(spatialreg)
+
+library(kableExtra)
+
+source("f_plotspatial.R")
+wr.df <- readRDS("wr.df.Rdata")
+
+```
+
+# WR dataframe
+
+```{r final-df}
+
+water.regions <- readRDS("water.regions.Rdata")
+
+wr.sf <- merge(wr.df,water.regions,by.x="gid",by.y="gid")
+
+wr.sf.1 <- wr.sf %>% filter(mean.runoff == 0)
+plot.new()
+plot(wr.sf.1$geom)
+
+wr.df <- filter(wr.df, mean.runoff != 0)
+wr.df$runoff <- wr.df$mean.runoff*10^6 *365*24*60*60 # converts in mg/m2.s and then to mg/m2/year
+
+wr.df <- filter(wr.df, ndvi.value > 0)
+wr.df <- wr.df[which(is.na(wr.df$bogs)==F),]
+
+wr.df$log.runoff <- log10(wr.df$runoff)
+
+
+```
+
+# Neighbour matrix
+
+```{r wr-km}
+
+
+wr.centroid <- st_centroid(water.regions, of_largest_polygon = F)
+
+wr.neigh.set <- knearneigh(wr.centroid, k = 100)
+wr.neigh.nb <- knn2nb(wr.neigh.set)
+wr.kmat <- nb2listw(wr.neigh.nb)
+saveRDS(wr.kmat,"wr.kmat.Rdata")
+
+```
+We predict the toc concentration in all the lakes based on the sem model
+```{r sem-model}
+library(spatialreg)
+sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+fm <- log.toc~ndvi+log.runoff+bogs
+wr.pred <- predict(sem.fen.simple,wr.df,wr.kmat)
+
+```
+We forecast the evolution of toc concentration based on the predicted values and the effect size given by the model on the Fennoscandian dataset
+(toc + beta*toc)
+
+```{r effect-size}
+
+sem.coef <- sem.fen.simple$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+```
+
+We model the toc export by multiplying the "new" toc concentration by the runoff. 
+
+We match the value of toc export for each lake to the corresponding polygon and we plot. 

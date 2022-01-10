@@ -358,7 +358,7 @@ alt.df <- readRDS("alt.df.Rdata")
 
 clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
 bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% tibble::rownames_to_column(var = "ebint")
-arable <- colSums(clc.tab.prop[c(12,18,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
+arable <- colSums(clc.tab.prop[c(12,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
 forest <- colSums(clc.tab.prop[c(23,24,25),]) %>% as.data.frame() %>% setNames("forest") %>% tibble::rownames_to_column(var = "ebint")
 
 ndep <- readRDS("ndep.df.Rdata")
@@ -407,6 +407,8 @@ for (i in names(fennoscandia[,-c(1:2)])){
 
 cowplot::plot_grid(plotlist = h_list,ncol=3)
 ```
+
+## transformation of variables
 TOC, runoff, precipitation and slope are skewed to the right so they are log-transformed.
 Lots of 0 in N-dep, bogs and arable : not transformed
 
@@ -467,9 +469,6 @@ summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
 
 summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
 plot(summer.scan)
-
-
-
 
 for(x in 248:287){
   start.x <- (x-1)*1000+1
@@ -644,6 +643,7 @@ saveRDS(runoff.df.wr, "runoff.df.wr.Rdata")
 library(rgdal)
 water.regions <- readRDS("water.regions.Rdata")
 wr.corine <- st_transform(water.regions,CRS("EPSG:3035"))
+saveRDS(wr.corine,"wr.corine.Rdata")
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
 
 for(x in 2615:2880){
@@ -701,23 +701,56 @@ for(x in miss){
   }
 }
 
+big <- c(91.18,91.19,133.51,138.89,161.61,304.92,668.15,1391.8,1592.6,1634.63,1825.60,2000.90,2040.26,2048.29,2078.63,2503.89,2542.2,2614.78)
+
+
+x <- big[18]
+start.x <- (trunc(x)-1)*100+(x-floor(x))*100
+clc <- raster::extract(corine,wr.corine[start.x,])
+name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
+saveRDS(clc,name.x)
+clc.tab <- sapply(clc, function(x) tabulate(x,45))
+clc.tab.area <- clc.tab*prod(res(corine))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+names(clc.tab.prop) <- wr.corine[start.x,]$gid
+saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
+
+
 ```
 ```{r gather-clc-wr}
 
 list.clc.tabs <- list.files("WR/clc",pattern = "clc.tab.prop", full.names = T)
 list.clc <- lapply(list.clc.tabs,readRDS)
 
-clc.wr <- c()
-for(x in 1:length(list.clc)){
-  df <- list.clc[[x]] %>% as.data.frame()
+clc.wr <- list.clc[[1]] %>% t() %>% as.data.frame()
+clc.wr$gid <- attr(list.clc[[1]],"names")[1:100]
+for(x in 2:length(list.clc)){
+  m <- list.clc[[x]] 
+  df <- m %>% t() %>% as.data.frame() 
+  df$gid <- attr(m,"names")[1:dim(df)[1]]
   clc.wr <<- rbind(clc.wr, df)
-}
+  }
 
+saveRDS(clc.wr,"WR/clc/clc.wr.Rdata")
 
-names(summer.ndvi.wr) <- c("gid","ndvi")
-summer.ndvi.wr$ndvi.value <- (floor(summer.ndvi.wr$ndvi)/10)/1000
-summer.ndvi.wr$flag.value <- summer.ndvi.wr$ndvi - (floor(summer.ndvi.wr$ndvi)/10*10+1) 
-
-saveRDS(summer.ndvi.wr, "summer.ndvi.wr.Rdata")
 ```
+```{r get-forest-bogs}
+clc.wr.bogs <- select(clc.wr, c("gid","V36")) %>% setNames(c("gid","bogs"))
+clc.wr.forest <- select(clc.wr,c("V23","V24","V25")) %>% rowSums() %>% as.data.frame() %>% setNames("forest")
 
+clc.wr.sum <- cbind(clc.wr.bogs, clc.wr.forest)
+saveRDS(clc.wr.sum,"WR/clc/clc.wr.sum.Rdata")
+```
+## Gathers wr dataset
+
+```{r gather-dataset}
+summer.ndvi.wr <- readRDS("summer.ndvi.wr.Rdata")
+runoff.df.wr <- readRDS("runoff.df.wr.Rdata")
+clc.wr.sum <- readRDS("WR/clc/clc.wr.sum.Rdata")
+
+wr.df <- merge(summer.ndvi.wr,runoff.df.wr, by.x = "gid",by.y = "ebint") %>% merge(clc.wr.sum, by.x = "gid", by.y = "gid")
+
+saveRDS(wr.df, "wr.df.Rdata")
+
+```

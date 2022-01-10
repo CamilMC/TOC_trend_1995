@@ -2,17 +2,16 @@
 title: "Space for time modelling of TOC concentration"
 author: "Camille M. Crapart"
 date: "29 9 2021"
-# output: 
-#   bookdown::html_document2:
-#     code_folding: hide
-#     toc: true
-#     toc_float: true
-#     number_sections: true
-#     fig_caption: true
-# bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
-# link-citations: yes
+ output: 
+   bookdown::html_document2:
+     code_folding: hide
+     toc: true
+     toc_float: true
+     number_sections: true
+     fig_caption: true
+ bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+ link-citations: yes
 
-output:
 ---
 
 ```{r setup, include=FALSE}
@@ -67,7 +66,29 @@ We decided to extend the model over the full gradient western Norway – eastern
 See data preparation
 
 ## Models
-Description of models used
+In this article we use three kind of models, two of them with geographical weighting. 
+
+### Linear model
+We first fit a linear regression model, of the form:
+$y = ax + ètha$
+
+### Spatial error model
+
+The spatial error model is a linear model in which the spatial autocorrelation is accounted for in the error term. More accurately, it computes the maximum likelihood estimation of the following model (@Bivand2021): 
+$$y = X \beta + u$$
+
+Where $u$ is the error vector, having the form:
+
+$u = \rho Mu +\varepsilon$
+
+\rho is the scalar spatial autoregressive parameter. Mu is a vector of observations on the spatially lagged vector of residuals, defined thanks to the weight matrix M?
+
+The computation was made on R with the "spatialreg" package (@Bivand2019). 
+
+
+### Geographically weigthed regression
+
+Finally, we fitted a geographically weighted regression model. This model computes a linear regression for each point of the dataset, giving more weight to the closest neighbours. The weight of each neighbours is defined by a decreasing function. Here we chose a gaussian kernel of a 100 neighbours, giving most weight to the closest and almost none to the furthest. 
 
 ## Effect size {#effect-size}
 
