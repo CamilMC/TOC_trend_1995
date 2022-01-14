@@ -63,14 +63,19 @@ We decided to extend the model over the full gradient western Norway – eastern
 # Methods
 
 ## Data preparation
-See data preparation
 
-## Models
-In this article we use three kind of models, two of them with geographical weighting. 
+See separate markdown file for data preparation. 
 
-### Linear model
-We first fit a linear regression model, of the form:
-$y = ax + ètha$
+## Statistical models
+
+Larsen et al. (@Larsen2011) used a linear regression model to forecast the evolution of the toc concentration in Fennoscandian lakes. In this study, we first reproduce a similar ordinary least square regression model. In addition, we take into account the spatial autocorrelation of the dependent and independent parameter by fitting two different spatial models: a spatial error model and a geographically weighted model. 
+
+### Ordinary least square regression
+
+We first fit a multiple linear regression model, of the form:
+$y_i = \betha_0 + \betha_1 x_{1i} + \betha_2 x_{2i} + ... + ètha_i$
+
+The regression coefficients are easy to interpret as the effect of one predictor on the dependent variable, holding all the other predictors fixed (@Casella2013). It is also the model that requires the least computing. It was fitted with the base package in R. 
 
 ### Spatial error model
 
@@ -88,7 +93,8 @@ The computation was made on R with the "spatialreg" package (@Bivand2019).
 
 ### Geographically weigthed regression
 
-Finally, we fitted a geographically weighted regression model. This model computes a linear regression for each point of the dataset, giving more weight to the closest neighbours. The weight of each neighbours is defined by a decreasing function. Here we chose a gaussian kernel of a 100 neighbours, giving most weight to the closest and almost none to the furthest. 
+Finally, we fitted a geographically weighted regression model, using the GWmodel package in R (@Lu2021). A developement of the model using GWmodel is presented in @Gollini2015. A geographically weighted model computes a linear regression for each point of the dataset, giving more weight to the closest neighbours. The weight of each neighbours is defined by a weight matrix, specific to each model point. Here we chose a decreasing kernel gaussian weighting function. Instead of using an automatically selected bandwith (the bandwith parameter controls the rate of decay of the function), we defined it as the 100 closest neighbours in order to remain consistent with bandwith chosen for the spatial error model. 
+
 
 ## Effect size {#effect-size}
 
@@ -831,6 +837,22 @@ summary.table.gwr.forest <- data.frame(AIC = gwr.AIC,R2 = gwr.r2,Moran.I =gwr.mo
 knitr::kable(summary.table.gwr.forest,digits = 3) %>%
   kable_styling(bootstrap_options = "bordered")
 ```
+
+# Discussion
+
+When comparing the linear model (LM) and the spatial error model (SEM), we observe similar results. Nitrogen deposition, NDVI, the proportion of forest and the proportion of bogs have a positive effect on TOC concentration, while runoff and slope has a negative effect. The SEM performed better with a lower AIC and a lower autocorrelation of residuals. LM tends to overestimate the impact of all the predictor variables. The same trend can be observed in the effect sizes. The extent of the relative changes were chosen to be realistic. For example, an ... % increase in forest is planned by the Norwegian government in many regions. A 10 to 30% increase of runoff can be expected realistically due to climate change.
+
+
+The 3 predictors with the larger estimates were NDVI, log.runoff and bogs. This is also the case for the effect size, even though the initial relative change was different. Therefore, these three predictors were kept to investigate the potential differences between Norway and the entire Fennoscandian dataset. 
+
+The results were similar for both Norway and Fennoscandia. The effect of NDVI and bogs was more important in Norway than in Fennoscandia (numbers), but log(runoff) had almost the same estimate and the same effect size. The SEM fitted with forest instead of NDVI shows the same thing. Forest has a lower effect on toc concentration. As a matter of fact, forest represents the proportion of the catchment covered with forest, whereas NDVI reflects the density of vegetation (forest or not) on the catchment. 
+
+These similar results prove that NDVI (or forest), runoff and bogs are predictors for TOC concentration in Norway, Sweden and Finland. Land-use management . 
+
+
+
+
+
 # Appendix
 
 ## Summary table LM and SEM Fennoscandia

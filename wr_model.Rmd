@@ -38,8 +38,7 @@ library(spatialreg)
 library(kableExtra)
 
 source("f_plotspatial.R")
-wr.df <- readRDS("wr.df.Rdata")
-wr.sf <- readRDS("wr.sf.Rdata")
+
 ```
 # Water regions data
 
@@ -48,9 +47,14 @@ wr.sf <- readRDS("wr.sf.Rdata")
 ```{r download-water-regions, eval = F}
 con <- dbConnect(RPostgreSQL::PostgreSQL(),user = "camille.crapart", password = "camille",host = "vm-srv-wallace.vm.ntnu.no", dbname = "nofa")
 query <- paste("SELECT gid,geom FROM ","\"Hydrography\"",".waterregions_dem_10m_nosefi",sep = "")
-
+query.2 <- paste("SELECT * FROM ","\"Hydrography\"",".Fenoscandia_LakeRegister",sep = "")
 water.regions <- st_read(con,query = query)
+lake.register <- st_read(con,query = query.2)
 saveRDS(water.regions,"water.regions.Rdata")
+
+
+ggplot()+geom_sf(data=water.regions,aes(fill = gid))
+ggsave("water.regions.png")
 ```
 
 ## NDVI
@@ -104,9 +108,38 @@ saveRDS(summer.ndvi.wr, "summer.ndvi.wr.Rdata")
 summer.ndvi.wr <- readRDS("summer.ndvi.wr.Rdata")
 water.regions <- readRDS("water.regions.Rdata")
 
+missing.ndvi <- summer.ndvi.wr$gid[which(is.na(summer.ndvi.wr$ndvi.value)==T)]
+missing.lines <- which(water.regions$gid %in% missing.ndvi)
 
+ndvi.max <- readRDS("ndvi.max.Rdata")
+summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
+summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
+summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
+plot(summer.scan)
+ndvi <- raster::extract(summer.scan,water.regions[missing.lines,], fun = mean, df = T, sp = T, na.rm = T,buffer=10,small = T)
+saveRDS(ndvi,"missing.ndvi.Rdata")
 
+ndvi.sf <- st_as_sf(ndvi)
+summer.scan.df <-as.data.frame(summer.scan,xy=T) 
+ggplot()+geom_sf(data=ndvi.sf,aes(fill=layer))
+
+missing.ndvi.df <- ndvi@data
+names(missing.ndvi.df) <- c("gid","ndvi")
+missing.ndvi.df$ndvi.value <- (floor(missing.ndvi.df$ndvi)/10)/1000
+missing.ndvi.df$flag.value <- missing.ndvi.df$ndvi - (floor(missing.ndvi.df$ndvi)/10*10+1) 
+
+saveRDS(missing.ndvi.df, "missing.ndvi.df.Rdata")
 ```
+```{r join-ndvi}
+missing.ndvi <- readRDS("missing.ndvi.Rdata")
+summer.ndvi.total <- rbind(filter(summer.ndvi.wr,!is.na(ndvi)),missing.ndvi.df)
+saveRDS(summer.ndvi.total,"summer.ndvi.total.Rdata")
+
+summer.ndvi.sf <- merge(water.regions,summer.ndvi.total,by.x = "gid", by.y = "gid")
+saveRDS(summer.ndvi.sf,"summer.ndvi.sf.Rdata")
+ggplot()+geom_sf(data=summer.ndvi.sf,aes(fill=ndvi.value))
+```
+
 ## Runoff
 
 ```{r runoff-wr, eval = F}
@@ -211,6 +244,7 @@ for(x in 1:287){
 start.x <- (288-1)*1000+1
 runoff.80.288 <- raster::extract(runoff.80.wgs84,water.regions[start.x:287886,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
 saveRDS(runoff.80.288,"WR/runoff/runoff.80.288.Rdata")
+
 ```
 
 ```{r gather-runoff-wr}
@@ -242,7 +276,12 @@ runoff.df.wr <- merge(df.runoff.60,df.runoff.70, by = "ebint") %>% merge(df.runo
 runoff.df.wr$mean.runoff <- rowMeans(runoff.df.wr[,2:4])
 saveRDS(runoff.df.wr, "runoff.df.wr.Rdata")
 
+
+runoff.sf <- merge(water.regions,runoff.df.wr,by.x = "gid", by.y = "ebint")
+saveRDS(runoff.sf,"runoff.sf.Rdata")
+ggplot()+geom_sf(data=runoff.sf,aes(fill=mean.runoff))
 ```
+
 ## Bogs and forest
 
 ```{r wr.bogs.forest}
@@ -250,6 +289,7 @@ library(rgdal)
 water.regions <- readRDS("water.regions.Rdata")
 wr.corine <- st_transform(water.regions,CRS("EPSG:3035"))
 saveRDS(wr.corine,"wr.corine.Rdata")
+wr.corine <- readRDS("wr.corine.Rdata")
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
 
 for(x in 2615:2880){
@@ -322,10 +362,82 @@ clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
 names(clc.tab.prop) <- wr.corine[start.x,]$gid
 saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
 
+```
+```{r missing again}
+wr.corine <- readRDS("wr.corine.Rdata")
+
+
+#missing by 100: 48,1727
+for(x in c(1727)){
+  start.x <- (x-1)*100+1
+  end.x <- x*100
+  wr.x <- wr.corine[start.x:end.x,]
+  for (y in 1:100){
+  tryCatch(expr = {
+    withTimeout(expr = {
+    clc <- raster::extract(corine,wr.x[y,])
+    name.x <- paste("WR/clc/clc.wr",x,y,"Rdata",sep = ".")
+    saveRDS(clc,name.x)
+    clc.tab <- sapply(clc, function(x) tabulate(x,45))
+    clc.tab.area <- clc.tab*prod(res(corine))
+    catchment.area <- colSums(clc.tab.area)
+    clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+    names(clc.tab.prop) <- wr.x[y,]$gid
+    saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,y,"Rdata",sep="."))
+  }, 
+  substitute = F, timeout = 15*60, onTimeout = "error")
+  },
+  
+  finally = TimeoutException(next)
+  )
+  }
+}
+
+missing.bis <- c(48.46,74.78,1391.9,1727.37,1825.60,2000.90,2014.83,2327.36)
+
+x <- missing.bis[8]
+start.x <- (trunc(x)-1)*100+(x-floor(x))*100
+clc <- raster::extract(corine,wr.corine[start.x,])
+name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
+saveRDS(clc,name.x)
+clc.tab <- sapply(clc, function(x) tabulate(x,45))
+clc.tab.area <- clc.tab*prod(res(corine))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+names(clc.tab.prop) <- wr.corine[start.x,]$gid
+saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
+
+# missing again: 74.78, 1825.60, 2000.90, + a hundred missing Only run 74.78
+x <- 74.78
+start.x <- (trunc(x)-1)*100+(x-floor(x))*100
+clc <- raster::extract(corine,wr.corine[start.x,])
+name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
+saveRDS(clc,name.x)
+clc.tab <- sapply(clc, function(x) tabulate(x,45))
+clc.tab.area <- clc.tab*prod(res(corine))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+names(clc.tab.prop) <- wr.corine[start.x,]$gid
+saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
+
+last.missing <- setdiff(wr.corine$gid,clc.wr.sf$gid) 
+
+for(x in last.missing){
+  line <- which(wr.corine$gid == x) 
+  clc <- raster::extract(corine,wr.corine[line,])
+  name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
+  saveRDS(clc,name.x)
+clc.tab <- sapply(clc, function(x) tabulate(x,45))
+clc.tab.area <- clc.tab*prod(res(corine))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+names(clc.tab.prop) <- wr.corine[line,]$gid
+saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
+}
 
 ```
-```{r gather-clc-wr}
 
+```{r gather-clc-wr}
 list.clc.tabs <- list.files("WR/clc",pattern = "clc.tab.prop", full.names = T)
 list.clc <- lapply(list.clc.tabs,readRDS)
 
@@ -340,6 +452,7 @@ for(x in 2:length(list.clc)){
 
 saveRDS(clc.wr,"WR/clc/clc.wr.Rdata")
 
+
 ```
 ```{r get-forest-bogs}
 clc.wr.bogs <- select(clc.wr, c("gid","V36")) %>% setNames(c("gid","bogs"))
@@ -347,54 +460,59 @@ clc.wr.forest <- select(clc.wr,c("V23","V24","V25")) %>% rowSums() %>% as.data.f
 
 clc.wr.sum <- cbind(clc.wr.bogs, clc.wr.forest)
 saveRDS(clc.wr.sum,"WR/clc/clc.wr.sum.Rdata")
+
+clc.wr.sf <- merge(water.regions,clc.wr.sum,by.x.= "gid",by.y = "gid")
+saveRDS(clc.wr.sf,"clc.wr.sf.Rdata")
+clc.wr.sf <- readRDS("clc.wr.sf.Rdata")
+ggplot()+geom_sf(data=clc.wr.sf,aes(fill=bogs))
+
 ```
 ## Gathers wr dataset
 
 ```{r gather-dataset}
-summer.ndvi.wr <- readRDS("summer.ndvi.wr.Rdata")
+summer.ndvi.total <- readRDS("summer.ndvi.total.Rdata")
 runoff.df.wr <- readRDS("runoff.df.wr.Rdata")
 clc.wr.sum <- readRDS("WR/clc/clc.wr.sum.Rdata")
 water.regions <- readRDS("water.regions.Rdata")
 
-wr.df <- merge(summer.ndvi.wr,runoff.df.wr, by.x = "gid",by.y = "ebint") %>% merge(clc.wr.sum, by.x = "gid", by.y = "gid")
-wr.sf <- merge(water.regions,summer.ndvi.wr,by.x="gid",by.y="gid") %>% merge(runoff.df.wr,by.x = "gid", by.y="ebint") %>% merge(clc.wr.sum,by.x = "gid",by.y= "gid")
+wr.df <- merge(summer.ndvi.total,runoff.df.wr, by.x = "gid",by.y = "ebint") %>% merge(clc.wr.sum, by.x = "gid", by.y = "gid")
+wr.sf <- merge(water.regions,summer.ndvi.total,by.x="gid",by.y="gid") %>% merge(runoff.df.wr,by.x = "gid", by.y="ebint") %>% merge(clc.wr.sum,by.x = "gid",by.y= "gid")
 
 saveRDS(wr.df, "wr.df.Rdata")
 saveRDS(wr.sf, "wr.sf.Rdata")
+
 ```
 
 # WR dataframe
 
 ```{r final-df}
+wr.sf <- readRDS("wr.sf.Rdata")
+wr.df <- readRDS("wr.df.Rdata")
+
 
 wr.sf$size <- st_area(wr.sf) %>% as.numeric()
 
-ggplot()+geom_sf(data = wr.sf,aes(fill = bogs))
-ggsave("wr.bogs.png")
 
-ggplot()+geom_sf(data = wr.sf,aes(fill = ndvi.value))
-ggsave("wr.ndvi.png")
+wr.sf.clean <- wr.sf %>% filter(ndvi.value != 0) %>% filter(mean.runoff > 1e-6) %>% filter(is.na(bogs) == F)
+wr.sf.clean <- wr.sf.clean[!duplicated(wr.sf.clean$gid),]
+wr.quantile <- quantile(wr.sf.clean$size, probs = c(0.9,0.91,0.92,0.93,0.94,0.95,0.96,0.97,0.98,0.99))
 
-ggplot()+geom_sf(data = wr.sf,aes(fill = mean.runoff))
-ggsave("wr.runoff.png")
+size.1 <- sum(wr.sf.clean$size)
 
-
-wr.sf.1 <- wr.sf %>% filter(size > 1000)
-plot(wr.sf.1[,"ndvi.value"])
-
-wr.sf.2 <- wr.sf %>% filter(is.na(bogs) == T)
-plot(wr.sf.2$geom)
-ggplot(wr.sf) + geom_sf(aes(col=bogs))
-
-wr.df <- filter(wr.df, mean.runoff != 0)
-wr.df$runoff <- wr.df$mean.runoff*10^6 *365*24*60*60 # converts in mg/m2.s and then to mg/m2/year
-
-wr.df <- filter(wr.df, ndvi.value > 0)
-wr.df <- wr.df[which(is.na(wr.df$bogs)==F),]
-
-wr.df$log.runoff <- log10(wr.df$runoff)
+wr.sf.2 <- wr.sf.clean %>% filter(size > wr.quantile[6]) # keeps only the 5% bigger regions
+size.2 <- sum(wr.sf.2$size)
+ratio.size <- size.2/size.1 * 100 # for 
 
 
+ggplot()+geom_sf(data=wr.sf.2, aes(fill=gid))
+ggsave("wr.sf.2.png")
+
+wr.sf.2$runoff <- wr.sf.2$mean.runoff*10^6 #(*365*24*60*60) # converts in mg/m2.s and then to mg/m2/year
+wr.sf.2$log.runoff <- log10(wr.sf.2$runoff)
+
+wr.sf.2$ndvi <- wr.sf.2$ndvi.value
+
+which(is.na(wr.sf.2$log.runoff)==T)
 ```
 
 # Neighbour matrix
@@ -402,7 +520,7 @@ wr.df$log.runoff <- log10(wr.df$runoff)
 ```{r wr-km}
 
 
-wr.centroid <- st_centroid(water.regions, of_largest_polygon = F)
+wr.centroid <- st_centroid(wr.sf.2, of_largest_polygon = T)
 
 wr.neigh.set <- knearneigh(wr.centroid, k = 100)
 wr.neigh.nb <- knn2nb(wr.neigh.set)
@@ -415,16 +533,24 @@ We predict the toc concentration in all the lakes based on the sem model
 library(spatialreg)
 sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
 fm <- log.toc~ndvi+log.runoff+bogs
-wr.pred <- predict(sem.fen.simple,wr.df,wr.kmat)
+wr.pred <- predict(sem.fen.simple,wr.sf.2,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T)
+
+result <- cbind(wr.sf.2,wr.pred)
+result$fit.toc <- 10^result$fit
+ggplot()+geom_sf(data = result, aes(fill = fit.toc))
 
 ```
 We forecast the evolution of toc concentration based on the predicted values and the effect size given by the model on the Fennoscandian dataset
 (toc + beta*toc)
 
 ```{r effect-size}
-
 sem.coef <- sem.fen.simple$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
+
+result$effect.ndvi <- result$fit.toc + result$fit.toc*(10^(sem.coef[1,1]*0.1))
+result$effect.runoff <- result$fit.toc + result$fit.toc*(1.1^(sem.coef[2,1]))
+result$effect.ndvi <- result$fit.toc + result$fit.toc*(10^(sem.coef[3,1]*0.1))
+
 ```
 
 We model the toc export by multiplying the "new" toc concentration by the runoff. 
