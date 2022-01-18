@@ -528,6 +528,10 @@ wr.kmat <- nb2listw(wr.neigh.nb)
 saveRDS(wr.kmat,"wr.kmat.Rdata")
 
 ```
+
+
+# Model prediction
+
 We predict the toc concentration in all the lakes based on the sem model
 ```{r sem-model}
 library(spatialreg)
@@ -537,7 +541,12 @@ wr.pred <- predict(sem.fen.simple,wr.sf.2,wr.kmat, pred.type = "TS",legacy.mixed
 
 result <- cbind(wr.sf.2,wr.pred)
 result$fit.toc <- 10^result$fit
-ggplot()+geom_sf(data = result, aes(fill = fit.toc))
+map.fit <- ggplot()+geom_sf(data = result, aes(fill = fit.toc, col = fit.toc))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+ggsave(plot = map.fit, filename = "fit.toc.png",dpi = "retina", width = 30, height = 90, units = "cm")
+
+map.log <- ggplot()+geom_sf(data = result, aes(fill = fit, col = fit))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+ggsave(plot = map.log, filename = "fit.log.toc.png",dpi = "retina", width = 30, height = 90, units = "cm")
+
 
 ```
 We forecast the evolution of toc concentration based on the predicted values and the effect size given by the model on the Fennoscandian dataset
@@ -549,7 +558,16 @@ sem.coef <- sem.fen.simple$coefficients[-1] %>% as.data.frame() %>%
 
 result$effect.ndvi <- result$fit.toc + result$fit.toc*(10^(sem.coef[1,1]*0.1))
 result$effect.runoff <- result$fit.toc + result$fit.toc*(1.1^(sem.coef[2,1]))
-result$effect.ndvi <- result$fit.toc + result$fit.toc*(10^(sem.coef[3,1]*0.1))
+result$effect.bogs <- result$fit.toc + result$fit.toc*(10^(sem.coef[3,1]*0.1))
+
+map.ndvi <- ggplot()+geom_sf(data = result, aes(fill = effect.ndvi, col = effect.ndvi))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+ggsave(plot = map.ndvi, filename = "effect.ndvi.png",dpi = "retina", width = 30, height = 90, units = "cm")
+
+map.runoff <- ggplot()+geom_sf(data = result, aes(fill = effect.runoff, col = effect.runoff))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+ggsave(plot = map.runoff, filename = "effect.runoff.png",dpi = "retina", width = 30, height = 90, units = "cm")
+
+map.bogs <- ggplot()+geom_sf(data = result, aes(fill = effect.bogs, col = effect.bogs))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+ggsave(plot = map.bogs, filename = "effect.bogs.png",dpi = "retina", width = 30, height = 90, units = "cm")
 
 ```
 
