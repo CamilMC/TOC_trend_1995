@@ -51,7 +51,7 @@ y <- which(all_catchment_area$cumsum_area == x)
 
 z <- all_catchment_area$catchment_area_km2[y]
 
-fen.catchment.poly <- st_read(con,query = paste("SELECT ebint,geom, catchment_area_km2 FROM catchments.lake_catchments WHERE catchment_area_km2 >",z, sep = " "))
+fen.catchment.poly <- st_read(con,query = paste("SELECT ebint,geom, catchment_area_km2 FROM catchments.lake_catchments WHERE catchment_area_km2 >",floor(z), sep = " "))
 
 saveRDS(fen.catchment.poly,"fen.catchment.poly.Rdata")
 
