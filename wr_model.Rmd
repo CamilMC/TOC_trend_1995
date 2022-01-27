@@ -45,7 +45,7 @@ wr.sf <- readRDS("wr.sf.Rdata")
 # WR dataframe
 
 ```{r final-df}
-ggplot(wr.sf)+geom_sf(aes(col = "bogs"))
+ggplot()+geom_sf(data=wr.sf,aes(col = "bogs"))
 
 wr.sf.1 <- wr.sf %>% filter(mean.runoff == 0)
 plot(wr.sf.1$geom)
