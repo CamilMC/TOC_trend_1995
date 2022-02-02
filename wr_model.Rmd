@@ -2,15 +2,15 @@
 title: "TOC model extended"
 author: "Camille M. Crapart"
 date: "5 1 2022"
- output: 
-   bookdown::html_document2:
-     code_folding: hide
-     toc: true
-     toc_float: true
-     number_sections: true
-     fig_caption: true
- bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
- link-citations: yes
+output: 
+  bookdown::html_document2:
+   code_folding: hide
+   toc: true
+   toc_float: true
+   number_sections: true
+   fig_caption: true
+bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+link-citations: yes
 
 ---
 
@@ -51,10 +51,12 @@ query.2 <- paste("SELECT * FROM ","\"Hydrography\"",".Fenoscandia_LakeRegister",
 water.regions <- st_read(con,query = query)
 lake.register <- st_read(con,query = query.2)
 saveRDS(water.regions,"water.regions.Rdata")
+```
 
-
+```{r plot-regions}
+water.regions <- readRDS("water.regions.Rdata")
 ggplot()+geom_sf(data=water.regions,aes(fill = gid))
-ggsave("water.regions.png")
+
 ```
 
 ## NDVI
@@ -69,8 +71,9 @@ saveRDS(ndvi.max,"ndvi.max.Rdata")
 ndvi.max <- readRDS("ndvi.max.Rdata")
 summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
 summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
-
 summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
+writeRaster(summer.mean,"ndvi1994.tif")
+
 plot(summer.scan)
 
 for(x in 0:287){
@@ -104,7 +107,7 @@ summer.ndvi.wr$flag.value <- summer.ndvi.wr$ndvi - (floor(summer.ndvi.wr$ndvi)/1
 saveRDS(summer.ndvi.wr, "summer.ndvi.wr.Rdata")
 ```
 
-```{r check-values-nvi}
+```{r check-values-nvi, eval = F}
 summer.ndvi.wr <- readRDS("summer.ndvi.wr.Rdata")
 water.regions <- readRDS("water.regions.Rdata")
 
@@ -130,13 +133,17 @@ missing.ndvi.df$flag.value <- missing.ndvi.df$ndvi - (floor(missing.ndvi.df$ndvi
 
 saveRDS(missing.ndvi.df, "missing.ndvi.df.Rdata")
 ```
-```{r join-ndvi}
+```{r join-ndvi, eval = F}
 missing.ndvi <- readRDS("missing.ndvi.Rdata")
 summer.ndvi.total <- rbind(filter(summer.ndvi.wr,!is.na(ndvi)),missing.ndvi.df)
 saveRDS(summer.ndvi.total,"summer.ndvi.total.Rdata")
 
 summer.ndvi.sf <- merge(water.regions,summer.ndvi.total,by.x = "gid", by.y = "gid")
 saveRDS(summer.ndvi.sf,"summer.ndvi.sf.Rdata")
+ggplot()+geom_sf(data=summer.ndvi.sf,aes(fill=ndvi.value))
+```
+```{r plot-ndvi}
+summer.ndvi.sf <- readRDS("summer.ndvi.sf.Rdata")
 ggplot()+geom_sf(data=summer.ndvi.sf,aes(fill=ndvi.value))
 ```
 
@@ -247,7 +254,7 @@ saveRDS(runoff.80.288,"WR/runoff/runoff.80.288.Rdata")
 
 ```
 
-```{r gather-runoff-wr}
+```{r gather-runoff-wr, eval = F}
 list.files.runoff.60 <- list.files("WR/runoff",pattern = "runoff.60",full.names = T)
 
 df.runoff.60 <- readRDS(list.files.runoff.60[210])@data %>% setNames(c("ebint","runoff.60s"))
@@ -279,12 +286,16 @@ saveRDS(runoff.df.wr, "runoff.df.wr.Rdata")
 
 runoff.sf <- merge(water.regions,runoff.df.wr,by.x = "gid", by.y = "ebint")
 saveRDS(runoff.sf,"runoff.sf.Rdata")
+```
+
+```{r plot-runoff}
+runoff.sf <- readRDS("runoff.sf.Rdata")
 ggplot()+geom_sf(data=runoff.sf,aes(fill=mean.runoff))
 ```
 
 ## Bogs and forest
 
-```{r wr.bogs.forest}
+```{r wr.bogs.forest, eval = F}
 library(rgdal)
 water.regions <- readRDS("water.regions.Rdata")
 wr.corine <- st_transform(water.regions,CRS("EPSG:3035"))
@@ -363,7 +374,7 @@ names(clc.tab.prop) <- wr.corine[start.x,]$gid
 saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
 
 ```
-```{r missing again}
+```{r missing again, eval = F}
 wr.corine <- readRDS("wr.corine.Rdata")
 
 
@@ -437,7 +448,7 @@ saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
 
 ```
 
-```{r gather-clc-wr}
+```{r gather-clc-wr, eval = F}
 list.clc.tabs <- list.files("WR/clc",pattern = "clc.tab.prop", full.names = T)
 list.clc <- lapply(list.clc.tabs,readRDS)
 
@@ -454,7 +465,7 @@ saveRDS(clc.wr,"WR/clc/clc.wr.Rdata")
 
 
 ```
-```{r get-forest-bogs}
+```{r get-forest-bogs, eval = F}
 clc.wr.bogs <- select(clc.wr, c("gid","V36")) %>% setNames(c("gid","bogs"))
 clc.wr.forest <- select(clc.wr,c("V23","V24","V25")) %>% rowSums() %>% as.data.frame() %>% setNames("forest")
 
@@ -464,12 +475,14 @@ saveRDS(clc.wr.sum,"WR/clc/clc.wr.sum.Rdata")
 clc.wr.sf <- merge(water.regions,clc.wr.sum,by.x.= "gid",by.y = "gid")
 saveRDS(clc.wr.sf,"clc.wr.sf.Rdata")
 clc.wr.sf <- readRDS("clc.wr.sf.Rdata")
+```
+```{r plot-bogs}
+clc.wr.sf <- readRDS("clc.wr.sf.Rdata")
 ggplot()+geom_sf(data=clc.wr.sf,aes(fill=bogs))
-
 ```
 ## Gathers wr dataset
 
-```{r gather-dataset}
+```{r gather-dataset, eval = F}
 summer.ndvi.total <- readRDS("summer.ndvi.total.Rdata")
 runoff.df.wr <- readRDS("runoff.df.wr.Rdata")
 clc.wr.sum <- readRDS("WR/clc/clc.wr.sum.Rdata")
@@ -485,7 +498,7 @@ saveRDS(wr.sf, "wr.sf.Rdata")
 
 # WR dataframe
 
-```{r final-df}
+```{r final-df, eval = F}
 wr.sf <- readRDS("wr.sf.Rdata")
 wr.df <- readRDS("wr.df.Rdata")
 
@@ -512,14 +525,12 @@ wr.sf.2$log.runoff <- log10(wr.sf.2$runoff)
 
 wr.sf.2$ndvi <- wr.sf.2$ndvi.value
 
-which(is.na(wr.sf.2$log.runoff)==T)
+saveRDS(wr.sf.2, "wr.sf.2.Rdata")
 ```
 
 # Neighbour matrix
 
-```{r wr-km}
-
-
+```{r wr-km, eval = F}
 wr.centroid <- st_centroid(wr.sf.2, of_largest_polygon = T)
 
 wr.neigh.set <- knearneigh(wr.centroid, k = 100)
@@ -532,7 +543,8 @@ saveRDS(wr.kmat,"wr.kmat.Rdata")
 
 # Model prediction
 
-We predict the toc concentration in all the lakes based on the sem model
+We model the mean TOC concentration in all the water region in 1995 based on the simple SEM model of the previous section, using NDVI, bogs and runoff as predictors.
+
 ```{r sem-model}
 library(spatialreg)
 sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
@@ -543,34 +555,81 @@ result <- cbind(wr.sf.2,wr.pred)
 result$fit.toc <- 10^result$fit
 map.fit <- ggplot()+geom_sf(data = result, aes(fill = fit.toc, col = fit.toc))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
 ggsave(plot = map.fit, filename = "fit.toc.png",dpi = "retina", width = 30, height = 90, units = "cm")
+print(map.fit)
 
 map.log <- ggplot()+geom_sf(data = result, aes(fill = fit, col = fit))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
 ggsave(plot = map.log, filename = "fit.log.toc.png",dpi = "retina", width = 30, height = 90, units = "cm")
+print(map.log)
+```
+
+```{r check-outliers-toc, eval = F}
+outliers <- ggplot()+geom_sf(data = filter(result, fit.toc >15), aes(fill = fit.toc, col = fit.toc))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+outliers
+
+boxplot(result$fit.toc)
+boxplot(result$fit)
+
+ggplot(result)+geom_point(aes(x=size,y=fit))
+ggplot(result)+geom_point(aes(x=log.runoff,y=fit.toc))
+ggplot(result)+geom_point(aes(x=ndvi,y=fit.toc,col=size))
+ggplot(result)+geom_point(aes(x=bogs,y=fit))
+ggplot(result)+geom_point(aes(x=forest,y=fit))
 
 
 ```
-We forecast the evolution of toc concentration based on the predicted values and the effect size given by the model on the Fennoscandian dataset
+
+We model NDVI based on temperature and precipitation, and use this model to predict the future NDVI in 2050. 
+
+```{r model-future-ndvi}
+bio.fennoscandia <- raster::getData(name = "worldclim", var = "bio", res = 2.5)
+
+temp.wr <- raster::extract(bio.fennoscandia$bio1, wr.sf.2, fun = mean, df = T, sp = T)
+saveRDS(temp.wr,"temp.wr.rds")
+prec.wr <- raster::extract(bio.fennoscandia$bio12, wr.sf.2, fun = mean, df = T, sp = T)
+saveRDS(prec.wr,"prec.wr.rds")
+
+```
+
+
+Then, we forecast the evolution of toc concentration based on the predicted values and the effect size given by the model on the Fennoscandian dataset
 (toc + beta*toc)
 
-```{r effect-size}
+```{r effect-size, eval = F}
 sem.coef <- sem.fen.simple$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
 
 result$effect.ndvi <- result$fit.toc + result$fit.toc*(10^(sem.coef[1,1]*0.1))
 result$effect.runoff <- result$fit.toc + result$fit.toc*(1.1^(sem.coef[2,1]))
 result$effect.bogs <- result$fit.toc + result$fit.toc*(10^(sem.coef[3,1]*0.1))
+result$diff.effect.ndvi <-  result$fit.toc*(10^(sem.coef[1,1]*0.1))
+result$diff.effect.runoff <-  result$fit.toc*(1.1^(sem.coef[2,1]))
+result$diff.effect.bogs <- result$fit.toc*(10^(sem.coef[3,1]*0.1))
 
-map.ndvi <- ggplot()+geom_sf(data = result, aes(fill = effect.ndvi, col = effect.ndvi))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+legend.limit <- c(min(result$fit.toc), max(c(result$effect.ndvi,result$effect.runoff,result$effect.bogs)))
+
+map.ndvi <- ggplot()+geom_sf(data = result, aes(fill = effect.ndvi, col = effect.ndvi))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = legend.limit)+theme_minimal()
 ggsave(plot = map.ndvi, filename = "effect.ndvi.png",dpi = "retina", width = 30, height = 90, units = "cm")
+print(map.ndvi)
 
-map.runoff <- ggplot()+geom_sf(data = result, aes(fill = effect.runoff, col = effect.runoff))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+map.runoff <- ggplot()+geom_sf(data = result, aes(fill = effect.runoff, col = effect.runoff))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1,limits = legend.limit)+theme_minimal()
 ggsave(plot = map.runoff, filename = "effect.runoff.png",dpi = "retina", width = 30, height = 90, units = "cm")
+print(map.runoff)
 
-map.bogs <- ggplot()+geom_sf(data = result, aes(fill = effect.bogs, col = effect.bogs))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1)+theme_minimal()
+map.bogs <- ggplot()+geom_sf(data = result, aes(fill = effect.bogs, col = effect.bogs))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = legend.limit)+theme_minimal()
 ggsave(plot = map.bogs, filename = "effect.bogs.png",dpi = "retina", width = 30, height = 90, units = "cm")
+print(map.bogs)
 
+legend.limit.diff <- c(min(c(result$effect.bogs,result$effect.ndvi,result$effect.runoff)), max(c(result$effect.bogs,result$effect.ndvi,result$effect.runoff)))
+map.diff.ndvi <- ggplot()+geom_sf(data = result, aes(fill = diff.effect.ndvi, col = diff.effect.ndvi))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = legend.limit.diff)+theme_minimal()
+ggsave(plot = map.ndvi, filename = "diff.effect.ndvi.png",dpi = "retina", width = 30, height = 90, units = "cm")
+print(map.diff.ndvi)
+
+map.diff.runoff <- ggplot()+geom_sf(data = result, aes(fill = diff.effect.runoff, col = diff.effect.runoff))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = legend.limit.diff)+theme_minimal()
+ggsave(plot = map.runoff, filename = "diff.effect.runoff.png",dpi = "retina", width = 30, height = 90, units = "cm")
+print(map.diff.runoff)
+
+map.diff.bogs <- ggplot()+geom_sf(data = result, aes(fill = diff.effect.bogs, col = diff.effect.bogs))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = legend.limit.diff)+theme_minimal()
+ggsave(plot = map.bogs, filename = "diff.effect.bogs.png",dpi = "retina", width = 30, height = 90, units = "cm")
+print(map.diff.bogs)
 ```
 
-We model the toc export by multiplying the "new" toc concentration by the runoff. 
-
-We match the value of toc export for each lake to the corresponding polygon and we plot. 

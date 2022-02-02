@@ -101,6 +101,7 @@ ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
 ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
 summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
 summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
+
 plot(summer.scandinavia)
 
 summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
@@ -222,13 +223,13 @@ saveRDS(runoff.df, "runoff.df.Rdata")
 
 ## Temperature,precipitation and slope
 
-Temperature and precipitation are downloaded from the database Worldclim. Temperature is the annual temperature in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset. 
+Temperature and precipitation are downloaded from the database Worldclim. Temperature is the mean annual temperature from 1970 to 2000 in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset. 
 
 https://www.worldclim.org/data/worldclim21.html 
 
 ```{r temp-prec, eval = F}
 #monthly mean temperature for 1970-2000
-bio.fennoscandia <- getData(name = "worldclim", var = "bio", res = 2.5)
+bio.fennoscandia <- raster::getData(name = "worldclim", var = "bio", res = 2.5)
 annual.temp <- raster::extract(bio.fennoscandia[[1]], catchment.poly, fun = mean, df = T, sp = T)
 saveRDS(annual.temp,"annual.temp.Rdata")
 
