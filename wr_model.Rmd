@@ -498,10 +498,13 @@ saveRDS(wr.sf, "wr.sf.Rdata")
 
 # WR dataframe
 
+
 ```{r final-df, eval = F}
+
 wr.sf <- readRDS("wr.sf.Rdata")
 wr.df <- readRDS("wr.df.Rdata")
 
+ggplot()+geom_sf(data=wr.sf,aes(col = "bogs"))
 
 wr.sf$size <- st_area(wr.sf) %>% as.numeric()
 

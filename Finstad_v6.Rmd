@@ -79,8 +79,10 @@ PUT IN DISCUSSION
 # Methods
 
 ## Data preparation
+See data preparation
 
-See separate markdown file for data preparation. 
+## Models
+In this article we use three kind of models, two of them with geographical weighting. 
 
 ## Statistical models
 
@@ -914,22 +916,6 @@ summary.table.gwr.forest <- data.frame(AIC = gwr.AIC,R2 = gwr.r2,Moran.I =gwr.mo
 knitr::kable(summary.table.gwr.forest,digits = 3, caption = "Model performance: AIC, mean R2 and Moran's I of residuals") %>%
   kable_styling(bootstrap_options = "bordered")
 ```
-
-# Discussion
-
-When comparing the linear model (LM) and the spatial error model (SEM), we observe similar results. Nitrogen deposition, NDVI, the proportion of forest and the proportion of bogs have a positive effect on TOC concentration, while runoff and slope has a negative effect. The SEM performed better with a lower AIC and a lower autocorrelation of residuals. LM tends to overestimate the impact of all the predictor variables. The same trend can be observed in the effect sizes. The extent of the relative changes were chosen to be realistic. For example, an ... % increase in forest is planned by the Norwegian government in many regions. A 10 to 30% increase of runoff can be expected realistically due to climate change.
-
-
-The 3 predictors with the larger estimates were NDVI, log.runoff and bogs. This is also the case for the effect size, even though the initial relative change was different. Therefore, these three predictors were kept to investigate the potential differences between Norway and the entire Fennoscandian dataset. 
-
-The results were similar for both Norway and Fennoscandia. The effect of NDVI and bogs was more important in Norway than in Fennoscandia (numbers), but log(runoff) had almost the same estimate and the same effect size. The SEM fitted with forest instead of NDVI shows the same thing. Forest has a lower effect on toc concentration. As a matter of fact, forest represents the proportion of the catchment covered with forest, whereas NDVI reflects the density of vegetation (forest or not) on the catchment. 
-
-These similar results prove that NDVI (or forest), runoff and bogs are predictors for TOC concentration in Norway, Sweden and Finland. Land-use management . 
-
-
-
-
-
 # Appendix
 
 ## Summary table LM and SEM Fennoscandia
