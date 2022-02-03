@@ -581,15 +581,60 @@ ggplot(result)+geom_point(aes(x=forest,y=fit))
 
 ```
 
-We model NDVI based on temperature and precipitation, and use this model to predict the future NDVI in 2050. 
+# NDVI model based on past temperature and precipitation values
 
-```{r model-future-ndvi}
+We model NDVI based on temperature and precipitation, and use this model to predict the future NDVI in 2050. 
+Choice of future data: ssp 126 as best scenario, ssp 370 as worse scenario @Hausfather2019 @CORDEX2021
+CRNM according to @Raju2020
+
+```{r model-ndvi-past}
+wr.sf.2 <- readRDS("wr.sf.2.Rdata")
+
 bio.fennoscandia <- raster::getData(name = "worldclim", var = "bio", res = 2.5)
 
-temp.wr <- raster::extract(bio.fennoscandia$bio1, wr.sf.2, fun = mean, df = T, sp = T)
-saveRDS(temp.wr,"temp.wr.rds")
-prec.wr <- raster::extract(bio.fennoscandia$bio12, wr.sf.2, fun = mean, df = T, sp = T)
-saveRDS(prec.wr,"prec.wr.rds")
+#temp.wr <- raster::extract(bio.fennoscandia$bio1, wr.sf.2, fun = mean, df = T, sp = T)
+#saveRDS(temp.wr,"temp.wr.rds")
+temp.wr <- readRDS("temp.wr.rds")
+
+#prec.wr <- raster::extract(bio.fennoscandia$bio12, wr.sf.2, fun = mean, df = T, sp = T)
+#saveRDS(prec.wr,"prec.wr.rds")
+prec.wr <- readRDS("prec.wr.rds")
+
+wr.sf.3 <- wr.sf.2
+wr.sf.3$temp <- temp.wr$bio1
+wr.sf.3$prec <- prec.wr$bio12
+saveRDS(wr.sf.3,"wr.sf.3.rds")
+
+wr.kmat <- readRDS("wr.kmat.Rdata")
+ndvi.model <- errorsarlm(formula = ndvi~temp+prec, data = wr.sf.3,wr.kmat)
+saveRDS(ndvi.model, "ndvi.model.rds")
+```
+
+```{r model-future-ndvi}
+wr.sf.3 <- readRDS("wr.sf.3.rds")
+
+ssp126.cnrm.temp <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp126_2041-2060.tif", band = 1)
+
+ssp370.cnrm.temp <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp370_2041-2060.tif", band = 1)
+
+ssp126.temp.wr <- raster::extract(ssp126.cnrm.temp,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
+saveRDS(ssp126.temp.wr,"ssp126.temp.wr.rds")
+
+ssp370.temp.wr <- raster::extract(ssp370.cnrm.temp,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
+saveRDS(ssp370.temp.wr,"ssp370.temp.wr.rds")
+
+ssp126.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp126_2041-2060.tif", band = 12)
+ssp585.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp585_2041-2060.tif", band = 12)
+
+ssp126.prec.wr <- raster::extract(ssp126.cnrm.prec,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
+saveRDS(ssp126.prec.wr,"ssp126.prec.wr.rds")
+ssp585.temp.wr <- raster::extract(ssp585.cnrm.temp,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
+saveRDS(ssp585.temp.wr,"ssp585.temp.wr.rds")
+
+
+
+ndvi.pred <- predict(ndvi.model,,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T)
+
 
 ```
 
