@@ -269,7 +269,7 @@ saveRDS(slope.df, "slope.df.Rdata")
 
 ## Land cover
 
-The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/lcc-2000-2006. The previous version (1995-2000) excudes Norway so the 2000 version was preferred. 
+The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/lcc-2000-2006. The previous version (1995-2000) excludes Norway so the 2000 version was preferred. 
 
 The land cover data was downloaded as a raster (.tiff file), which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were:
 
@@ -282,7 +282,12 @@ Arable land:
 
 Bogs:
 * 36: peat bogs
-* 35: inland marshes, exluded because all zeros in the studied area. 
+* 35: inland marshes, excluded because all zeros in the studied area.
+
+Forest:
+* 23: Broad-leaved forest
+* 24: Coniferous forest
+* 25: Mixed forest
 
 ```{r extract-land-cover, eval = F}
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
@@ -299,6 +304,15 @@ catchment.area <- colSums(clc.tab.area)
 clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
 names(clc.tab.prop) <- catchment.poly.corine$ebint
 saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
+
+clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
+bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(bogs,"bogs.rds")
+arable <- colSums(clc.tab.prop[c(12,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(arable,"arable.rds")
+forest <- colSums(clc.tab.prop[c(23,24,25),]) %>% as.data.frame() %>% setNames("forest") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(forest,"forest.rds")
+
 ```
 
 ## NDEP - EMEP data
@@ -357,10 +371,9 @@ names(slope.fennoscandia) <- c("ebint","slope")
 
 alt.df <- readRDS("alt.df.Rdata")
 
-clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
-bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% tibble::rownames_to_column(var = "ebint")
-arable <- colSums(clc.tab.prop[c(12,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
-forest <- colSums(clc.tab.prop[c(23,24,25),]) %>% as.data.frame() %>% setNames("forest") %>% tibble::rownames_to_column(var = "ebint")
+bogs <- readRDS("bogs.rds")
+arable <- readRDS("arable.rds")
+forest <- readRDS("forest.rds")
 
 ndep <- readRDS("ndep.df.Rdata")
 

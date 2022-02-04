@@ -618,22 +618,32 @@ ssp126.cnrm.temp <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_
 ssp370.cnrm.temp <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp370_2041-2060.tif", band = 1)
 
 ssp126.temp.wr <- raster::extract(ssp126.cnrm.temp,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
+names(ssp126.temp.wr) <- c("gid", "temp126")
 saveRDS(ssp126.temp.wr,"ssp126.temp.wr.rds")
 
 ssp370.temp.wr <- raster::extract(ssp370.cnrm.temp,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
+names(ssp370.temp.wr) <- c("gid", "temp370")
 saveRDS(ssp370.temp.wr,"ssp370.temp.wr.rds")
 
 ssp126.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp126_2041-2060.tif", band = 12)
-ssp585.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp585_2041-2060.tif", band = 12)
+ssp370.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp370_2041-2060.tif", band = 12)
 
 ssp126.prec.wr <- raster::extract(ssp126.cnrm.prec,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
+names(ssp126.prec.wr) <- c("gid", "prec126")
 saveRDS(ssp126.prec.wr,"ssp126.prec.wr.rds")
-ssp585.temp.wr <- raster::extract(ssp585.cnrm.temp,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
-saveRDS(ssp585.temp.wr,"ssp585.temp.wr.rds")
+
+ssp370.prec.wr <- raster::extract(ssp370.cnrm.prec,select(wr.sf.3,c("gid","geometry")),fun=mean,df = T, sp = T)
+names(ssp370.prec.wr) <- c("gid", "prec370")
+saveRDS(ssp370.prec.wr,"ssp370.prec.wr.rds")
 
 
+boxplot(ssp126.temp.wr$temp126)
+boxplot(ssp370.temp.wr$temp370)
+boxplot(ssp126.prec.wr$prec126)
+boxplot(ssp370.prec.wr$prec370)
 
-ndvi.pred <- predict(ndvi.model,,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T)
+
+ndvi.pred <- predict(ndvi.model,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T)
 
 
 ```

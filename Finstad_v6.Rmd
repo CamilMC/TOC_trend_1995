@@ -80,7 +80,7 @@ PUT IN DISCUSSION
   
 # Methods
 
-## Data preparation
+## Data preparation {#datapreparation}
 See data preparation
 
 ## Models
@@ -197,11 +197,11 @@ The dataset is composed of `r dim(fennoscandia)[1]` lakes sampled during the Nor
 
 * NDVI is downloaded from the GIMMS database for 1994, the year preceding the sampling @TheNationalCenterforAtmosphericResearch2018. We use the mean value of the summer months (june, july and august) over the catchment.
 
-* The runoff values are derived from the CORDEX model, and are the average value for the model predictions from year 1960 to year 1990 @CORDEX @Kreienkamp2012. The runoff values are converted in kg/m2/year and are also logged. 
+* The runoff values are derived from the CORDEX model, and are the average value for the model predictions from year 1960 to year 1990 @CORDEX @Kreienkamp2012. The runoff values are converted in kg/m2/year, or mm/year, and are also logged. 
 
-* Temperature and precipitation data are downloaded from the WorldClim database @WorldClim. 
+* Temperature and precipitation data are downloaded from the WorldClim database @WorldClim. Temperature is in \uOOBOC `r expression(*~degree*C*)` and precipitation in mm/year. They are the average values from 1970 to 2000, and the mean of each catchment was computed.
 
-* The proportions of bogs, arable land and forested area are computed from the Corine Land Cover database @CopernicusCLC, and correspond to the 2000 data, as the raster for 1995 was not available. 
+* The proportions of bogs, arable land and forested area are computed from the Corine Land Cover database @CopernicusCLC, and correspond to the 2000 data, as the raster for 1995 was not available. Several CLC category were merged to create the three categories used in this study: see [data preparation]{#datapreparation}.
 
 * N-deposition data is extracted from EMEP models @EMEP. We use here the total N deposition (sum of dry and wet deposition). 
 
