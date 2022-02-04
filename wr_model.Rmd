@@ -642,8 +642,9 @@ boxplot(ssp370.temp.wr$temp370)
 boxplot(ssp126.prec.wr$prec126)
 boxplot(ssp370.prec.wr$prec370)
 
-
-ndvi.pred <- predict(ndvi.model,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T)
+ndvi.model <- readRDS("ndvi.model.rds")
+df.ssp126 <- merge(ssp126.temp.wr, ssp126.prec.wr,by = "gid")%>% setNames(c("gid","temp","prec"))
+ndvi.ssp126 <- predict(ndvi.model,df.ssp126,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T)
 
 
 ```
