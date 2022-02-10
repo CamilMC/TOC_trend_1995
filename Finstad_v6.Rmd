@@ -70,9 +70,6 @@ In this article, we extend the model proposed by Larsen et al @Larsen2011a in 20
 See data preparation
 
 ## Models
-In this article we use three kind of models, two of them with geographical weighting. 
-
-## Statistical models
 
 Larsen et al. @Larsen2011 used a linear regression model to forecast the evolution of the toc concentration in Fennoscandian lakes. In this study, we first reproduce a similar ordinary least square regression model. In addition, we take into account the spatial autocorrelation of the dependent and independent parameter by fitting two different spatial models: a spatial error model and a geographically weighted model. 
 
@@ -864,7 +861,7 @@ located in the south-west region of Norway.
 A change of the proportion of bogs has almost not effect here except for a little spot in south-east Finland where both the highest (`r round(min(gwr.effectsize.percent$bogs),0)` %) and the lowest (`r round(min(gwr.effectsize.percent$bogs),0)`%) effect sizes are found. This local spot is not related to the original proportion of bogs (see Figure \@ref(fig::explore-bogs)). **there are rather low runoff values in this region, but no outliers of any sort. Where does this come from?**. In all the other regions, an increase in bog proportion would have a very low effect, comparable to the mean effect size calculated with the SEM model. 
 
 ```{r explore-bogs, fig.cap = "Effect size of an increase in bogs compared to the original proportion of bogs"}
-plot(fennoscandia$bogs,gwr.effectsize.percent$bogs, xlab = "Proportion of bogs, %", ylab = "Effect size of a 10% increase in bogs, %")
+plot(fennoscandia$bogs*100,gwr.effectsize.percent$bogs, xlab = "Proportion of bogs, %", ylab = "Effect size of a 10% increase in bogs, %")
 ```
 
 
@@ -921,7 +918,7 @@ knitr::kable(summary.table.gwr.forest,digits = 3, caption = "Model performance: 
 Replacing NDVI by the proportion of forest does not change the local effect sizes of runoff in the model, and a similar spot of very high and very low effect sizes appears for the proportion of bogs. A similar spot is visible on the map representing the local effect sizes for an increase in forest proportion, but the effect sizes values are not unusual there. Once again, this spot is not explained by an unusual original proportion of forest (see Figure \@ref(fig::explore-forest))The range of effect sizes goes from `r round(min(gwr.effectsize.percent$forest),0)` % to  `r round(max(gwr.effectsize.percent$forest),0)`%. 
 
 ```{r explore-forest, fig.cap = "Effect size of an increase in forest compared to the original proportion of forest"}
-plot(fennoscandia$forest,gwr.effectsize.percent$forest, xlab = "Proportion of forest, %", ylab = "Effect size of a 10% increase in forest, %")
+plot(fennoscandia$forest*100,gwr.effectsize.percent$forest, xlab = "Proportion of forest, %", ylab = "Effect size of a 10% increase in forest, %")
 
 ```
 
@@ -946,7 +943,7 @@ We assume that the mean runoff will increase, accordingly to climate simulations
 A definition: what are they and why to we use them
 
 A map: Figure \@ref(fig::wr-map)
-```{r wr.map, fig.cap = "Map of the water regions in Fennoscandia"}
+```{r wr.map, fig.cap = "Map of the water regions in Fennoscandia", fig.dim= c(5,5)}
 knitr::include_graphics("WR/wr.ndvi.plot.png")
 knitr::include_graphics("WR/wr.bogs.plot.png")
 knitr::include_graphics("WR/wr.runoff.plot.png")
@@ -954,18 +951,29 @@ knitr::include_graphics("WR/wr.runoff.plot.png")
 
 ## Modeling of future NDVI based on temperature and precipitation
 
-```{r ssp-maps, fig.cap = "Forecast of temperature and precipitation for 2050"}
+```{r ssp-maps, fig.cap = "Forecast of temperature, precipitation, NDVI and runoff for 2050 (mean 2041-2060)", fig.dim= c(5,5)}
 knitr::include_graphics("WR/ssp126.temp.png")
 knitr::include_graphics("WR/ssp126.prec.png")
 knitr::include_graphics("WR/ssp370.temp.png")
 knitr::include_graphics("WR/ssp370.prec.png")
-
+knitr::include_graphics("WR/ssp126.ndvi.png")
+knitr::include_graphics("WR/ssp370.ndvi.png")
+knitr::include_graphics("WR/ssp126.runoff.png")
+knitr::include_graphics("WR/ssp370.runoff.png")
 ```
 
 We extract the mean temperature and precipitation for the water regions from the worldclim database, for the years 
 
-```{r model-result}
+```{r model-result, fig.dim = c(5,5)}
+knitr::include_graphics("WR/fit.toc.png")
+knitr::include_graphics("WR/fit.log.toc.png")
 
+knitr::include_graphics("WR/map.toc.126.png")
+knitr::include_graphics("WR/map.toc.370.png")
+knitr::include_graphics("WR/map.log.toc.126.png")
+knitr::include_graphics("WR/map.log.toc.370.png")
+knitr::include_graphics("WR/map.toc.forest.png")
+knitr::include_graphics("WR/map.log.toc.forest.png")
 
 ```
 
