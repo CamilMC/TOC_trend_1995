@@ -72,9 +72,12 @@ ndvi.max <- readRDS("ndvi.max.Rdata")
 summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
 summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
 summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
+summer.scan.ndvi <- (floor(summer.scan)/10)/1000
 writeRaster(summer.mean,"ndvi1994.tif")
 
-plot(summer.scan)
+png("NDVI/ndvi.fen.png", width = 30, height = 30, units = "cm", res = 300)
+plot(summer.scan.ndvi, axes = F, box = F, main = "NDVI 1995",)
+dev.off()
 
 for(x in 0:287){
   start.x <- (x-1)*1000+1
@@ -537,14 +540,24 @@ saveRDS(wr.sf.2, "wr.sf.2.Rdata")
 ```{r plot-variables}
 wr.sf.2 <- readRDS("WR/wr.sf.2.Rdata")
 
-wr.bogs.plot <- ggplot()+geom_sf(data = wr.sf.2,aes(fill=bogs,col=bogs))+ scale_fill_gradient2(low="#CCCCCC",mid="#FFCC66",high = "#663300",midpoint = 0, aesthetics = c("fill","col"))+theme_void()
-ggsave(plot = wr.bogs.plot , filename = "WR/wr.bogs.plot.png",dpi = "retina", width = 30, height = 90, units = "cm")
+wr.bogs.plot <- ggplot()+geom_sf(data = wr.sf.2,aes(fill=bogs,col=bogs))+ 
+  scale_fill_gradient2(low="#CCCCCC",mid="#FFCC66",high = "#663300",midpoint = 0, aesthetics = c("fill","col"), name = "Proportion of bogs")+
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = wr.bogs.plot , filename = "WR/wr.bogs.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
-wr.ndvi.plot <- ggplot()+geom_sf(data = wr.sf.2,aes(fill=ndvi,col=ndvi))+ scale_fill_gradient2(low="#CCCCCC",mid="#FFCC66",high = "#003300",midpoint = 0, aesthetics = c("fill","col"))+theme_void()
-ggsave(plot = wr.ndvi.plot , filename = "WR/wr.ndvi.plot.png",dpi = "retina", width = 30, height = 90, units = "cm")
+wr.ndvi.plot <- ggplot()+geom_sf(data = wr.sf.2,aes(fill=ndvi,col=ndvi))+ 
+ scale_fill_gradient2(low="#EEE9E9",mid="#FFFFBF",high = "#008B45",midpoint = 0, aesthetics = c("fill","col"),
+                       name = "NDVI 1995") + 
+   theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = wr.ndvi.plot , filename = "WR/wr.ndvi.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
-wr.runoff.plot <- ggplot()+geom_sf(data = wr.sf.2,aes(fill=runoff,col=runoff))+ scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"))+theme_void()
-ggsave(plot = wr.runoff.plot , filename = "WR/wr.runoff.plot.png",dpi = "retina", width = 30, height = 90, units = "cm")
+wr.runoff.plot <- ggplot()+geom_sf(data = wr.sf.2,aes(fill=runoff,col=runoff))+ 
+  scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"))+
+   theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = wr.runoff.plot , filename = "WR/wr.runoff.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ```
 # Neighbour matrix
@@ -580,14 +593,17 @@ sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 map.fit <- ggplot()+geom_sf(data = st_as_sf(sem.pred.wr), aes(fill = fit.toc, col = fit.toc))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
                        name = "Modelled TOC 1995 (mg/L)")+
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = map.fit, filename = "WR/wr.toc.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.fit, filename = "WR/wr.toc.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 map.log <- ggplot()+geom_sf(data = sem.pred.wr, aes(fill = wr.pred.fit, col = wr.pred.fit))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
-                       name = "Modelled log(TOC)")+theme_minimal()
-ggsave(plot = map.log, filename = "WR/wr.log.toc.png",dpi = "retina", width = 30, height = 90, units = "cm")
+                       name = "Modelled log(TOC)")+
+   theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+  
+ggsave(plot = map.log, filename = "WR/wr.log.toc.png",dpi = "retina", width = 6, height = 8, units = "cm")
 ```
 
 ```{r check-outliers-toc, eval = F}
@@ -613,7 +629,7 @@ Choice of future data: ssp 126 as best scenario, ssp 370 as worse scenario @Haus
 CRNM according to @Raju2020
 
 ```{r model-ndvi-past}
-wr.sf.2 <- readRDS("wr.sf.2.Rdata")
+wr.sf.2 <- readRDS("WR/wr.sf.2.Rdata")
 
 #bio.fennoscandia <- raster::getData(name = "worldclim", var = "bio", res = 2.5)
 
@@ -633,7 +649,7 @@ saveRDS(wr.sf.3,"WR/wr.sf.3.rds")
 wr.sf.3 <- readRDS("WR/wr.sf.3.rds")
 
 wr.kmat <- readRDS("WR/wr.kmat.Rdata")
-ndvi.model <- errorsarlm(formula = ndvi~temp+log10(prec), data = wr.sf.3,wr.kmat)
+t.ndvi.model <- errorsarlm(formula = ndvi~temp+log10(prec), data = wr.sf.3,wr.kmat)
 saveRDS(ndvi.model, "WR/ndvi.model.rds")
 
 ```
@@ -745,62 +761,62 @@ ndvi.ssp370.fit <- readRDS("WR/ndvi.ssp370.fit.rds")
 
 ssp126.temp.plot <- ggplot()+geom_sf(data=st_as_sf(ndvi.ssp126.fit),aes(fill= temp , col = temp))+
   scale_fill_gradient2(low="#EEE9E9",mid="#FFFFBF",high = "#990000",midpoint = 0, aesthetics = c("fill","col"),
-                       name = "2041-2060 average temperature under SSP126 (°C)") + 
-  theme_minimal(base_size = 15) +
-  theme(legend.position = "bottom", legend.text = element_text(size = 8)) 
-ggsave(plot = ssp126.temp.plot,filename = "WR/ssp126.temp.png",dpi = "retina", width = 30, height = 90, units = "cm")
+                       name = "2041-2060 average temperature\n under SSP126 (°C)") + 
+  theme_minimal(base_size = 4) +
+  theme(legend.position = "bottom") 
+ggsave(plot = ssp126.temp.plot,filename = "WR/ssp126.temp.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ssp370.temp.plot <- ggplot()+geom_sf(data=st_as_sf(ndvi.ssp370.fit),aes(fill= temp , col = temp))+
   scale_fill_gradient2(low="#EEE9E9",mid="#FFFFBF",high = "#990000",midpoint = 0, aesthetics = c("fill","col"), 
-                       name = "2041-2060 average temperature under SSP370 (°C)") +
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = ssp370.temp.plot,filename = "WR/ssp370.temp.png",dpi = "retina", width = 30, height = 90, units = "cm")
+                       name = "2041-2060 average temperature\n under SSP370 (°C)") +
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp370.temp.plot,filename = "WR/ssp370.temp.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ssp126.prec.plot <- ggplot()+geom_sf(data=st_as_sf(ndvi.ssp126.fit),aes(fill=prec, col = prec))+
   scale_fill_gradient2(low="#EEE9E9",mid="#CAE1FF",high = "#00688B",midpoint = 0, aesthetics = c("fill","col"), 
-                       name = "2041-2060 average precipitation under SSP126 (mm/year)") + 
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = ssp126.prec.plot,filename = "WR/ssp126.prec.png",dpi = "retina", width = 30, height = 90, units = "cm")
+                       name = "2041-2060 average precipitation\n under SSP126 (mm/year)") + 
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp126.prec.plot,filename = "WR/ssp126.prec.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ssp370.prec.plot <- ggplot()+geom_sf(data=st_as_sf(ndvi.ssp370.fit),aes(fill=prec, col = prec))+
   scale_fill_gradient2(low="#EEE9E9",mid="#CAE1FF",high = "#00688B",midpoint = 0, aesthetics = c("fill","col"), 
-                       name = "2041-2060 average precipitation under SSP370 (mm/year)") +
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = ssp370.prec.plot,filename = "WR/ssp370.prec.png",dpi = "retina", width = 30, height = 90, units = "cm")
+                       name = "2041-2060 average precipitation\n under SSP370 (mm/year)") +
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp370.prec.plot,filename = "WR/ssp370.prec.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ```
 
 ```{r plot-future-ndvi}
 ssp126.diff.ndvi <- ggplot()+geom_sf(data=ndvi.ssp126.fit,aes(fill=ndvi.diff, col = ndvi.diff)) + 
   scale_fill_gradient2(low="#EEE9E9",mid="#FFFFBF",high = "#008B45",midpoint = 0, aesthetics = c("fill","col"),
-                       name = "Difference NDVI 1995-2005 under SSP126") + 
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = ssp126.diff.ndvi,filename = "WR/ssp126.ndvi.diff.png",dpi = "retina", width = 30, height = 90, units = "cm")
+                       name = "Difference NDVI 1995-2050\n under SSP126") + 
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp126.diff.ndvi,filename = "WR/ssp126.ndvi.diff.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ssp126.ndvi <- ggplot()+geom_sf(data=ndvi.ssp126.fit,aes(fill=ndvi, col = ndvi)) + 
   scale_fill_gradient2(low="#EEE9E9",mid="#FFFFBF",high = "#008B45",midpoint = 0, aesthetics = c("fill","col"),
                        name = "NDVI 2050 under SSP126") + 
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = ssp126.ndvi,filename = "WR/ssp126.ndvi.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp126.ndvi,filename = "WR/ssp126.ndvi.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ssp370.diff.ndvi <- ggplot()+geom_sf(data=ndvi.ssp370.fit,aes(fill=ndvi.diff, col = ndvi.diff))+ 
   scale_fill_gradient2(low="#EEE9E9",mid="#FFFFBF",high = "#008B45",midpoint = 0, aesthetics = c("fill","col"),
-                       name = "Difference NDVI 1995-2050 under SSP370") + 
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = ssp370.diff.ndvi,filename = "WR/ssp370.ndvi.diff.png",dpi = "retina", width = 30, height = 90, units = "cm")
+                       name = "Difference NDVI 1995-2050\n under SSP370") + 
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp370.diff.ndvi,filename = "WR/ssp370.ndvi.diff.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ssp370.ndvi <- ggplot()+geom_sf(data=ndvi.ssp370.fit,aes(fill=ndvi,col=ndvi)) + 
   scale_fill_gradient2(low="#EEE9E9",mid="#FFFFBF",high = "#008B45",midpoint = 0, aesthetics = c("fill","col"),
                        name = "NDVI 2050 under SSP370") + 
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = ssp370.ndvi,filename = "WR/ssp370.ndvi.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp370.ndvi,filename = "WR/ssp370.ndvi.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ```
 
@@ -827,14 +843,16 @@ ssp126.runoff <- readRDS("WR/ssp126.runoff.rds")
 ssp370.runoff <- readRDS("WR/ssp370.runoff.rds")
 
 ssp126.runoff.plot <- ggplot()+geom_sf(data = st_as_sf(ssp126.runoff),aes(fill=runoff126,col=runoff126))+ 
-  scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Average runoff 2041-2060 under SSP126 in mm/year")+
-  theme_minimal(base_size = 15)+theme(legend.position = "bottom", legend.text = element_text(size =8))
-ggsave(plot = ssp126.runoff.plot , filename = "WR/ssp126.runoff.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Average runoff 2041-2060\n under SSP126 in mm/year")+
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp126.runoff.plot , filename = "WR/ssp126.runoff.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ssp370.runoff.plot <- ggplot()+geom_sf(data = st_as_sf(ssp370.runoff),aes(fill=runoff370,col=runoff370))+ 
-  scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Average runoff 2041-2060 under SSP370 in mm/year")+
-  theme_minimal(base_size = 15)+theme(legend.position = "bottom", legend.text = element_text(size =8))
-ggsave(plot = ssp370.runoff.plot , filename = "WR/ssp370.runoff.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Average runoff 2041-2060\n under SSP370 in mm/year")+
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = ssp370.runoff.plot , filename = "WR/ssp370.runoff.png",dpi = "retina", width = 6, height = 8, units = "cm")
 ```
 
 ```{r future-wr}
@@ -891,17 +909,28 @@ wr.ssp126$toc <- 10^wr.ssp126$fit
 map.toc.126 <- ggplot()+geom_sf(data = wr.ssp126, aes(fill = toc, col = toc))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
                        name = "Modelled TOC in 2050 under SSP126 (mg/L)")+
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = map.toc.126, filename = "WR/map.toc.126.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.toc.126, filename = "WR/map.toc.126.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 map.log.toc.126 <- ggplot()+geom_sf(data = wr.ssp126, aes(fill = fit, col = fit))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1,
                        name = "Modelled log(TOC) in 2050 under SSP126")+
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = map.log.toc.126, filename = "WR/map.log.toc.126.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.log.toc.126, filename = "WR/map.log.toc.126.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
+head(wr.ssp126)
+
+wr.ssp126.bis <- merge(wr.ssp126,st_drop_geometry(dplyr::select(sem.pred.wr, c("gid","fit.toc"))), by = "gid")
+wr.ssp126.bis$toc.diff <- wr.ssp126.bis$toc - wr.ssp126.bis$fit.toc
+
+map.toc.diff.126 <- ggplot()+geom_sf(data = wr.ssp126.bis, aes(fill = toc.diff, col = toc.diff))+
+  scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1,
+                       name = "Difference TOC concentration 1995-2050\n under SSP126")+
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.toc.diff.126, filename = "WR/map.toc.diff.126.png",dpi = "retina", width = 6, height = 8, units = "cm")
 ```
 
 ```{r sem-model-toc-ssp370-2050}
@@ -918,16 +947,16 @@ wr.ssp370$toc <- 10^wr.ssp370$fit
 map.toc.370 <- ggplot()+geom_sf(data = wr.ssp370, aes(fill = toc, col = toc))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1,
                        name = "Modelled TOC in 2050 under SSP370 (mg/L)")+
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = map.toc.370, filename = "WR/map.toc.370.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.toc.370, filename = "WR/map.toc.370.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 map.log.toc.370 <- ggplot()+geom_sf(data = wr.ssp370, aes(fill = fit, col = fit))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1,
                        name = "Modelled log(TOC) in 2050 under SSP370")+
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
-ggsave(plot = map.log.toc.370, filename = "WR/map.log.toc.370.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.log.toc.370, filename = "WR/map.log.toc.370.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ```
 
@@ -950,15 +979,15 @@ wr.forest.pred$toc <- 10^wr.forest.pred$pred.forest.fit
 map.toc.forest <- ggplot()+geom_sf(data = wr.forest.pred, aes(fill = toc, col = toc))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
                        name = "Modelled TOC with increase of forest cover (mg/L)")+
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom", legend.text = element_text(size = 8))
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
 
-ggsave(plot = map.toc.forest, filename = "WR/map.toc.forest.png",dpi = "retina", width = 30, height = 90, units = "cm")
+ggsave(plot = map.toc.forest, filename = "WR/map.toc.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 map.log.toc.forest <- ggplot()+geom_sf(data = wr.forest.pred, aes(fill = pred.forest.fit, col = pred.forest.fit))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, name = "Modelled log(TOC) with increase of forest cover")+
-  theme_minimal(base_size = 15)+
-  theme(legend.position = "bottom",legend.text = element_text(size = 8))
-ggsave(plot = map.log.toc.forest, filename = "WR/map.log.toc.forest.png",dpi = "retina", width = 30, height = 90, units = "cm")
+  theme_minimal(base_size = 4)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.log.toc.forest, filename = "WR/map.log.toc.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 ```
 
@@ -975,14 +1004,14 @@ wr.sf.4$effect.runoff.370 <- wr.sf.4$fit.log.toc*(10^(sem.coef[2,1]*wr.sf.4$perc
 legend.limit <- c(0, max(c(wr.sf.4$effect.ndvi.126,wr.sf.4$effect.ndvi.370,wr.sf.4$effect.runoff.126,wr.sf.4$effect.runoff.370)))
 
 map.ndvi <- ggplot()+geom_sf(data = wr.sf.4, aes(fill = effect.ndvi.126, col = effect.ndvi.126))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = legend.limit)+theme_minimal()
-ggsave(plot = map.ndvi, filename = "WR/effect.ndvi.png",dpi = "retina", width = 30, height = 90, units = "cm")
+ggsave(plot = map.ndvi, filename = "WR/effect.ndvi.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 map.ndvi.370 <- ggplot()+geom_sf(data = wr.sf.4, aes(fill = effect.ndvi.370, col = effect.ndvi.370))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = legend.limit)+theme_minimal()
-ggsave(plot = map.ndvi, filename = "WR/effect.ndvi.370.png",dpi = "retina", width = 30, height = 90, units = "cm")
+ggsave(plot = map.ndvi, filename = "WR/effect.ndvi.370.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 map.runoff.126 <- ggplot()+geom_sf(data = wr.sf.4, aes(fill = effect.runoff.126, col = effect.runoff.126))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1,limits = legend.limit)+theme_minimal()
-ggsave(plot = map.runoff, filename = "WR/effect.runoff.126.png",dpi = "retina", width = 30, height = 90, units = "cm")
+ggsave(plot = map.runoff, filename = "WR/effect.runoff.126.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 map.runoff.370 <- ggplot()+geom_sf(data = wr.sf.4, aes(fill = effect.runoff.370, col = effect.runoff.370))+scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1,limits = legend.limit)+theme_minimal()
-ggsave(plot = map.runoff, filename = "WR/effect.runoff.370.png",dpi = "retina", width = 30, height = 90, units = "cm")
+ggsave(plot = map.runoff, filename = "WR/effect.runoff.370.png",dpi = "retina", width = 6, height = 8, units = "cm")
 ```
