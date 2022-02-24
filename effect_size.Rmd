@@ -40,7 +40,9 @@ Three statistical models are used in this article.
 
 We first fit a multiple linear regression model, of the form:
 
-$y_i = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + ... + \varepsilon_i$
+$$
+y_i = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + ... + \varepsilon_i
+$$
 
 The regression coefficients are easy to interpret as the effect of one predictor on the dependent variable, holding all the other predictors fixed @Casella2013. It is also the model that requires the least computing. It was fitted with the base package in R. 
 
@@ -51,7 +53,7 @@ $$y = X \beta + u$$
 
 Where $u$ is the error vector, having the form:
 
-$u = \rho Mu +\varepsilon$
+$$u = \rho Mu +\varepsilon$$
 
 \rho is the scalar spatial autoregressive parameter. Mu is a vector of observations on the spatially lagged vector of residuals, defined thanks to the weight matrix M?
 
@@ -96,9 +98,9 @@ $Std(h(\hat{\theta})) = \sqrt{\left( \frac{\delta h(\theta)}{\delta \hat{\theta}
 
 $Std(h(\hat{\theta})) = \frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} \times Std(\hat{\theta})$
 
-$\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = ln(10) \times 10^{\hat{\theta} \times 0.1} \times 0.1$
+$\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = 0.1 \times exp({\hat{\theta} \times 0.1})$
 
-$Std(h(\hat{\theta})) = 0.1 \times ln(10) \times 10^{\hat{\theta} \times 0.1} \times Std(\hat{\theta})$
+$Std(h(\hat{\theta})) = 0.1 \times 10^{\hat{\theta} \times 0.1} \times Std(\hat{\theta})$
 
 
 
@@ -122,8 +124,8 @@ $Std(h(\hat{\theta})) = \sqrt{ \left( \frac{\delta h(\hat{\theta})}{\delta \hat{
 
 $Std(h(\hat{\theta})) = \frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} \times Std(\hat{\theta})$
 
-$\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = 1.1^{\hat{\theta}} \times ln(1.1) \times 0.1 \times 1$
+$\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = ln(1.1) \ times 1.1^{\hat{\theta}}$
 
-$Std(h(\hat{\theta})) = 1.1^{\hat{\theta}} \times ln(1.1) \times 0.1 \times 1 \times Std(\hat{\theta})$
+$Std(h(\hat{\theta})) = ln(1.1) \times 1.1^{\hat{\theta}} \times Std(\hat{\theta})$
 
 # References

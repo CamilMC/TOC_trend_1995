@@ -476,4 +476,13 @@ saveRDS(fennoscandia, "fennoscandia.Rdata")
 saveRDS(fennoscandia.spdf,"fennoscandia.spdf.Rdata")
 ```
 
+```{r convert-CRS, eval = F}
+catchment.poly <- readRDS("catchment.poly.Rdata")
+fennoscandia.cat <- merge(fennoscandia,catchment.poly, by = "ebint") %>% st_as_sf()
+fennoscandia.33 <- st_transform(fennoscandia.cat,st_crs(wr.sf.95))
+saveRDS(fennoscandia.33, "fennoscandia.33.rds")
 
+proj4string(fennoscandia.spdf) <- CRS("+proj=longlat +datum=WGS84")
+fennoscandia.33 <- spTransform(fennoscandia.spdf,CRS("+proj=utm +zone=33N +datum=WGS84")) %>% st_as_sf()
+ggplot(fennoscandia.33)+geom_sf(aes(fill = ndvi,col = ndvi))
+```
