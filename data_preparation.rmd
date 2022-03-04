@@ -447,24 +447,27 @@ Lots of 0 in N-dep, bogs and arable : not transformed
 
 
 ```{r log-transform, eval = F}
-fennoscandia <- readRDS("fennoscandia_raw")
+fennoscandia <- readRDS("fennoscandia_raw.rds")
 
-fennoscandia$log.toc <- log(fennoscandia$toc_mg_l) 
-fennoscandia$s.log.toc <- scale(fennoscandia$log.toc) 
-#fennoscandia$runoff <- fennoscandia$mean.runoff*365*24*60*60 # from kg/m2/s to kg/m2/year
-fennoscandia$log.runoff <- log(fennoscandia$runoff)  
-fennoscandia$s.log.runoff <- scale(fennoscandia$log.runoff)
-fennoscandia$ndvi <- fennoscandia$ndvi.value
-fennoscandia$s.ndvi <- scale(fennoscandia$ndvi.value)
-fennoscandia$s.bogs <- scale(fennoscandia$bogs)
-fennoscandia$s.arable <- scale(fennoscandia$arable)
-fennoscandia$s.forest <- scale(fennoscandia$forest)
-fennoscandia$temp <- fennoscandia$temp / 10 # divided by 10 because the temperature is stored in C*10
-fennoscandia$s.temp <-  scale(fennoscandia$temp) 
-fennoscandia$log.prec <- log(fennoscandia$prec+1e-5)
-fennoscandia$s.log.prec <- scale(fennoscandia$log.prec)
+v <- c("toc_mg_l","runoff","temp","prec","bogs","arable","forest","tndep")
+names(fennoscandia)[which(names(fennoscandia) %in% v)] <- c("TOC", "Runoff","Precip","Temp","Bog","Forest","Arable","TNdep")
+
+fennoscandia$logTOC <- log(fennoscandia$TOC) 
+fennoscandia$s.logTOC <- scale(fennoscandia$logTOC) 
+fennoscandia$Runoff <- fennoscandia$Runoff*365*24*60*60 # from kg/m2/s to kg/m2/year
+fennoscandia$logRunoff <- log(fennoscandia$Runoff)  
+fennoscandia$s.logRunoff <- scale(fennoscandia$logRunoff)
+fennoscandia$NDVI <- fennoscandia$ndvi.value
+fennoscandia$s.NDVI <- scale(fennoscandia$NDVI)
+fennoscandia$s.Bogs <- scale(fennoscandia$Bog)
+fennoscandia$s.Arable <- scale(fennoscandia$Arable)
+fennoscandia$s.Forest <- scale(fennoscandia$Forest)
+fennoscandia$Temp <- fennoscandia$Temp / 10 # divided by 10 because the temperature is stored in C*10
+fennoscandia$s.Temp <-  scale(fennoscandia$Temp) 
+fennoscandia$logPrecip <- log(fennoscandia$Precip+1e-5)
+fennoscandia$s.logPrecip <- scale(fennoscandia$logPrec)
 fennoscandia$s.slope <- scale(fennoscandia$slope)
-fennoscandia$s.tndep <- scale(fennoscandia$tndep)
+fennoscandia$s.TNdep <- scale(fennoscandia$TNdep)
 fennoscandia$rdn <- fennoscandia$drdn+fennoscandia$wrdn
 fennoscandia$oxn <- fennoscandia$doxn+fennoscandia$woxn
 fennoscandia$s.rdn <- scale(fennoscandia$rdn)
@@ -472,17 +475,17 @@ fennoscandia$s.oxn <- scale(fennoscandia$oxn)
 
 fennoscandia.spdf <- SpatialPointsDataFrame(fennoscandia[,c("longitude","latitude")],fennoscandia)
 
+fennoscandia$ndvi <- NULL
+
+
 saveRDS(fennoscandia, "fennoscandia.Rdata")
 saveRDS(fennoscandia.spdf,"fennoscandia.spdf.Rdata")
 ```
 
 ```{r convert-CRS, eval = F}
 catchment.poly <- readRDS("catchment.poly.Rdata")
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 fennoscandia.cat <- merge(fennoscandia,catchment.poly, by = "ebint") %>% st_as_sf()
 fennoscandia.33 <- st_transform(fennoscandia.cat,st_crs(wr.sf.95))
 saveRDS(fennoscandia.33, "fennoscandia.33.rds")
-
-proj4string(fennoscandia.spdf) <- CRS("+proj=longlat +datum=WGS84")
-fennoscandia.33 <- spTransform(fennoscandia.spdf,CRS("+proj=utm +zone=33N +datum=WGS84")) %>% st_as_sf()
-ggplot(fennoscandia.33)+geom_sf(aes(fill = ndvi,col = ndvi))
 ```
