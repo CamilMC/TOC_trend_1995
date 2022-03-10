@@ -605,7 +605,8 @@ all.wr.sf <- readRDS("WR/all.wr.sf.rds")
 
 wr.sf.95 <- all.wr.sf %>% filter(ndvi != 0) %>% filter(runoff > 0) %>% filter(is.na(bogs) == F) %>% filter(is.na(alt) == F)
 wr.sf.95 <- wr.sf.95[!duplicated(wr.sf.95$gid),]
-wr.sf.95$log.runoff <- log(wr.sf.95$runoff)
+wr.sf.95$Runoff <- wr.sf.95$runoff *365*24*60*60 # from kg/m2/s to kg/m2/year or mm/y
+wr.sf.95$logRunoff <- log(wr.sf.95$Runoff)
 
 
 #map.wr95 <- ggplot()+geom_sf(data = wr.sf.95, aes(fill = ndvi, col = ndvi))+
@@ -733,6 +734,20 @@ ssp370.temp.wr <- raster::extract(ssp370.cnrm.temp,select(wr.sf.95,c("gid","geom
 names(ssp370.temp.wr) <- c("gid", "temp370")
 saveRDS(ssp370.temp.wr,"WR/ssp370.temp.wr.rds")
 ```
+```{r extract-future-temp-2100, eval = F}
+wr.sf <- readRDS("WR/wr.sf.rds")
+
+raster.ssp126.temp.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp126_2081-2100.tif", band = 1)
+raster.ssp370.temp.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp370_2081-2100.tif", band = 1)
+
+ssp126.temp.2100 <- raster::extract(raster.ssp126.temp.2100,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm =T)
+names(ssp126.temp.2100) <- c("gid", "temp126.2100")
+saveRDS(ssp126.temp.2100,"WR/ssp126.temp.2100.rds")
+
+ssp370.temp.2100 <- raster::extract(raster.ssp370.temp.2100,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm = T)
+names(ssp370.temp.2100) <- c("gid", "temp370.2100")
+saveRDS(ssp370.temp.2100,"WR/ssp370.temp.2100.rds")
+```
 
 ```{r extract-future-prec, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
@@ -747,6 +762,21 @@ saveRDS(ssp126.prec.wr,"WR/ssp126.prec.wr.rds")
 ssp370.prec.wr <- raster::extract(ssp370.cnrm.prec,dplyr::select(wr.sf.95,c("gid","geometry")),fun=mean,df = T, sp = T, na.rm = T)
 names(ssp370.prec.wr) <- c("gid", "prec370")
 saveRDS(ssp370.prec.wr,"WR/ssp370.prec.wr.rds")
+```
+
+```{r extract-future-prec-2100, eval = F}
+wr.sf <- readRDS("WR/wr.sf.rds")
+
+raster.ssp126.prec.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp126_2081-2100.tif", band = 12)
+raster.ssp370.prec.2100.mean <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp370_2081-2100.tif", band = 12)
+
+ssp126.prec.2100 <- raster::extract(raster.ssp126.prec.2100,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm = T)
+names(ssp126.prec.2100) <- c("gid", "prec126.2100")
+saveRDS(ssp126.prec.2100,"WR/ssp126.prec.2100.rds")
+
+ssp370.prec.2100 <- raster::extract(raster.ssp370.prec.2100.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm = T)
+names(ssp370.prec.2100) <- c("gid", "prec370.2100")
+saveRDS(ssp370.prec.2100,"WR/ssp370.prec.2100.rds")
 ```
 
 ```{r merge-temp-prec, eval = F}
@@ -988,6 +1018,24 @@ names(ssp370.runoff) <- c("gid","runoff370")
 saveRDS(ssp370.runoff,"WR/ssp370.runoff.rds")
 ```
 
+```{r extract-future-runoff-2100, eval = F}
+wr.sf <- readRDS("WR/wr.sf.rds")
+
+raster.ssp126.runoff.2100 <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp126_r1i1p1f2_gr_201501-210012.nc", bands = c(805:1032))
+raster.ssp126.runoff.2100.mean <- raster.ssp126.runoff.2100 %>% mean() 
+
+ssp126.runoff.2100 <- raster::extract(raster.ssp126.runoff.2100.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
+names(ssp126.runoff.2100) <- c("gid","runoff126.2100")
+saveRDS(ssp126.runoff.2100,"WR/ssp126.runoff.2100.rds")
+
+raster.ssp370.runoff.2100 <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp370_r1i1p1f2_gr_201501-210012.nc", bands = c(805:1032))
+raster.ssp370.runoff.2100.mean <- raster.ssp370.runoff.2100 %>% mean()
+
+ssp370.runoff.2100 <- raster::extract(raster.ssp370.runoff.2100.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
+names(ssp370.runoff.2100) <- c("gid","runoff370.2100")
+saveRDS(ssp370.runoff.2100,"WR/ssp370.runoff.2100.rds")
+```
+
 ### Plots
 
 ```{r plot-future-runoff, eval = F}
@@ -995,32 +1043,37 @@ ssp126.runoff <- readRDS("WR/ssp126.runoff.rds")
 ssp370.runoff <- readRDS("WR/ssp370.runoff.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
-runoff.126 <- merge(select(wr.sf.95,c("gid","runoff","log.runoff")),ssp126.runoff, by = "gid")
-runoff.370 <- merge(select(wr.sf.95,c("gid","runoff","log.runoff")),ssp370.runoff, by = "gid")
+ssp126.runoff$Runoff126 <- ssp126.runoff$runoff126 *365*24*60*60
+ssp370.runoff$Runoff370 <- ssp370.runoff$runoff370 *365*24*60*60
 
-limits.runoff <- c(min(c(runoff.126$runoff126,runoff.370$runoff370)), max(c(runoff.126$runoff126,runoff.370$runoff370)))
-limits.diff.runoff <- c(min(c(runoff.126$runoff126-runoff.126$runoff,runoff.370$runoff370-runoff.370$runoff)), max(c(runoff.126$runoff126-runoff.126$runoff,runoff.370$runoff370-runoff.370$runoff)))
 
-ssp126.runoff.plot <- ggplot()+geom_sf(data = runoff.126,aes(fill=runoff126,col=runoff126))+ 
+
+runoff.126 <- merge(select(wr.sf.95,c("gid","Runoff","logRunoff")),ssp126.runoff, by = "gid")
+runoff.370 <- merge(select(wr.sf.95,c("gid","Runoff","logRunoff")),ssp370.runoff, by = "gid")
+
+limits.runoff <- c(min(c(runoff.126$Runoff126,runoff.370$Runoff370)), max(c(runoff.126$Runoff126,runoff.370$Runoff370)))
+limits.diff.runoff <- c(min(c(runoff.126$Runoff126-runoff.126$Runoff,runoff.370$Runoff370-runoff.370$Runoff)), max(c(runoff.126$Runoff126-runoff.126$Runoff,runoff.370$Runoff370-runoff.370$Runoff)))
+
+ssp126.runoff.plot <- ggplot()+geom_sf(data = runoff.126,aes(fill=Runoff126,col=Runoff126))+ 
   scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Average runoff 2041-2060\n under SSP126 in mm/s", limits = limits.runoff)+
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
 ggsave(plot = ssp126.runoff.plot , filename = "WR/ssp126.runoff.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
-ssp126.runoff.diff <- ggplot()+geom_sf(data = runoff.126,aes(fill=runoff126-runoff,col=runoff126-runoff))+ 
+ssp126.runoff.diff <- ggplot()+geom_sf(data = runoff.126,aes(fill=Runoff126-Runoff,col=Runoff126-Runoff))+ 
   scale_fill_gradient2(low="#B03060",mid="#FFFAFA",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Difference runoff 1995-2050\n under SSP126 in mm/s", limits = limits.diff.runoff)+
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
 ggsave(plot = ssp126.runoff.diff , filename = "WR/ssp126.runoff.diff.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
-ssp370.runoff.plot <- ggplot()+geom_sf(data = runoff.370,aes(fill=runoff370,col=runoff370))+ 
+ssp370.runoff.plot <- ggplot()+geom_sf(data = runoff.370,aes(fill=Runoff370,col=Runoff370))+ 
   scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Average runoff 2041-2060\n under SSP370 in mm/s", limits = limits.runoff)+
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
 ggsave(plot = ssp370.runoff.plot , filename = "WR/ssp370.runoff.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
-ssp370.runoff.diff <- ggplot()+geom_sf(data = runoff.370,aes(fill=runoff370-runoff,col=runoff370-runoff))+ 
-  scale_fill_gradient2(low="#B03060",mid="#FFFAFA",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Difference runoff 1995-2050\n under SSP370 in mm/s", limits = limits.diff.runoff)+
+ssp370.runoff.diff <- ggplot()+geom_sf(data = runoff.370,aes(fill=Runoff370-Runoff,col=Runoff370-Runoff))+ 
+  scale_fill_gradient2(low="#B03060",mid="#FFFAFA",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Difference runoff 1995-2050\n under SSP370 in mm/y", limits = limits.diff.runoff)+
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
 ggsave(plot = ssp370.runoff.diff, filename = "WR/ssp370.runoff.diff.png",dpi = "retina", width = 6, height = 8, units = "cm")
@@ -1195,16 +1248,52 @@ ggsave(plot = map.fit.forest, filename = "WR/wr.toc.forest.png",dpi = "retina", 
 
 ```{r sem-forest-model-toc-2050, eval = F}
 sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
-sem.pred.forest.wr <- readRDS("sem.pred.forest.wr.rds")
+sem.pred.forest.wr <- readRDS("WR/sem.pred.forest.wr.rds")
 fm <- log.toc~forest+log.runoff+bogs
+
 
 wr.sf.forest <- sem.pred.forest.wr
 x <- sem.pred.forest.wr$forest
-y <- x + (1-x)*x
+increase <- -log(x)*(1-x)*x/10
+
+# -log(x) a greater increase for smaller values (x < 1)
+# (1-x) ensures f(1) = 0
+# x ensures f(0) = 0
+# / 10 ensures with stay in the litterature range of the increase
+
+mean(increase,na.rm = T)
+
+y <- x + increase
+plot(x,increase)
+plot(x,y)
+
+test.forest <- data.frame(init = x, inc = increase, end = y)
+test.forest$inc[which(is.na(test.forest$inc) == T)] <- 0
+mean(test.forest$inc)
+mean(filter(test.forest,init > 0.6)$inc)
+
+```
+
+```{r }
 wr.sf.forest$forest <- y
 wr.sf.forest$forest0 <- wr.sf.95$forest
+wr.sf.forest$area <- st_area(wr.sf.forest$geometry)
+noforest <- filter(wr.sf.forest,forest0 == 0)
+dplyr::select(noforest,c("gid","area")) 
 
+ggplot(noforest[which.max(noforest$area),])+geom_sf(aes(fill=as.factor(gid)))
+weird.gid <- noforest$gid[which.max(noforest$area)]
+weird.cat <- wr.sf.forest %>% filter(gid == weird.gid) %>% st_transform(CRS("EPSG:3035"))
 
+corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
+
+weird.clc <- raster::extract(corine,weird.cat)
+  name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
+  saveRDS(clc,name.x)
+clc.tab <- sapply(clc, function(x) tabulate(x,45))
+clc.tab.area <- clc.tab*prod(res(corine))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
 
 pred.forest <- predict(sem.forest.fen,wr.sf.forest,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
 
@@ -1216,12 +1305,12 @@ saveRDS(wr.forest.pred,"wr.forest.pred.rds")
 ```{r plot-forest}
 wr.forest.pred <- readRDS("wr.forest.pred.rds")
 
-# map.forest <- ggplot(wr.forest.pred)+geom_sf(aes(fill = forest, col = forest))+
-#   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
-#                        name = "Forest proportion")+
-#   theme_minimal(base_size = 6)+
-#   theme(legend.position = "bottom")
-# ggsave(plot = map.forest, filename = "WR/map.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
+ map.forest <- ggplot(wr.forest.pred)+geom_sf(aes(fill = forest, col = forest))+
+   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
+                        name = "Forest proportion")+
+   theme_minimal(base_size = 6)+
+   theme(legend.position = "bottom")
+ggsave(plot = map.forest, filename = "WR/map.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
 map.diff.forest <- ggplot(wr.forest.pred)+geom_sf(aes(fill = forest-forest0, col = forest-forest0))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
