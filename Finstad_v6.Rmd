@@ -57,6 +57,36 @@ norge <- fennoscandia %>% filter(nation == "Norway")
 memory.limit(size = 100000)
 fig_nums <- captioner() 
 table_nums <- captioner(prefix = "Table")
+
+compute.effect.size <- function(df.coef){
+
+df.es <- df.coef[,1:3]
+n <- length(df.es$Parameter)
+m <- df.es$Parameter
+
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    df.es[i,2] <- 1.01^(df.coef[i,2])
+    df.es[i,3] <- 1.01^(df.coef[i,2])*log(1.01)*df.coef[i,3]
+  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest")){
+    df.es[i,2] <- exp(df.coef[i,2]*0.01)
+    df.es[i,3] <- 0.01*df.coef[i,2]*df.coef[i,3]
+  }else if(m[i] %in% c("TNdep")){
+    df.es[i,2] <- exp(df.coef[i,2]*25)
+    df.es[i,3] <- 25*exp(df.coef[i,2]*25)*df.coef[i,3]
+  }
+}
+
+df.es$Percent <- 100*(df.es$Estimate-1)
+
+return(df.es)
+
+}
+
+# other es
+eslog <- 1.01
+es <- 0.01
 ```
 
 # Introduction 
@@ -105,6 +135,12 @@ The LM and SELM models are fitted both on scaled and unscaled variables. The sca
 Future changes in DOM concentrations are forecasted using the fitted spatial error linear models based on main predictors. Future runoff scenarios of TOC are predicted based on predicted changes in future surface runoff. Future NDVI is modelled based on temperature and precipitation derived from CRNM, since no forecast exist for this index. The proportion of bogs is not expected to change, therefore no changes are made regarding their future evolution.
 
 Polygons representing the water regions, were used to cover the whole territory of Fennoscandia, rather than only the catchments of the lakes included in the Northern Lake Survey. Water regions are the ensemble of the watercourse that drain to the sea within a coastal section.@NVE The water regions were computed from an elevation model (ref Anders). After cleaning, the dataset consisted of 1 392 polygons (see Supplementary 3).
+
+```{r summary-of-models}
+mymodels <- data.frame(Model = c("OLS (6)", "SELM (6)", "SELM (3)", "SELM (3F)", "GWR (3)", "GWR (3F)"), NSF = c("Y", "Y", "Y", "Y", "Y", "Y"), Norway = c("N", "N", "Y", "Y", "N", "N"), Estimates = c("S/U", "S/U", "S/U", "S/U", "U", "U")) 
+knitr::kable(mymodels)
+
+```
 
 
 # Results
@@ -263,7 +299,7 @@ Both models were fitted with and without scaled variables. The effect size calcu
 ```{r lm-fennoscandia, results = T}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
-fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bogs+s.Arable+s.Forest+s.TNdep
+fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bog+s.Arable+s.Forest+s.TNdep
 s.lm.fennoscandia <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
 saveRDS(s.lm.fennoscandia,"s.lm.fennoscandia.rds")
 
@@ -285,25 +321,7 @@ s.lm.coef <- s.lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
 lm.coef <- summary(lm.fennoscandia)$coefficients %>% as.data.frame()
 lm.coef <- lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
 
-lm.effectsize <- lm.coef[,1:3]
-
-n <- length(lm.coef$Parameter)
-m <- lm.coef$Parameter
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    lm.effectsize[i,2] <- 1.1^(lm.coef[i,2])
-    lm.effectsize[i,3] <- 1.1^(lm.coef[i,2])*log(1.1)*lm.coef[i,3]
-  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest")){
-    lm.effectsize[i,2] <- exp(lm.coef[i,2]*0.1)
-    lm.effectsize[i,3] <- 0.1*lm.coef[i,2]*lm.coef[i,3]
-  }else if(m[i] %in% c("TNdep")){
-    lm.effectsize[i,2] <- exp(lm.coef[i,2]*250)
-    lm.effectsize[i,3] <- 250*exp(lm.coef[i,2]*250)*lm.coef[i,3]
-  }
-}
-
-lm.effectsize$Percent <- 100*(lm.effectsize$Estimate-1)
+lm.effectsize <- compute.effect.size(lm.coef)
 
 ```
 
@@ -347,7 +365,7 @@ k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
 #lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
 
-fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bogs+s.Arable+s.Forest+s.TNdep
+fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bog+s.Arable+s.Forest+s.TNdep
 s.sem.fennoscandia <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
 saveRDS(s.sem.fennoscandia,"s.sem.fennoscandia.Rdata")
 
@@ -372,28 +390,30 @@ sem.coef <- sem.fennoscandia$coefficients[-1] %>% as.data.frame() %>%
 sem.coef <- sem.coef %>% rownames_to_column(var = "Parameter")
 sem.coef$std.error <- sem.fennoscandia$rest.se[-1]
 
-sem.effectsize <- sem.coef[,1:3]
+sem.effectsize <- compute.effect.size(sem.coef)
 
-n <- length(sem.coef$Parameter)
-m <- sem.coef$Parameter
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    sem.effectsize[i,2] <- 1.1^(sem.coef[i,2])
-    sem.effectsize[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef[i,3]
-  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest")){
-    sem.effectsize[i,2] <- exp(sem.coef[i,2]*0.1)
-    sem.effectsize[i,3] <- 0.1*exp(sem.coef[i,2]*0.1)*sem.coef[i,3]
-  }else if (m[i] %in% c("slope","Temp")){
-    sem.effectsize[i,2] <- exp(sem.coef[i,2]*1)
-    sem.effectsize[i,3] <- 1*exp(sem.coef[i,2]*1)*sem.coef[i,3]
-  }else if(m[i] %in% c("TNdep")){
-    sem.effectsize[i,2] <- exp(sem.coef[i,2]*250)
-    sem.effectsize[i,3] <- 250*exp(sem.coef[i,2]*250)*sem.coef[i,3]
-  }
-}
-
-sem.effectsize$Percent <- 100*(sem.effectsize$Estimate-1)
+# sem.effectsize <- sem.coef[,1:3]
+# 
+# n <- length(sem.coef$Parameter)
+# m <- sem.coef$Parameter
+# 
+# for(i in 1:n){
+#   if(grepl("log",m[i])==T){
+#     sem.effectsize[i,2] <- 1.1^(sem.coef[i,2])
+#     sem.effectsize[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef[i,3]
+#   }else if(m[i] %in% c("NDVI","Bog","Arable","Forest")){
+#     sem.effectsize[i,2] <- exp(sem.coef[i,2]*0.1)
+#     sem.effectsize[i,3] <- 0.1*exp(sem.coef[i,2]*0.1)*sem.coef[i,3]
+#   }else if (m[i] %in% c("slope","Temp")){
+#     sem.effectsize[i,2] <- exp(sem.coef[i,2]*1)
+#     sem.effectsize[i,3] <- 1*exp(sem.coef[i,2]*1)*sem.coef[i,3]
+#   }else if(m[i] %in% c("TNdep")){
+#     sem.effectsize[i,2] <- exp(sem.coef[i,2]*250)
+#     sem.effectsize[i,3] <- 250*exp(sem.coef[i,2]*250)*sem.coef[i,3]
+#   }
+# }
+# 
+# sem.effectsize$Percent <- 100*(sem.effectsize$Estimate-1)
 
 s.sem.AIC <- 2*(n-1)-2*s.sem.fennoscandia$LL
 sem.AIC <- 2*(n-1)-2*sem.fennoscandia$LL
@@ -450,11 +470,11 @@ cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 
 The effect sizes are expressed as % change in TOC concentration caused by a 10% increase in NDVI (0.1 on the NDVI index), runoff, bog and forest coverage and arable land (proportion increase of 0.1), and a 250 ug/m2  increase of nitrogen deposition (10% of the range of TNdep), respectively. These relative changes are arbitrarily chosen to represent the impact of each predictor variable on a comparable basis.
 
-The scaled and effect size estimates are positive for an increase in NDVI, Bogs, Forest, Arable land and TN-dep, while the response is negative for an increase in log Runoff (`r fig_nums("compare-plots-1", display = "c")`). The SELM, having lower AIC (relative model fit) and Moran’s I (spatial autocorrelation) of the residuals , performs better than the LM, both with scaled and with unscaled variables. The estimates values by the two models are similar, though the LM tends to give higher values than the SELM. 
+The scaled and effect size estimates are positive for an increase in NDVI, , Forest, Arable land and TN-dep, while the response is negative for an increase in log Runoff (`r fig_nums("compare-plots-1", display = "c")`). The SELM, having lower AIC (relative model fit) and Moran’s I (spatial autocorrelation) of the residuals , performs better than the LM, both with scaled and with unscaled variables. The estimates values by the two models are similar, though the LM tends to give higher values than the SELM. 
 
 NDVI and log Runoff have the highest scaled response estimates (`r fig_nums("compare-plots-1", display = "c")`), with a significant difference between the LM and SELM. For these two parameters, the spatial lagged SELM provides lower response estimates, suggesting that using a LM over a varied region may over-estimate the impact of these parameters. Log Runoff has high scaled estimates but the effect size is low compared to the other parameters (`r round(s.lm.coef[which(s.lm.coef$Parameter == "s.logRunoff"), which(names(s.lm.coef) == "Estimate")],2)` for LM and `r round(s.sem.coef[which(s.sem.coef$Parameter == "s.logRunoff"), which(names(s.sem.coef) == "Estimate")],2)` for SELM).
 
-Proportion of Bogs, Forest, and TN-dep have similar scaled estimate between 0,15 and 0,21, though their effect size differ significantly (`r fig_nums("compare-plots-1", display = "c")`). An 10% increase in the proportion of bog coverage would have a major impact, though this is  an unrealistic change, except in the case of local peat restoration project. A more realistic 10% increase in forest cover  will have a relative more limited though still clearly significant impact on the TOC: `r round(lm.effectsize[which(lm.effectsize$Parameter == "Forest"), which(names(lm.effectsize) == "Percent")],2)`% by LM and `r round(sem.effectsize[which(sem.effectsize$Parameter == "Forest"), which(names(sem.effectsize) == "Percent")],2)`% for SELM. TN-dep has the lowest effect size with about a `r round(sem.effectsize[which(sem.effectsize$Parameter == "TNdep"), which(names(sem.effectsize) == "Percent")],2)` % increase in TOC due to a 250 ug/m2 increase in reactive N loading. Although the annual Total N-deposition from long-range transported air pollution slowly decreases, the amount of reactive N continues to accumulate in these boral watersheds. Moreover, the use of Nitrogen fertilizers to increase forest production will serve to sustain  high N-saturation levels. 
+Proportion of , Forest, and TN-dep have similar scaled estimate between 0,15 and 0,21, though their effect size differ significantly (`r fig_nums("compare-plots-1", display = "c")`). An 10% increase in the proportion of bog coverage would have a major impact, though this is  an unrealistic change, except in the case of local peat restoration project. A more realistic 10% increase in forest cover  will have a relative more limited though still clearly significant impact on the TOC: `r round(lm.effectsize[which(lm.effectsize$Parameter == "Forest"), which(names(lm.effectsize) == "Percent")],2)`% by LM and `r round(sem.effectsize[which(sem.effectsize$Parameter == "Forest"), which(names(sem.effectsize) == "Percent")],2)`% for SELM. TN-dep has the lowest effect size with about a `r round(sem.effectsize[which(sem.effectsize$Parameter == "TNdep"), which(names(sem.effectsize) == "Percent")],2)` % increase in TOC due to a 250 ug/m2 increase in reactive N loading. Although the annual Total N-deposition from long-range transported air pollution slowly decreases, the amount of reactive N continues to accumulate in these boral watersheds. Moreover, the use of Nitrogen fertilizers to increase forest production will serve to sustain  high N-saturation levels. 
 
 A 10% increase in the proportion of arable land has a low scaled estimate (`r round(s.lm.coef[which(s.lm.coef$Parameter == "Arable"), which(names(s.lm.coef) == "Percent")],2)`) by LM and `r round(sem.effectsize[which(sem.coef$Parameter == "Arable"), which(names(sem.coef) == "Percent")],2)` for SELM. The effect size is however comparable to the effect of a 10% increase of forest for the LM model (`r round(lm.effectsize[which(lm.effectsize$Parameter == "Arable"), which(names(lm.effectsize) == "Percent")],2)` %) , albeit it remains lower for the SELM model (`r round(sem.effectsize[which(sem.effectsize$Parameter == "Arable"), which(names(sem.effectsize) == "Percent")],2)` %). The unscaled estimates for Forest and Arable are similar, while the scaled estimate of Arable is ten times smaller than the scaled estimate for Forest, the standard deviation of the proportion of arable land being much bigger. 
 
@@ -480,11 +500,11 @@ saveRDS(norge.kmat,"norge.kmat.Rdata")
 ```{r sem-simple-norway, eval = F}
 norge.kmat <- readRDS("norge.kmat.Rdata")
 
-s.fm <- s.log.toc~s.ndvi+s.log.runoff+s.bogs
+s.fm <- s.logTOC~s.NDVI+s.logRunoff+s.Bog
 s.sem.norge.simple <- errorsarlm(s.fm,norge,norge.kmat)
 saveRDS(s.sem.norge.simple,"s.sem.norge.simple.Rdata")
 
-fm <- log.toc~ndvi+log.runoff+bogs
+fm <- logTOC~NDVI+logRunoff+Bog
 sem.norge.simple <- errorsarlm(fm,norge,norge.kmat)
 saveRDS(sem.norge.simple,"sem.norge.simple.Rdata")
 
@@ -506,25 +526,27 @@ sem.coef.norge <- sem.norge.simple$coefficients[-1] %>% as.data.frame() %>%
 sem.coef.norge <- sem.coef.norge %>% rownames_to_column(var = "Parameter")
 sem.coef.norge$std.error <- sem.norge.simple$rest.se[-1]
 
-sem.effectsize.norge <- sem.coef.norge[,1:3]
+sem.effectsize.norge <- compute.effect.size(sem.coef.norge)
 
-n <- length(sem.coef.norge$Parameter)
-m <- sem.coef.norge$Parameter
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    sem.effectsize.norge[i,2] <- 1.1^(sem.coef.norge[i,2])
-    sem.effectsize.norge[i,3] <- 1.1^(sem.coef.norge[i,2])*log(1.1)*sem.coef.norge[i,3]
-  }else if(m[i] %in% c("ndvi","bogs","arable")){
-    sem.effectsize.norge[i,2] <- exp(sem.coef.norge[i,2]*0.1)
-    sem.effectsize.norge[i,3] <- 0.1*exp(sem.coef.norge[i,2]*0.1)*sem.coef.norge[i,3]
-  }else if(m[i] %in% c("slope","temp","tndep")){
-    sem.effectsize.norge[i,2] <- exp(sem.coef.norge[i,2]*1)
-    sem.effectsize.norge[i,3] <- 1*exp(sem.coef.norge[i,2]*1)*sem.coef.norge[i,3]
-  }
-}
-
-sem.effectsize.norge$Percent <- 100*(sem.effectsize.norge$Estimate-1)
+# sem.effectsize.norge <- sem.coef.norge[,1:3]
+# 
+# n <- length(sem.coef.norge$Parameter)
+# m <- sem.coef.norge$Parameter
+# 
+# for(i in 1:n){
+#   if(grepl("log",m[i])==T){
+#     sem.effectsize.norge[i,2] <- 1.1^(sem.coef.norge[i,2])
+#     sem.effectsize.norge[i,3] <- 1.1^(sem.coef.norge[i,2])*log(1.1)*sem.coef.norge[i,3]
+#   }else if(m[i] %in% c("NDVI","Bog","Arable")){
+#     sem.effectsize.norge[i,2] <- exp(sem.coef.norge[i,2]*0.1)
+#     sem.effectsize.norge[i,3] <- 0.1*exp(sem.coef.norge[i,2]*0.1)*sem.coef.norge[i,3]
+#   }else if(m[i] %in% c("Temp","TNdep")){
+#     sem.effectsize.norge[i,2] <- exp(sem.coef.norge[i,2]*1)
+#     sem.effectsize.norge[i,3] <- 1*exp(sem.coef.norge[i,2]*1)*sem.coef.norge[i,3]
+#   }
+# }
+# 
+# sem.effectsize.norge$Percent <- 100*(sem.effectsize.norge$Estimate-1)
 
 s.sem.AIC.norge <- 2*(n-1)-2*s.sem.norge.simple$LL
 s.moran.I.res.sem.norge <- moran.test(s.sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
@@ -543,11 +565,11 @@ saveRDS(summary.table.sem.norge, "summary.table.sem.norge.rds")
 ```{r sem-simple-fennosandia, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
-s.fm <- s.log.toc~s.ndvi+s.log.runoff+s.bogs
+s.fm <- s.logTOC~s.NDVI+s.logRunoff+s.Bog
 s.sem.fen.simple <- errorsarlm(s.fm,fennoscandia,k.neigh.w)
 saveRDS(s.sem.fen.simple,"s.sem.fen.simple.Rdata")
 
-fm <- log.toc~ndvi+log.runoff+bogs
+fm <- logTOC~NDVI+logRunoff+Bog
 sem.fen.simple <- errorsarlm(fm,fennoscandia,k.neigh.w)
 saveRDS(sem.fen.simple,"sem.fen.simple.Rdata")
 
@@ -568,22 +590,24 @@ sem.coef.simple <- sem.fen.simple$coefficients[-1] %>% as.data.frame() %>%
 sem.coef.simple <- sem.coef.simple %>% rownames_to_column(var = "Parameter")
 sem.coef.simple$std.error <- sem.fen.simple$rest.se[-1]
 
-sem.effectsize.fen <- sem.coef.simple[,1:3]
+sem.effectsize.fen <- compute.effect.size(sem.coef.simple)
 
-n <- length(sem.coef.simple$Parameter)
-m <- sem.coef.simple$Parameter
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    sem.effectsize.fen[i,2] <- 1.1^(sem.coef.simple[i,2])
-    sem.effectsize.fen[i,3] <- 1.1^(sem.coef.simple[i,2])*log(1.1)*sem.coef.simple[i,3]
-  }else if(m[i] %in% c("NDVI","Bog","Forest")){
-    sem.effectsize.fen[i,2] <- exp(sem.coef.simple[i,2]*0.1)
-    sem.effectsize.fen[i,3] <- 0.1*exp(sem.coef.simple[i,2]*0.1)*sem.coef.simple[i,3]
-  }
-}
-
-sem.effectsize.fen$Percent <- 100*(sem.effectsize.fen$Estimate-1)
+# sem.effectsize.fen <- sem.coef.simple[,1:3]
+# 
+# n <- length(sem.coef.simple$Parameter)
+# m <- sem.coef.simple$Parameter
+# 
+# for(i in 1:n){
+#   if(grepl("log",m[i])==T){
+#     sem.effectsize.fen[i,2] <- 1.1^(sem.coef.simple[i,2])
+#     sem.effectsize.fen[i,3] <- 1.1^(sem.coef.simple[i,2])*log(1.1)*sem.coef.simple[i,3]
+#   }else if(m[i] %in% c("NDVI","Bog","Forest")){
+#     sem.effectsize.fen[i,2] <- exp(sem.coef.simple[i,2]*0.1)
+#     sem.effectsize.fen[i,3] <- 0.1*exp(sem.coef.simple[i,2]*0.1)*sem.coef.simple[i,3]
+#   }
+# }
+# 
+# sem.effectsize.fen$Percent <- 100*(sem.effectsize.fen$Estimate-1)
 
 s.sem.AIC <- 2*(n-1)-2*s.sem.fen.simple$LL
 s.moran.I.res.sem <- moran.test(s.sem.fen.simple$residuals, k.neigh.w, alternative = "two.sided")
@@ -645,7 +669,7 @@ Likewise, the scaled estimates and effect sizes of the 3-variable SELM model are
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
 norge.kmat <- readRDS("norge.kmat.Rdata")
 
-fm <- log.toc ~ forest+log.runoff+bogs
+fm <- logTOC ~ Forest+logRunoff+Bog
 
 sem.forest.fen <- errorsarlm(fm, data = fennoscandia,k.neigh.w)
 
@@ -667,22 +691,24 @@ sem.coef <- sem.forest.fen$coefficients[-1] %>% as.data.frame() %>%
 sem.coef <- sem.coef %>% rownames_to_column(var = "Parameter")
 sem.coef$std.error <- sem.forest.fen$rest.se[-1]
 
-sem.effectsize.forest <- sem.coef[,1:3]
+sem.effectsize.forest <- compute.effect.size(sem.coef)
 
-n <- length(sem.coef$Parameter)
-m <- sem.coef$Parameter
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    sem.effectsize.forest[i,2] <- 1.1^(sem.coef[i,2])
-    sem.effectsize.forest[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef[i,3]
-  }else if(m[i] %in% c("Forest","Bog")){
-    sem.effectsize.forest[i,2] <- exp(sem.coef[i,2]*0.1)
-    sem.effectsize.forest[i,3] <- 0.1*exp(sem.coef[i,2]*0.1)*sem.coef[i,3]
-  }
-}
-
-sem.effectsize.forest$Percent <- 100*(sem.effectsize.forest$Estimate-1)
+# sem.effectsize.forest <- sem.coef[,1:3]
+# 
+# n <- length(sem.coef$Parameter)
+# m <- sem.coef$Parameter
+# 
+# for(i in 1:n){
+#   if(grepl("log",m[i])==T){
+#     sem.effectsize.forest[i,2] <- 1.1^(sem.coef[i,2])
+#     sem.effectsize.forest[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef[i,3]
+#   }else if(m[i] %in% c("Forest","Bog")){
+#     sem.effectsize.forest[i,2] <- exp(sem.coef[i,2]*0.1)
+#     sem.effectsize.forest[i,3] <- 0.1*exp(sem.coef[i,2]*0.1)*sem.coef[i,3]
+#   }
+# }
+# 
+# sem.effectsize.forest$Percent <- 100*(sem.effectsize.forest$Estimate-1)
 
 sem.AIC <- 2*(n-1)-2*sem.forest.fen$LL
 moran.I.res.sem <- moran.test(sem.forest.fen$residuals, k.neigh.w, alternative = "two.sided")
@@ -700,22 +726,24 @@ sem.coef.norge <- sem.forest.norge$coefficients[-1] %>% as.data.frame() %>%
 sem.coef.norge <- sem.coef.norge %>% rownames_to_column(var = "Parameter")
 sem.coef.norge$std.error <- sem.forest.norge$rest.se[-1]
 
-sem.effectsize.forest.norge <- sem.coef.norge[,1:3]
+sem.effectsize.forest.norge <- compute.effect.size(sem.coef.norge)
 
-n <- length(sem.coef.norge$Parameter)
-m <- sem.coef.norge$Parameter
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    sem.effectsize.forest.norge[i,2] <- 1.1^(sem.coef.norge[i,2])
-    sem.effectsize.forest.norge[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef.norge[i,3]
-  }else if(m[i] %in% c("Forest","Bog")){
-    sem.effectsize.forest.norge[i,2] <- exp(sem.coef.norge[i,2]*0.1)
-    sem.effectsize.forest.norge[i,3] <- 0.1*exp(sem.coef.norge[i,2]*0.1)*sem.coef.norge[i,3]
-  }
-}
-
-sem.effectsize.forest.norge$Percent <- 100*(sem.effectsize.forest.norge$Estimate-1)
+# sem.effectsize.forest.norge <- sem.coef.norge[,1:3]
+# 
+# n <- length(sem.coef.norge$Parameter)
+# m <- sem.coef.norge$Parameter
+# 
+# for(i in 1:n){
+#   if(grepl("log",m[i])==T){
+#     sem.effectsize.forest.norge[i,2] <- 1.1^(sem.coef.norge[i,2])
+#     sem.effectsize.forest.norge[i,3] <- 1.1^(sem.coef[i,2])*log(1.1)*sem.coef.norge[i,3]
+#   }else if(m[i] %in% c("Forest","Bog")){
+#     sem.effectsize.forest.norge[i,2] <- exp(sem.coef.norge[i,2]*0.1)
+#     sem.effectsize.forest.norge[i,3] <- 0.1*exp(sem.coef.norge[i,2]*0.1)*sem.coef.norge[i,3]
+#   }
+# }
+# 
+# sem.effectsize.forest.norge$Percent <- 100*(sem.effectsize.forest.norge$Estimate-1)
 
 
 sem.AIC.norge <- 2*(n-1)-2*sem.forest.norge$LL
@@ -748,10 +776,8 @@ print(effectsize.plot)
 
 Replacing NDVI as explanatory variable in the SELM models with Forest cover renders a rather small effect size of a 10% increase in Forest cover (`r fig_nums("compare-effect-size-simple-forest", display = "c")`) compared to a 10% increase in NDVI (`r fig_nums("compare-plots-2", display = "c")`).  
 
-On the contrary, considering Forest cover instead of NDVI yields greater impact to the proportion of Bogs: 15% (`r fig_nums("compare-effect-size-simple-forest", display = "c")`) compared to 10% (`r fig_nums("compare-plots-2", display = "c")`) for Fennoscandian dataset, and even more for the model based on the Norwegian dataset. The effect size of a 10% increase in runoff remains unchanged at `r round(sem.effectsize.forest[which(sem.effectsize.forest$Parameter == "logRunoff"), which(names(sem.effectsize.forest) == "Percent")],0)`% and `r round(sem.effectsize.forest.norge[which(sem.effectsize.forest.norge$Parameter == "logRunoff"), which(names(sem.effectsize.forest.norge) == "Percent")],0)`%%, based on the Fennoscandian dataset and Norwegian dataset, respectively.
+On the contrary, considering Forest cover instead of NDVI yields greater impact to the proportion of bogs: 15% (`r fig_nums("compare-effect-size-simple-forest", display = "c")`) compared to 10% (`r fig_nums("compare-plots-2", display = "c")`) for Fennoscandian dataset, and even more for the model based on the Norwegian dataset. The effect size of a 10% increase in runoff remains unchanged at `r round(sem.effectsize.forest[which(sem.effectsize.forest$Parameter == "logRunoff"), which(names(sem.effectsize.forest) == "Percent")],0)`% and `r round(sem.effectsize.forest.norge[which(sem.effectsize.forest.norge$Parameter == "logRunoff"), which(names(sem.effectsize.forest.norge) == "Percent")],0)`%%, based on the Fennoscandian dataset and Norwegian dataset, respectively.
 
-
-`r knitr::knit_exit()`
 
 ## Geographically Weighted Regression
 
@@ -760,7 +786,7 @@ A geographically weighted regression (GWR) model was fitted using the Fennoscand
 ### GWR with NDVI as predictor variable
 
 ```{r GWR-fennoscandia, eval = F}
-fm <- log.toc~ndvi+log.runoff+bogs
+fm <- logTOC~NDVI+logRunoff+Bog
 
 library(GWmodel)
 #bw.fennoscandia <- bw.gwr(fm, data = fennoscandia.spdf, kernel = "gaussian", adaptive = T)
@@ -778,7 +804,7 @@ k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
 gwr.coef <- gwr.fennoscandia$SDF@data
 
-m <- c("ndvi","log.runoff","bogs")
+m <- c("NDVI","logRunoff","Bog")
 n <- length(m)
 
 gwr.effectsize <- gwr.coef[,2:(n+1)]
@@ -786,14 +812,15 @@ gwr.effectsize <- gwr.coef[,2:(n+1)]
 for(i in 1:dim(gwr.effectsize)[1]){
   for(j in 1:n){
   if(grepl("log",m[j])==T){
-    gwr.effectsize[i,j] <- 1.1^(gwr.coef[i,j+1])
-  }else if(m[j] %in% c("ndvi","bogs","arable","forest")){
-    gwr.effectsize[i,j] <- exp(gwr.coef[i,j+1]*0.1)
+    gwr.effectsize[i,j] <- eslog^(gwr.coef[i,j+1])
+  }else if(m[j] %in% c("NDVI","Bog","arable","forest")){
+    gwr.effectsize[i,j] <- exp(gwr.coef[i,j+1]*es)
   }
   }
 }
 
 gwr.effectsize.percent <- 100*(gwr.effectsize-1)
+
 saveRDS(gwr.effectsize.percent,"gwr.ndvi.effectsize.percent.rds")
 
 
@@ -818,12 +845,12 @@ NDVI sustains its role as main predictor for the concentration of DOM in GWR. Lo
 
 As also found for the SELM model the effect size of a 10% increase in runoff is mainly negative, though ranges from `r round(min(gwr.effectsize.percent$log.runoff),0)` % to `r round(max(gwr.effectsize.percent$log.runoff),0)`%.  The south-eastern Finland it the only region with low runoff intensity (`r fig_nums("insert-maps", display = "c")`c) where the effect size for the log of runoff is positive. The most negative effects are located in the south-west region of Norway , where there are the highest runoff intensities.
 
-An unlikely change in the proportion of bogs has practically no effect,  except for a minor area in south-east Finland where both the highest (+`r round(min(gwr.effectsize.percent$bogs),0)` %) and the lowest (r round(min(gwr.effectsize.percent$bogs),0)`%) effect sizes are found. This local spot is not related to the original proportion of bogs (see Supplementary 2). 
+An unlikely change in the proportion of bogs has practically no effect,  except for a minor area in south-east Finland where both the highest (+`r round(min(gwr.effectsize.percent$Bog),0)` %) and the lowest (r round(min(gwr.effectsize.percent$Bog),0)`%) effect sizes are found. This local spot is not related to the original proportion of bogs (see Supplementary 2). 
 
 ### GWR with forest as predictor instead of NDVI
 
 ```{r GWR-fennoscandia-forest, eval = F}
-fm <- log.toc~forest+log.runoff+bogs
+fm <- log.toc~forest+log.runoff+Bog
 
 library(GWmodel)
 #bw.fennoscandia.forest <- bw.gwr(fm, data = fennoscandia.spdf, kernel = "gaussian", adaptive = T)
@@ -842,7 +869,7 @@ k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
 gwr.coef <- gwr.fennoscandia.forest$SDF@data
 
-m <- c("forest","log.runoff","bogs")
+m <- c("Forest","logRunoff","Bog")
 n <- length(m)
 
 gwr.effectsize <- gwr.coef[,2:(n+1)]
@@ -850,9 +877,9 @@ gwr.effectsize <- gwr.coef[,2:(n+1)]
 for(i in 1:dim(gwr.effectsize)[1]){
   for(j in 1:n){
   if(grepl("log",m[j])==T){
-    gwr.effectsize[i,j] <- 1.1^(gwr.coef[i,j+1])
-  }else if(m[j] %in% c("ndvi","bogs","arable","forest")){
-    gwr.effectsize[i,j] <- exp(gwr.coef[i,j+1]*0.1)
+    gwr.effectsize[i,j] <- eslog^(gwr.coef[i,j+1])
+  }else if(m[j] %in% c("NDVI","Bog","Forest")){
+    gwr.effectsize[i,j] <- exp(gwr.coef[i,j+1]*es)
   }
   }
 }
@@ -1000,7 +1027,7 @@ Using the Spatial Error Linear Model, fitted for Fennoscandia in [section 3.5](#
 
 * Despite of a coarser resolution, the summer biomass, measured as NDVI (Figure 2), is a stronger predictor for TOC (Figure 4) than the proportion of forest (Figure 3). This is likely due to that the NDVI takes more into account the variations in amount of vegetation than type of vegetation.
 * Nevertheless, forest cover is a significant predictor for TOC and can be used to evaluate the impact of afforestation on the levels of DOM caused both response to climate change (Figure 13) and forest planting to sequester CO2 (Figure 15) on TOC concentration in lakes. 
-* •	The proportion of bogs is an irreplaceable and significant predictor for the spatial distribution of TOC (Figure 4). As the amount of bog is  unlikely to change over time it is nevertheless not an important predictor for temporal changes.
+* The proportion of bogs is an irreplaceable and significant predictor for the spatial distribution of TOC (Figure 4). As the amount of bog is  unlikely to change over time it is nevertheless not an important predictor for temporal changes.
 * Runoff intensity (mm/year) is a major spatial predictor for TOC, with higher runoff intensity having a negative effect on TOC concentration (Figure 4). The dilution effect is therefore on average stronger than the mobilisation of soil organic matter. The GWR model shows that it nonetheless depends on the local coefficient of variation. I.e., the effect size of a 10% increase in runoff is close to zero in eastern Finland, where the runoff is low and rather uniform, while it is -6% in western Norway, where the runoff intensity is high with large spatial differences.
 
 ## Impact of climate change on DOM concentration in lakes
@@ -1011,6 +1038,7 @@ Using the Spatial Error Linear Model, fitted for Fennoscandia in [section 3.5](#
 
 * In the SSP370 scenario, the same trends are detectable, but the TOC increase expands into more water regions. The highest increases are once again found in the south of Sweden (Figure 13) where there is predicted less runoff (Figure 10) and decrease in biomass (Figure 12). Nevertheless, for many water regions, both NDVI and runoff will increase without leading to an increase of TOC concentration, rather a slight decrease. This is substantiating the importance of the dilution effect compared to the vegetation effect. 
 
+* This article doesn't take into account the possible evolution of proportion of bogs. Bog cover evolves slowly but can be submitted to short-term extreme events, such as droughts. REF. Increased frequency, especially in the south of the boreal zone @Helbig2020. However, the TOC forecast in this article is based on 20-year averages of the main predictors (precipitation and temperature to predict NDVI,  as well as runoff). Therefore, extreme events have a limited impact on the TOC average.
 
 ## Impact of afforestation / densification / fertilization
 

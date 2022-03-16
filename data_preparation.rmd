@@ -487,7 +487,7 @@ fennoscandia$logRunoff <- log(fennoscandia$Runoff)
 fennoscandia$s.logRunoff <- scale(fennoscandia$logRunoff)
 fennoscandia$NDVI <- fennoscandia$ndvi.value
 fennoscandia$s.NDVI <- scale(fennoscandia$NDVI)
-fennoscandia$s.Bogs <- scale(fennoscandia$Bog)
+fennoscandia$s.Bog <- scale(fennoscandia$Bog)
 fennoscandia$s.Arable <- scale(fennoscandia$Arable)
 fennoscandia$s.Forest <- scale(fennoscandia$Forest)
 fennoscandia$Temp <- fennoscandia$Temp / 10 # divided by 10 because the temperature is stored in C*10
