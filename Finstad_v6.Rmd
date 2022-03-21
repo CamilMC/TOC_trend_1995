@@ -362,6 +362,7 @@ saveRDS(summary.table.lm, "summary.table.lm.rds")
 
 ```{r sem, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
+norge.kmat <- readRDS("norge.kmat.Rdata")
 
 #lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
 
@@ -372,6 +373,7 @@ saveRDS(s.sem.fennoscandia,"s.sem.fennoscandia.Rdata")
 fm <- logTOC~NDVI+logRunoff+Bog+Arable+Forest+TNdep
 sem.fennoscandia <- errorsarlm(fm,fennoscandia,k.neigh.w)
 saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
+
 ```
 
 ```{r sem-results}

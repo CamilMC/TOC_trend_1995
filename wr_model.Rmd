@@ -1058,14 +1058,17 @@ ssp126.runoff.wr <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp126
 ssp126.runoff.wr.mean <- ssp126.runoff.wr %>% mean() 
 
 ssp126.runoff <- raster::extract(ssp126.runoff.wr.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
-names(ssp126.runoff) <- c("gid","Runoff")
+names(ssp126.runoff) <- c("gid","runoff")
+ssp126.runoff$Runoff <- ssp126.runoff$runoff *365*24*60*60
 saveRDS(ssp126.runoff,"WR/ssp126.runoff.rds")
 
 ssp370.runoff.wr <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp370_r1i1p1f2_gr_201501-210012.nc", bands = c(313:552))
 ssp370.runoff.wr.mean <- ssp370.runoff.wr %>% mean()
 
 ssp370.runoff <- raster::extract(ssp370.runoff.wr.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
-names(ssp370.runoff) <- c("gid","Runoff")
+names(ssp370.runoff) <- c("gid","runoff")
+ssp126.runoff$Runoff <- ssp370.runoff$runoff *365*24*60*60
+
 saveRDS(ssp370.runoff,"WR/ssp370.runoff.rds")
 ```
 
@@ -1076,60 +1079,19 @@ raster.ssp126.runoff.2100 <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-
 raster.ssp126.runoff.2100.mean <- raster.ssp126.runoff.2100 %>% mean() 
 
 ssp126.runoff.2100 <- raster::extract(raster.ssp126.runoff.2100.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
-names(ssp126.runoff.2100) <- c("gid","Runoff")
+names(ssp126.runoff.2100) <- c("gid","runoff")
+ssp126.runoff.2100$Runoff <- ssp126.runoff.2100$runoff *365*24*60*60
 saveRDS(ssp126.runoff.2100,"WR/ssp126.runoff.2100.rds")
 
 raster.ssp370.runoff.2100 <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp370_r1i1p1f2_gr_201501-210012.nc", bands = c(805:1032))
 raster.ssp370.runoff.2100.mean <- raster.ssp370.runoff.2100 %>% mean()
 
 ssp370.runoff.2100 <- raster::extract(raster.ssp370.runoff.2100.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
-names(ssp370.runoff.2100) <- c("gid","Runoff")
+names(ssp370.runoff.2100) <- c("gid","runoff")
+ssp370.runoff.2100$Runoff <- ssp370.runoff.2100$runoff *365*24*60*60
 saveRDS(ssp370.runoff.2100,"WR/ssp370.runoff.2100.rds")
 ```
 
-### Plots
-
-```{r plot-future-runoff, eval = F}
-ssp126.runoff <- readRDS("WR/ssp126.runoff.rds")
-ssp370.runoff <- readRDS("WR/ssp370.runoff.rds")
-wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
-
-ssp126.runoff$Runoff126 <- ssp126.runoff$runoff126 *365*24*60*60
-ssp370.runoff$Runoff370 <- ssp370.runoff$runoff370 *365*24*60*60
-
-
-
-runoff.126 <- merge(select(wr.sf.95,c("gid","Runoff","logRunoff")),ssp126.runoff, by = "gid")
-runoff.370 <- merge(select(wr.sf.95,c("gid","Runoff","logRunoff")),ssp370.runoff, by = "gid")
-
-limits.runoff <- c(min(c(runoff.126$Runoff126,runoff.370$Runoff370)), max(c(runoff.126$Runoff126,runoff.370$Runoff370)))
-limits.diff.runoff <- c(min(c(runoff.126$Runoff126-runoff.126$Runoff,runoff.370$Runoff370-runoff.370$Runoff)), max(c(runoff.126$Runoff126-runoff.126$Runoff,runoff.370$Runoff370-runoff.370$Runoff)))
-
-ssp126.runoff.plot <- ggplot()+geom_sf(data = runoff.126,aes(fill=Runoff126,col=Runoff126))+ 
-  scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Average runoff 2041-2060\n under SSP126 in mm/s", limits = limits.runoff)+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = ssp126.runoff.plot , filename = "WR/ssp126.runoff.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-ssp126.runoff.diff <- ggplot()+geom_sf(data = runoff.126,aes(fill=Runoff126-Runoff,col=Runoff126-Runoff))+ 
-  scale_fill_gradient2(low="#B03060",mid="#FFFAFA",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Difference runoff 1995-2050\n under SSP126 in mm/s", limits = limits.diff.runoff)+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = ssp126.runoff.diff , filename = "WR/ssp126.runoff.diff.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-ssp370.runoff.plot <- ggplot()+geom_sf(data = runoff.370,aes(fill=Runoff370,col=Runoff370))+ 
-  scale_fill_gradient2(low="#CCCCCC",mid="#CCFFFF",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Average runoff 2041-2060\n under SSP370 in mm/s", limits = limits.runoff)+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = ssp370.runoff.plot , filename = "WR/ssp370.runoff.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-ssp370.runoff.diff <- ggplot()+geom_sf(data = runoff.370,aes(fill=Runoff370-Runoff,col=Runoff370-Runoff))+ 
-  scale_fill_gradient2(low="#B03060",mid="#FFFAFA",high = "#003399",midpoint = 0, aesthetics = c("fill","col"), name = "Difference runoff 1995-2050\n under SSP370 in mm/y", limits = limits.diff.runoff)+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = ssp370.runoff.diff, filename = "WR/ssp370.runoff.diff.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-```
 
 ## Forecast TOC
 
@@ -1207,26 +1169,54 @@ diff.var <- function(sf, vars1, vars2){
 }
 
 wr.sf.126.2050 <- diff.var(wr.sf.126.2050, vars1 = c("Temp95","Prec95","NDVI95","Runoff95"), vars2 = c("Temp","Precip","NDVI","Runoff"))
+wr.sf.370.2050 <- diff.var(wr.sf.370.2050, vars1 = c("Temp95","Prec95","NDVI95","Runoff95"), vars2 = c("Temp","Precip","NDVI","Runoff"))
+wr.sf.126.2100 <- diff.var(wr.sf.126.2100, vars1 = c("Temp95","Prec95","NDVI95","Runoff95"), vars2 = c("Temp","Precip","NDVI","Runoff"))
+wr.sf.370.2100 <- diff.var(wr.sf.370.2100, vars1 = c("Temp95","Prec95","NDVI95","Runoff95"), vars2 = c("Temp","Precip","NDVI","Runoff"))
 
+list.sf <- list(wr.sf.126.2050, wr.sf.126.2100, wr.sf.370.2050, wr.sf.370.2100)
+names(list.sf) <- c("SSP126.2050", "SSP126.2100", "SSP370.2050", "SSP370.2100")
 
-all.temp <- c(wr.sf.126.2050$Temp-wr.sf.126.2050$Temp95,wr.sf.370.2050$Temp-wr.sf.370.2050$Temp95, wr.sf.126.2100$Temp-wr.sf.126.2100$Temp95, wr.sf.370.2100$Temp-wr.sf.370.2100$Temp95)
-all.prec <- c(wr.sf.126.2050$Precip/wr.sf.126.2050$Prec95*100-100,wr.sf.370.2050$Precip/wr.sf.370.2050$Prec95*100-100, wr.sf.126.2100$Precip/wr.sf.126.2100$Prec95*100-100, wr.sf.370.2100$Precip/wr.sf.370.2100$Prec95*100-100)
+all.diff <- data.frame(gid = c(wr.sf.126.2050$gid, wr.sf.370.2050$gid, wr.sf.126.2100$gid, wr.sf.370.2100$gid))
+for(x in c("diffTemp","diffPrecip","diffNDVI","diffRunoff")){
+  all.vec <- c()
+  
+  for(i in 1:length(list.sf)){
+  vec <- select(st_drop_geometry(list.sf[[i]]),all_of(x))
+  all.vec <<- rbind(all.vec,vec)
+  }
+  all.diff <- cbind(all.diff, all.vec)
+}
+
+max.lim <- apply(all.diff, 2, max, na.rm = T)
+min.lim <- apply(all.diff, 2, min, na.rm = T)
 
 x1 <- filter(wr.sf.126.2050, NDVI95 > 0.4)
 x2 <- filter(wr.sf.370.2050, NDVI95 > 0.4)
 x3 <- filter(wr.sf.126.2100, NDVI95 > 0.4)
 x4 <- filter(wr.sf.370.2100, NDVI95 > 0.4)
-
 all.ndvi <- c(x1$NDVI/x1$NDVI95*100-100,x2$NDVI/x2$NDVI95*100-100, x3$NDVI/x3$NDVI95*100-100, x4$NDVI/x4$NDVI95*100-100)
 
+palettes <- data.frame(diffTemp =  brewer.pal(name = "RdYlBu", n = 9)[c(1,5,9)],
+                       diffPrecip =  brewer.pal(name = "RdYlBu", n = 9)[c(1,5,9)],
+                       diffNDVI <-  brewer.pal(name = "RdYlGn", n = 9)[c(1,5,9)],
+                       diffRunoff <-  brewer.pal(name = "Blues", n = 9)[c(1,5,9)])
 
-
-all.runoff <- c(wr.sf.126.2050$logRunoff-wr.sf.126.2050$logRunoff95,wr.sf.370.2050$logRunoff-wr.sf.370.2050$logRunoff95, wr.sf.126.2100$logRunoff-wr.sf.126.2100$logRunoff95, wr.sf.370.2100$logRunoff-wr.sf.370.2100$logRunoff95)
+for(i in c(1:length(list.sf))){
+  print(names(list.sf[[i]]))
+  for(x in c("diffTemp","diffPrecip","diffNDVI","diffRunoff")){
+  g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
+  scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],mid=palettes[2, grep(x,names(palettes))],high = palettes[1, grep(x,names(palettes))],
+                       midpoint = 0, aesthetics = c("fill","col"),
+                       name = paste(names(list.sf)[i], x, sep = "_"), limits = c(min.lim[[x]], max.lim[[x]])) + 
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+  ggsave(plot = g, filename = paste("WR/", names(list.sf[[i]], x, "png",sep = ".")),dpi = "retina", width = 6, height = 8, units = "cm")
+}
+}
 
 # Temp -----
-temp.pal <-  brewer.pal(name = "RdYlBu", n = 9)[c(1,5,9)]
 
-t1 <- ggplot(wr.sf.126.2050)+geom_sf(aes(fill = Temp-Temp95, col = Temp-Temp95)) + 
+t1 <- ggplot(wr.sf.126.2050)+geom_sf(aes(fill = diffTemp, col = diffTemp)) + 
   scale_fill_gradient2(low=temp.pal[3],mid=temp.pal[2],high = temp.pal[1],midpoint = 0, aesthetics = c("fill","col"),
                        name = "Difference temperature 1995-2050\n under SSP126", limits = c(min(all.temp), max(all.temp))) + 
   theme_minimal(base_size = 6)+

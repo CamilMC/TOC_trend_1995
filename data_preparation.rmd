@@ -140,28 +140,7 @@ saveRDS(year.ndvi, "year.ndvi.Rdata")
 
 ```
 
-```{r summer-ndvi-2015, eval = F}
-# http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
 
-ndvi.2015 <- downloadGimms(x= 2015,y=2015,dsn = "NDVI")
-
-ndvi.max.2015 <- monthlyComposite(ndvi.2015,monthlyIndices(ndvi.2015))
-saveRDS(ndvi.max.2015,"ndvi.max.2015.rds")
-
-summer.scandinavia.2015 <- raster::crop(ndvi.max.2015,c(0,35,55,73))
-
-
-summer.mean.2015 <- raster::stack(summer.scandinavia.2015[[6]],summer.scandinavia.2015[[7]],summer.scandinavia.2015[[8]]) %>% mean()
-
-summer.scan <- reclassify(summer.scandinavia.2015, cbind(-Inf, 0, NA), right=FALSE)
-
-summer.ndvi.2015 <- raster::extract(summer.scan,catchment.poly, fun = mean, df = T, sp = T)
-names(summer.ndvi.2015) <- c("ebint","ndvi2015")
-summer.ndvi.2015$ndvi.value <- floor(summer.ndvi.2015$ndvi/10)/1000
-
-saveRDS(summer.ndvi.2015, "summer.ndvi.2015.Rdata")
-write.csv(summer.ndvi.2015,"summer.ndvi.2015.csv")
-```
 
 ## CORDEX: runoff data
 
@@ -188,6 +167,25 @@ catchment.poly <- readRDS("catchment.poly.Rdata")
 runoff.fennoscandia <- raster::extract(runoff.mean, catchment.poly, fun = mean, df = T, sp = T, na.rm = T)
 names(runoff.fennoscandia) <- c("ebint","runoff")
 saveRDS(runoff.fennoscandia,"CORDEX/runoff.fennoscandia.rds")
+
+ggplot(st_as_sf(runoff.fennoscandia))+geom_sf(aes(fill=layer,col=layer))
+
+```
+
+```{r runoff-2015, eval = F}
+#runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
+#runoff.df <- runoff.tbl %>% as.data.frame()
+
+runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
+runoff.nc <- nc_open(runoff.raster)
+
+runoff.stack <- raster::stack(runoff.raster, bands = c(1501:1980)) # from 1975 to 2015, not included
+runoff.mean <- runoff.stack %>% mean() 
+
+catchment.poly <- readRDS("catchment.poly.Rdata")
+runoff.fennoscandia.2015 <- raster::extract(runoff.mean, catchment.poly, fun = mean, df = T, sp = T, na.rm = T)
+names(runoff.fennoscandia.2015) <- c("ebint","Runoff")
+saveRDS(runoff.fennoscandia.2015,"CORDEX/runoff.fennoscandia.2015.rds")
 
 ggplot(st_as_sf(runoff.fennoscandia))+geom_sf(aes(fill=layer,col=layer))
 
@@ -394,6 +392,28 @@ saveRDS(ndep.df,"ndep.df.Rdata")
 
 ```
 
+```{r extract-Sdep, eval = F}
+library(ncdf4)
+EMEP_file <- "EMEP/EMEP01_rv4.42_year.2000met_2000emis_rep2021.nc"
+catchment_poly <- readRDS("catchment.poly.Rdata")
+
+wsox <- raster(EMEP_file, varname = "WDEP_SOX") 
+dsox <- raster(EMEP_file, varname = "DDEP_SOX_m2Grid")
+
+wsox_df <- extract(wsox,catchment_poly, sp = T, df = T, na.rm = T, fun = mean) 
+names(wsox_df) <- c("ebint","wsox")
+
+dsox_df <- extract(dsox,catchment_poly, sp = T, df = T, na.rm = T, fun = mean)
+names(dsox_df) <- c("ebint","dsox")
+
+
+sdep.df <- merge(wsox_df,dsox_df, by = "ebint")
+sdep.df$tsdep <- rowSums(sdep.df@data[,c(2:3)])
+
+saveRDS(sdep.df,"sdep.df.rds")
+
+```
+
 
 ## Data gathering and cleaning
 
@@ -421,6 +441,7 @@ arable <- readRDS("arable.rds")
 forest <- readRDS("forest.rds")
 
 ndep <- readRDS("ndep.df.Rdata")
+sdep <- readRDS("sdep.df.rds")
 
 fennoscandia_raw <- merge(country,toc.df, by = "ebint") %>% 
   merge(summer.ndvi, by = "ebint") %>% 
@@ -432,7 +453,8 @@ fennoscandia_raw <- merge(country,toc.df, by = "ebint") %>%
   merge(bogs, by = "ebint") %>%
   merge(arable, by = "ebint")%>%
   merge(forest,by = "ebint") %>%
-  merge(ndep, by = "ebint")
+  merge(ndep, by = "ebint") %>% 
+  merge(sdep, by = "ebint")
 
 fennoscandia_raw$uncertain <- ifelse(fennoscandia_raw$dist_closest_ebint/fennoscandia_raw$dist_2nd_closest_ebint > 0.5, FALSE, TRUE)
 fennoscandia_raw$uncertain[which(is.na(fennoscandia_raw$uncertain)==TRUE)] <- FALSE
@@ -477,8 +499,8 @@ Lots of 0 in N-dep, bogs and arable : not transformed
 ```{r log-transform, eval = F}
 fennoscandia <- readRDS("fennoscandia_raw.rds")
 
-v <- c("toc_mg_l","runoff","temp","prec","bogs","arable","forest","tndep")
-names(fennoscandia)[which(names(fennoscandia) %in% v)] <- c("TOC", "Runoff","Temp","Precip","Bog","Forest","Arable","TNdep")
+v <- c("toc_mg_l","runoff","temp","prec","bogs","arable","forest","tndep","tsdep")
+names(fennoscandia)[which(names(fennoscandia) %in% v)] <- c("TOC", "Runoff","Temp","Precip","Bog","Forest","Arable","TNdep","TSdep")
 
 fennoscandia$logTOC <- log(fennoscandia$TOC) 
 fennoscandia$s.logTOC <- scale(fennoscandia$logTOC) 
