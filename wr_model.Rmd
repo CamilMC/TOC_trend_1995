@@ -737,6 +737,16 @@ wr.neigh.nb <- knn2nb(wr.neigh.set)
 wr.kmat <- nb2listw(wr.neigh.nb)
 saveRDS(wr.kmat,"WR/wr.kmat.rds")
 
+wr.n.s.high <- knearneigh(filter(wr.centroid, NDVI > 0.4), k = 100)
+wr.n.nb.high <- knn2nb(wr.n.s.high)
+wr.kmat.h <- nb2listw(wr.n.nb.high)
+saveRDS(wr.kmat.h,"WR/wr.kmat.h.rds")
+
+wr.n.s.low <- knearneigh(filter(wr.centroid, NDVI < 0.4), k = 50)
+wr.n.nb.low <- knn2nb(wr.n.s.low)
+wr.kmat.l <- nb2listw(wr.n.nb.low)
+saveRDS(wr.kmat.l,"WR/wr.kmat.l.rds")
+
 ```
 
 ## Model TOC
@@ -849,19 +859,19 @@ ssp126.prec.2100 <- readRDS("WR/ssp126.prec.2100.rds")
 ssp370.prec.2100 <- readRDS("WR/ssp370.prec.2100.rds")
 
 # SSP126
-df.ssp126 <- dplyr::select(wr.sf.95, c("gid","Alt","Slope","Latitude")) %>% merge(ssp126.temp.wr, by = "gid") %>% merge(ssp126.prec.wr, by = "gid") %>% setNames(c("gid","Alt","Slope","Latitude","Temp","Precip","geometry")) 
+df.ssp126 <- dplyr::select(wr.sf.95, c("gid","area","Alt","Slope","Latitude")) %>% merge(ssp126.temp.wr, by = "gid") %>% merge(ssp126.prec.wr, by = "gid") %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","geometry")) 
 saveRDS(df.ssp126, "WR/df.ssp126.rds")
 
 # SSP 370
-df.ssp370 <- dplyr::select(wr.sf.95, c("gid","Alt","Slope","Latitude")) %>% merge(ssp370.temp.wr, by = "gid") %>% merge(ssp370.prec.wr, by = "gid") %>% setNames(c("gid","Alt","Slope","Latitude","Temp","Precip","geometry")) 
+df.ssp370 <- dplyr::select(wr.sf.95, c("gid","area","Alt","Slope","Latitude")) %>% merge(ssp370.temp.wr, by = "gid") %>% merge(ssp370.prec.wr, by = "gid") %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","geometry")) 
 saveRDS(df.ssp370, "WR/df.ssp370.rds")
 
 # SSP126 2100
-df.ssp126.2100 <- dplyr::select(wr.sf.95, c("gid","Alt","Slope","Latitude")) %>% merge(ssp126.temp.2100, by = "gid") %>% merge(ssp126.prec.2100, by = "gid") %>% setNames(c("gid","Alt","Slope","Latitude","Temp","Precip","geometry")) 
+df.ssp126.2100 <- dplyr::select(wr.sf.95, c("gid","area","Alt","Slope","Latitude")) %>% merge(ssp126.temp.2100, by = "gid") %>% merge(ssp126.prec.2100, by = "gid") %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","geometry")) 
 saveRDS(df.ssp126.2100, "WR/df.ssp126.2100.rds")
 
 # SSP 370 2100
-df.ssp370.2100 <- dplyr::select(wr.sf.95, c("gid","Alt","Slope","Latitude")) %>% merge(ssp370.temp.2100, by = "gid") %>% merge(ssp370.prec.2100, by = "gid") %>% setNames(c("gid","Alt","Slope","Latitude","Temp","Precip","geometry")) 
+df.ssp370.2100 <- dplyr::select(wr.sf.95, c("gid","area","Alt","Slope","Latitude")) %>% merge(ssp370.temp.2100, by = "gid") %>% merge(ssp370.prec.2100, by = "gid") %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","geometry")) 
 saveRDS(df.ssp370.2100, "WR/df.ssp370.2100.rds")
 
 ```
@@ -877,13 +887,17 @@ CRNM according to @Raju2020
 Using a SELM model for NDVI, we notice that high residuals are observed in catchments where original NDVI is lower than 0,4. Myers-Smith et al. @Myers-Smith2020 show that the relationship between NDVI and the Arctic biomass is not linear: under 0,4, an increase in NDVI reflects the vegetalisation of bare ground, while over 0,4, an increase of NDVI reflects an increased productivity in established forests. 
 
 
-```{r ndvi.model, eval = F}
+```{r ndvi-model, eval = F}
 wr.kmat <- readRDS("WR/wr.kmat.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
-ndvi.model <- errorsarlm(formula = NDVI~Temp+log(Slope)+log(Precip), data = wr.sf.95, listw = wr.kmat)
+cor.ndvi <- wr.sf.95 %>% st_drop_geometry() %>% cor()
+corrplot::corrplot(cor.ndvi, method = "number")
+
+ndvi.model <- errorsarlm(formula = NDVI~Temp+1/log(Precip)+1/log(area), data = wr.sf.95, listw = wr.kmat)
 AIC <- 2*(3-1)-2*ndvi.model$LL
 plot(wr.sf.95$NDVI, ndvi.model$fitted.values)
+abline(a = 0, b = 1)
 
 saveRDS(ndvi.model, "WR/ndvi.model.rds")
 
@@ -895,6 +909,15 @@ ndvi.sem.residuals.plot <- ggplot(sem.residuals)+geom_sf(aes(fill=ndvi.model.res
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
 ggsave(plot = ndvi.sem.residuals.plot,filename = "WR/ndvi.sem.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+ndvi.model.high <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(area), data = filter(wr.sf.95, NDVI > 0.4), listw = wr.kmat.h)
+plot(filter(wr.sf.95,NDVI > 0.4)$NDVI, ndvi.model.high$fitted.values)
+abline(a = 0, b = 1)
+
+ndvi.model.low <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(area), data = filter(wr.sf.95, NDVI < 0.4), listw = wr.kmat.l)
+plot(filter(wr.sf.95,NDVI < 0.4)$NDVI, ndvi.model.low$fitted.values)
+abline(a = 0, b = 1)
+
 
 ```
 
@@ -911,30 +934,57 @@ wr.kmat <- readRDS("WR/wr.kmat.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 #NDVI 126 2050
-ndvi.ssp126.fit <- predict(object = ndvi.model, newdata = df.ssp126, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp126.fit.high <- predict(object = ndvi.model.high, newdata = df.ssp126, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
 
-ndvi.ssp126 <- cbind(df.ssp126, ndvi.ssp126.fit) %>% setNames(c("gid","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+ndvi.ssp126.high <- cbind(df.ssp126, ndvi.ssp126.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI.high","trend","signal","geometry"))
 
-saveRDS(ndvi.ssp126,"WR/ndvi.ssp126.rds")
+saveRDS(ndvi.ssp126.high,"WR/ndvi.ssp126.high.rds")
+
+
+ndvi.ssp126.fit.low <- predict(object = ndvi.model.low, newdata = df.ssp126, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+
+ndvi.ssp126.low <- cbind(df.ssp126, ndvi.ssp126.fit.low) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI.low","trend","signal","geometry"))
+
+saveRDS(ndvi.ssp126.low,"WR/ndvi.ssp126.low.rds")
 
 # NDVI 370 2050
-ndvi.ssp370.fit <- predict(object = ndvi.model, newdata = df.ssp370, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp370.fit.high <- predict(object = ndvi.model.high, newdata = df.ssp370, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
 
-ndvi.ssp370 <- cbind(df.ssp370, ndvi.ssp370.fit) %>% setNames(c("gid","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+ndvi.ssp370.high <- cbind(df.ssp370, ndvi.ssp370.fit.high) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
 
-saveRDS(ndvi.ssp370,"WR/ndvi.ssp370.rds")
+saveRDS(ndvi.ssp370.high,"WR/ndvi.ssp370.high.rds")
+
+ndvi.ssp370.fit.low <- predict(object = ndvi.model.low, newdata = df.ssp370, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+
+ndvi.ssp370.low <- cbind(df.ssp370, ndvi.ssp370.fit.low) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+
+saveRDS(ndvi.ssp370.low,"WR/ndvi.ssp370.low.rds")
 
 #NDVI 126 2010
-ndvi.ssp126.2100.fit <- predict(object = ndvi.model, newdata = df.ssp126.2100, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
-ndvi.ssp126.2100 <- cbind(df.ssp126.2100, ndvi.ssp126.2100.fit) %>% setNames(c("gid","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+ndvi.ssp126.2100.fit.high <- predict(object = ndvi.model.high, newdata = df.ssp126.2100, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
 
-saveRDS(ndvi.ssp126.2100,"WR/ndvi.ssp126.2100.rds")
+ndvi.ssp126.2100.high <- cbind(df.ssp126.2100, ndvi.ssp126.2100.fit.high) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+
+saveRDS(ndvi.ssp126.2100.high,"WR/ndvi.ssp126.2100.high.rds")
+
+ndvi.ssp126.2100.fit.low <- predict(object = ndvi.model.low, newdata = df.ssp126.2100, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp126.2100.low <- cbind(df.ssp126.2100, ndvi.ssp126.2100.fit.low) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+
+saveRDS(ndvi.ssp126.2100.low,"WR/ndvi.ssp126.2100.low.rds")
+
 
 #NDVI 370 2100
-ndvi.ssp370.2100.fit <- predict(object = ndvi.model, newdata = df.ssp370.2100, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% setNames(c("ndvi","trend","signal"))
-ndvi.ssp370.2100 <- cbind(df.ssp370.2100, ndvi.ssp370.2100.fit) %>% setNames(c("gid","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+ndvi.ssp370.2100.fit.high <- predict(object = ndvi.model.high, newdata = df.ssp370.2100, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp370.2100.high <- cbind(df.ssp370.2100, ndvi.ssp370.2100.fit.high) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
 
-saveRDS(ndvi.ssp370.2100,"WR/ndvi.ssp370.2100.rds")
+saveRDS(ndvi.ssp370.2100.high,"WR/ndvi.ssp370.2100.high.rds")
+
+ndvi.ssp370.2100.fit.low <- predict(object = ndvi.model.low, newdata = df.ssp370.2100, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp370.2100.low <- cbind(df.ssp370.2100, ndvi.ssp370.2100.fit.low) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+
+saveRDS(ndvi.ssp370.2100.low,"WR/ndvi.ssp370.2100.low.rds")
+
+
 ```
 
 ### Plots
@@ -1067,7 +1117,7 @@ ssp370.runoff.wr.mean <- ssp370.runoff.wr %>% mean()
 
 ssp370.runoff <- raster::extract(ssp370.runoff.wr.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
 names(ssp370.runoff) <- c("gid","runoff")
-ssp126.runoff$Runoff <- ssp370.runoff$runoff *365*24*60*60
+ssp370.runoff$Runoff <- ssp370.runoff$runoff *365*24*60*60
 
 saveRDS(ssp370.runoff,"WR/ssp370.runoff.rds")
 ```
@@ -1155,16 +1205,33 @@ wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
 wr.sf.370.2100 <- readRDS("WR/wr.sf.370.2100.rds")
 
 diff.var <- function(sf, vars1, vars2){
-    sf2 <- sf
-    for (i in 1:length(vars1)){
+
+      sf2 <- sf
+  
+    for (i in 1:length(vars2)){
     newname <- paste("diff", vars2[i], sep = "")
+    
+    if(vars2[i] %in% c("Temp","NDVI")){
+    
     x <- sf2[,vars2[i]] %>% st_drop_geometry()
     y <- sf2[,vars1[i]] %>% st_drop_geometry()
-    z <- x/y*100 - 100
+    z <- x-y
+    
+    names(z) <- newname
+    sf2 <- cbind(sf2, z)
+    
+    } else if(vars2[i] %in% c("Precip", "Runoff")){
+    
+    x <- sf2[,vars2[i]] %>% st_drop_geometry()
+    y <- sf2[,vars1[i]] %>% st_drop_geometry()
+   
+    z <- x/y*100-100
     names(z) <- newname
     sf2 <- cbind(sf2, z)
     
     }
+    }
+      
     return(sf2)
 }
 
@@ -1177,6 +1244,7 @@ list.sf <- list(wr.sf.126.2050, wr.sf.126.2100, wr.sf.370.2050, wr.sf.370.2100)
 names(list.sf) <- c("SSP126.2050", "SSP126.2100", "SSP370.2050", "SSP370.2100")
 
 all.diff <- data.frame(gid = c(wr.sf.126.2050$gid, wr.sf.370.2050$gid, wr.sf.126.2100$gid, wr.sf.370.2100$gid))
+
 for(x in c("diffTemp","diffPrecip","diffNDVI","diffRunoff")){
   all.vec <- c()
   
@@ -1190,30 +1258,37 @@ for(x in c("diffTemp","diffPrecip","diffNDVI","diffRunoff")){
 max.lim <- apply(all.diff, 2, max, na.rm = T)
 min.lim <- apply(all.diff, 2, min, na.rm = T)
 
-x1 <- filter(wr.sf.126.2050, NDVI95 > 0.4)
-x2 <- filter(wr.sf.370.2050, NDVI95 > 0.4)
-x3 <- filter(wr.sf.126.2100, NDVI95 > 0.4)
-x4 <- filter(wr.sf.370.2100, NDVI95 > 0.4)
-all.ndvi <- c(x1$NDVI/x1$NDVI95*100-100,x2$NDVI/x2$NDVI95*100-100, x3$NDVI/x3$NDVI95*100-100, x4$NDVI/x4$NDVI95*100-100)
+# x1 <- filter(wr.sf.126.2050, NDVI95 > 0.4)
+# x2 <- filter(wr.sf.370.2050, NDVI95 > 0.4)
+# x3 <- filter(wr.sf.126.2100, NDVI95 > 0.4)
+# x4 <- filter(wr.sf.370.2100, NDVI95 > 0.4)
+# all.ndvi <- c(x1$NDVI/x1$NDVI95*100-100,x2$NDVI/x2$NDVI95*100-100, x3$NDVI/x3$NDVI95*100-100, x4$NDVI/x4$NDVI95*100-100)
 
 palettes <- data.frame(diffTemp =  brewer.pal(name = "RdYlBu", n = 9)[c(1,5,9)],
-                       diffPrecip =  brewer.pal(name = "RdYlBu", n = 9)[c(1,5,9)],
-                       diffNDVI <-  brewer.pal(name = "RdYlGn", n = 9)[c(1,5,9)],
-                       diffRunoff <-  brewer.pal(name = "Blues", n = 9)[c(1,5,9)])
+                       diffPrecip =  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)],
+                       diffNDVI <-  brewer.pal(name = "RdYlGn", n = 9)[c(9,5,1)],
+                       diffRunoff <-  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)])
+legends <- c("Difference Temperature (°C)", "Difference Precipitation (%)", "Difference NDVI", "Difference Runoff (%)")
+
+diffs <- c("diffTemp","diffPrecip","diffNDVI","diffRunoff")
+
 
 for(i in c(1:length(list.sf))){
-  print(names(list.sf[[i]]))
-  for(x in c("diffTemp","diffPrecip","diffNDVI","diffRunoff")){
+  for(x in diffs[[3]]){
   g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
   scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],mid=palettes[2, grep(x,names(palettes))],high = palettes[1, grep(x,names(palettes))],
                        midpoint = 0, aesthetics = c("fill","col"),
-                       name = paste(names(list.sf)[i], x, sep = "_"), limits = c(min.lim[[x]], max.lim[[x]])) + 
+                       name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""), limits = c(min.lim[[x]], max.lim[[x]])) + 
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
-  ggsave(plot = g, filename = paste("WR/", names(list.sf[[i]], x, "png",sep = ".")),dpi = "retina", width = 6, height = 8, units = "cm")
+  
+  ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 6, height = 8, units = "cm")
 }
 }
 
+
+```
+```{r plots-old}
 # Temp -----
 
 t1 <- ggplot(wr.sf.126.2050)+geom_sf(aes(fill = diffTemp, col = diffTemp)) + 
