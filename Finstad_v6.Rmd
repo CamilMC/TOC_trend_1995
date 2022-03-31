@@ -292,7 +292,7 @@ The most spatial auto-correlated variables according to Moran’s I test (temper
 
 ## Comparison of linear model and spatial error model 
 
-Using the six selected predictor variables in [section 3.1]{#overview} A linear model (LM) and a Spatial Error Model (SELM) were fitted for the logTOC against the selected predictor variables. The Spatial Error Model takes into account the spatial autocorrelation of the predictor variables in the error term of the regression. To compare the two models, the Akaike Information Criterion was calculated.
+Using the six selected predictor variables in [section 3.1]{#overview} a linear model (LM) and a Spatial Error Model (SELM) were fitted for the logTOC against the selected predictor variables. The Spatial Error Model takes into account the spatial autocorrelation of the predictor variables in the error term of the regression. To compare the two models, the Akaike Information Criterion was calculated.
 
 Both models were fitted with and without scaled variables. The effect size calculated using the raw (non-scaled) coefficients according to the method explained in Supplementary 2. A comparison of the regression coefficients and effect size for each predictor variables is shown on `r fig_nums("compare-plots-1", display = "c")`. 
 
@@ -465,7 +465,8 @@ effectsize.plot <- ggplot(h.df, aes(group = model))+
 ```
 
 ```{r compare-plots-1, fig.dim = c(10,5)}
-cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
+compare_1 <- cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
+save_plot(compare_1)
 ```
 
 `r fig_nums(name = "compare-plots-1",caption = "Comparison of scaled estimate (left) and effect sizes for a 10% increase in the predictor variables (right) using LM and SELM models, based on the Fennoscandian dataset", display = "f")`

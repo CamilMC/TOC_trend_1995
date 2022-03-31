@@ -524,8 +524,9 @@ clc.wr <- readRDS("WR/clc/clc.wr.Rdata")
 clc.wr.bogs <- select(clc.wr, c("gid","V36")) %>% setNames(c("gid","bogs"))
 clc.wr.forest <- select(clc.wr,c("V23","V24","V25")) %>% rowSums() %>% as.data.frame() %>% setNames("forest")
 clc.wr.glacier <- select(clc.wr,c("V34")) %>% rowSums() %>% as.data.frame() %>% setNames("glacier")
+clc.wr.bare <- select(clc.wr,c("V31","V32","V33")) %>% rowSums() %>% as.data.frame() %>% setNames("bare")
 
-clc.wr.sum <- cbind(clc.wr.bogs, clc.wr.forest,clc.wr.glacier)
+clc.wr.sum <- cbind(clc.wr.bogs, clc.wr.forest,clc.wr.glacier, clc.wr.bare)
 saveRDS(clc.wr.sum,"WR/clc/clc.wr.sum.Rdata")
 
 ```
@@ -594,18 +595,17 @@ saveRDS(slope.wr, "WR/slope.wr.rds")
 
 ```{r gather-dataset, eval = F}
 ndvi.wr <- readRDS("WR/ndvi.wr.rds")
+ndvi.wr$area <- NULL
 runoff.wr95 <- readRDS("WR/runoff.wr95.rds")
+runoff.wr95$area <- NULL
 clc.wr.sum <- readRDS("WR/clc/clc.wr.sum.Rdata")
 alt.wr <- readRDS("WR/alt.wr.rds")
 slope.wr <- readRDS("WR/slope.wr.rds")
+slope.wr$area <- NULL
 tp <- readRDS("WR/tp.rds")
 wr.sf <- readRDS("WR/wr.sf.rds")
 
 all.wr.sf <- merge(wr.sf,runoff.wr95,by = "gid") %>% merge(ndvi.wr,by="gid") %>% merge(clc.wr.sum,by = "gid") %>% merge(st_drop_geometry(tp),by = "gid") %>% merge(alt.wr, by = "gid") %>% merge(slope.wr, by = "gid")
-all.wr.sf$area.x <- NULL
-all.wr.sf$area.y <- NULL
-all.wr.sf$area.y.1 <- NULL
-all.wr.sf$area.x.1 <- NULL
 
 saveRDS(all.wr.sf, "WR/all.wr.sf.rds")
 
@@ -674,14 +674,16 @@ wr.sf.95$forest[which(wr.sf.95$gid == weird.cat$gid)] <- weird.tab.prop[24]+weir
 
 wr.sf.95$glacier[which(wr.sf.95$gid == weird.cat$gid)] <- weird.tab.prop[34]
 
+wr.sf.95$bare[which(wr.sf.95$gid == weird.cat$gid)] <- weird.tab.prop[31]+weird.tab.prop[32]+weird.tab.prop[33]
+
 saveRDS(wr.sf.95,"WR/wr.sf.95.rds")
 ```
 
 ```{r final-df, eval= F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
-toreplace <- which(names(wr.sf.95) %in% c("ndvi","bogs","forest","glacier","temp","prec","alt","slope"))
-names(wr.sf.95)[toreplace] <- c("NDVI","Bog","Forest","Glacier","Temp","Precip","Alt","Slope")
+toreplace <- which(names(wr.sf.95) %in% c("ndvi","bogs","forest","glacier","bare","temp","prec","alt","slope"))
+names(wr.sf.95)[toreplace] <- c("NDVI","Bog","Forest","Glacier","Bare","Temp","Precip","Alt","Slope")
 
 wr.sf.95$area <- as.numeric(wr.sf.95$area)
 
@@ -736,17 +738,6 @@ wr.neigh.set <- knearneigh(wr.centroid, k = 100)
 wr.neigh.nb <- knn2nb(wr.neigh.set)
 wr.kmat <- nb2listw(wr.neigh.nb)
 saveRDS(wr.kmat,"WR/wr.kmat.rds")
-
-wr.n.s.high <- knearneigh(filter(wr.centroid, NDVI > 0.4), k = 100)
-wr.n.nb.high <- knn2nb(wr.n.s.high)
-wr.kmat.h <- nb2listw(wr.n.nb.high)
-saveRDS(wr.kmat.h,"WR/wr.kmat.h.rds")
-
-wr.n.s.low <- knearneigh(filter(wr.centroid, NDVI < 0.4), k = 50)
-wr.n.nb.low <- knn2nb(wr.n.s.low)
-wr.kmat.l <- nb2listw(wr.n.nb.low)
-saveRDS(wr.kmat.l,"WR/wr.kmat.l.rds")
-
 ```
 
 ## Model TOC
@@ -894,7 +885,7 @@ wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 cor.ndvi <- wr.sf.95 %>% st_drop_geometry() %>% cor()
 corrplot::corrplot(cor.ndvi, method = "number")
 
-ndvi.model <- errorsarlm(formula = NDVI~Temp+1/log(Precip)+1/log(area), data = wr.sf.95, listw = wr.kmat)
+ndvi.model <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(Alt), data = wr.sf.95, listw = wr.kmat)
 AIC <- 2*(3-1)-2*ndvi.model$LL
 plot(wr.sf.95$NDVI, ndvi.model$fitted.values)
 abline(a = 0, b = 1)
@@ -909,16 +900,116 @@ ndvi.sem.residuals.plot <- ggplot(sem.residuals)+geom_sf(aes(fill=ndvi.model.res
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
 ggsave(plot = ndvi.sem.residuals.plot,filename = "WR/ndvi.sem.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
+```
 
+```{r tests-ndvi, eval = F}
+library(betareg)
+library(VGAM)
+
+# tests
+regmat <- wr.sf.95 %>% st_drop_geometry() %>% select(c("Alt","Temp","Precip")) %>% as.matrix()
+
+beta.ndvi <- betareg.fit(x = regmat, y = wr.sf.95$NDVI, type = "BR", 
+                         weights = wr.sf.95$area, control = betareg.control(phi =F))
+beta.ndvi <- betareg(NDVI ~ Temp+Alt+area, data = wr.sf.95, link = "logit", weights = wr.sf.95$area)
+
+plot(wr.sf.95$NDVI, beta.ndvi$fitted.values)
+
+spatial.beta.ndvi <- errorsarlm(formula = logclink(NDVI)~Temp+log(Precip)+log(Alt), data = fennoscandia, listw = k.neigh.w)
+plot(logclink(fennoscandia$NDVI), spatial.beta.ndvi$fitted.values)
+plot(fennoscandia$NDVI, logclink(spatial.beta.ndvi$fitted.values))
+
+
+beta.resi <- cbind(wr.sf.95, spatial.beta.ndvi$residuals)
+ggplot(beta.resi)+geom_point(aes(x = Longitude, y = Latitude, col = spatial.beta.ndvi.residuals))+scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0)
+
+beta.resi.plot <- ggplot(beta.resi)+geom_sf(aes(fill = spatial.beta.ndvi.residuals, col = spatial.beta.ndvi.residuals))+scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+theme_classic(base_size = 6)+theme(legend.position = "bottom")
+ggsave(plot = beta.resi.plot, filename = "WR/beta.resi.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+
+# quadratic
+summary(m1 <- lm(NDVI ~ (Temp + I(Temp^2)) * (log(Precip) + I(log(Precip)^2)), data = wr.sf.95))
+summary(m1 <- step(m1))
+plot(wr.sf.95$NDVI, predict(m1),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted - quadratic",abline(0,1))
+
+#poly 
+summary(m2 <- lm(NDVI ~ poly(cbind(Temp, log(Precip)), degree = 5), data = wr.sf.95))
+summary(m2 <- step(m2))
+plot(wr.sf.95$NDVI, predict(m2),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted - poly ",abline(0,1))
+
+#lm
+summary(m3 <- lm(NDVI ~ Temp * log(Precip), data = wr.sf.95))
+summary(m3 <- step(m3))
+plot(wr.sf.95$NDVI, predict(m3),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted",abline(0,1))
+
+
+```
+
+```{r ndvi-model-fen}
+
+quadra.lm.ndvi <- lm(NDVI ~ (Temp + I(Temp^2)) * (log(Precip) + I(log(Precip)^2)), data = fennoscandia)
+quadra.lm.ndvi <- step(quadra.lm.ndvi)
+summary(quadra.lm.ndvi)
+plot(fennoscandia$NDVI, quadra.lm.ndvi$fitted.values)
+
+fennoscandia.ndvi.model <- cbind(fennoscandia.spdf,quadra.lm.ndvi$residuals)
+ggplot(fennoscandia.ndvi.model)+geom_point(aes(x=longitude, y = latitude, col = quadra.lm.ndvi$residuals))+
+  scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+theme_classic(base_size = 6)+theme(legend.position = "bottom")
+resi.plot <- ggplot(st_as_sf(fennoscandia.ndvi.model))+geom_sf(aes(fill = quadra.lm.ndvi$residuals, col = quadra.lm.ndvi$residuals))+
+  scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+theme_classic(base_size = 6)+theme(legend.position = "bottom")
+ggsave(plot = resi.plot,filename = "WR/quadra.ndvi.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+wr.ndvi.test.2 <- predict(object = quadra.lm.ndvi, newdata = wr.sf.95)
+plot(wr.sf.95$NDVI, wr.ndvi.test.2)
+```
+
+```{r other-tests}
 ndvi.model.high <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(area), data = filter(wr.sf.95, NDVI > 0.4), listw = wr.kmat.h)
 plot(filter(wr.sf.95,NDVI > 0.4)$NDVI, ndvi.model.high$fitted.values)
 abline(a = 0, b = 1)
+saveRDS(ndvi.model.high, "WR/ndvi.model.high.rds")
 
 ndvi.model.low <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(area), data = filter(wr.sf.95, NDVI < 0.4), listw = wr.kmat.l)
 plot(filter(wr.sf.95,NDVI < 0.4)$NDVI, ndvi.model.low$fitted.values)
 abline(a = 0, b = 1)
+saveRDS(ndvi.model.low, "WR/ndvi.model.low.rds")
 
 
+# low altitude
+wr.n.s.la <- knearneigh(filter(wr.centroid, Alt < 200), k = 100)
+wr.n.nb.la <- knn2nb(wr.n.s.la)
+wr.kmat.la <- nb2listw(wr.n.nb.la)
+ndvi.model.la <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(Alt), data = filter(wr.sf.95, Alt < 200), listw = wr.kmat.la)
+plot(filter(wr.sf.95,Alt < 200)$NDVI, ndvi.model.la$fitted.values)
+abline(a = 0, b = 1)
+
+wr.n.s.ha <- knearneigh(filter(wr.centroid, Alt > 200), k = 100)
+wr.n.nb.ha <- knn2nb(wr.n.s.ha)
+wr.kmat.ha <- nb2listw(wr.n.nb.ha)
+ndvi.model.ha <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(Alt), data = filter(wr.sf.95, Alt > 200), listw = wr.kmat.ha)
+plot(filter(wr.sf.95,Alt > 200)$NDVI, ndvi.model.ha$fitted.values)
+abline(a = 0, b = 1)
+
+x <- wr.sf.95$Temp
+y <- wr.sf.95$Precip
+z <- wr.sf.95$Alt
+w <- wr.sf.95$NDVI
+
+plot(w, exp((log(z)-sd(z))^2))
+plot(log(z)^2, w)
+
+a <- 1
+b <- 2
+p <- 2
+q <- 5
+
+f <- (x-a)^(p-1)*(b-x)^(q-1)/(beta(p,q)*(b-a)^(p+q+1))
+f.ndvi <- nls(NDVI ~ exp(-(Temp-b)^2)+exp(-(log(Alt)-u)^2), data = wr.sf.95, start = c(b = 2, u = 4))
+plot(wr.sf.95$NDVI, fitted.values(f.ndvi))
+
+x <- seq(0,1,by = 0.01)
+y <- 1/exp((x-sd(x))^2)
+plot(x,y)
 ```
 
 
@@ -934,58 +1025,86 @@ wr.kmat <- readRDS("WR/wr.kmat.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 #NDVI 126 2050
-ndvi.ssp126.fit.high <- predict(object = ndvi.model.high, newdata = df.ssp126, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp126.fit <- predict(object = spatial.beta.ndvi, newdata = df.ssp126, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
 
-ndvi.ssp126.high <- cbind(df.ssp126, ndvi.ssp126.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI.high","trend","signal","geometry"))
+plot(wr.sf.95$NDVI, logclink(ndvi.ssp126.fit$ndvi, inverse = T))
+plot(logclink(wr.sf.95$NDVI), ndvi.ssp126.fit$ndvi)
 
-saveRDS(ndvi.ssp126.high,"WR/ndvi.ssp126.high.rds")
+ndvi.ssp126.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp126) 
 
+plot(wr.sf.95$NDVI, ndvi.ssp126.fit)
 
-ndvi.ssp126.fit.low <- predict(object = ndvi.model.low, newdata = df.ssp126, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp126 <- cbind(df.ssp126, ndvi.ssp126.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
 
-ndvi.ssp126.low <- cbind(df.ssp126, ndvi.ssp126.fit.low) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI.low","trend","signal","geometry"))
-
-saveRDS(ndvi.ssp126.low,"WR/ndvi.ssp126.low.rds")
+saveRDS(ndvi.ssp126,"WR/ndvi.ssp126.rds")
 
 # NDVI 370 2050
-ndvi.ssp370.fit.high <- predict(object = ndvi.model.high, newdata = df.ssp370, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp370.fit <- predict(object = ndvi.model, newdata = df.ssp370, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
 
-ndvi.ssp370.high <- cbind(df.ssp370, ndvi.ssp370.fit.high) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+ndvi.ssp370 <- cbind(df.ssp370, ndvi.ssp370.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
 
-saveRDS(ndvi.ssp370.high,"WR/ndvi.ssp370.high.rds")
+saveRDS(ndvi.ssp370,"WR/ndvi.ssp370.rds")
 
-ndvi.ssp370.fit.low <- predict(object = ndvi.model.low, newdata = df.ssp370, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
-
-ndvi.ssp370.low <- cbind(df.ssp370, ndvi.ssp370.fit.low) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
-
-saveRDS(ndvi.ssp370.low,"WR/ndvi.ssp370.low.rds")
 
 #NDVI 126 2010
-ndvi.ssp126.2100.fit.high <- predict(object = ndvi.model.high, newdata = df.ssp126.2100, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp126.2100.fit <- predict(object = ndvi.model, newdata = df.ssp126.2100, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
 
-ndvi.ssp126.2100.high <- cbind(df.ssp126.2100, ndvi.ssp126.2100.fit.high) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+ndvi.ssp126.2100 <- cbind(df.ssp126.2100, ndvi.ssp126.2100.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
 
-saveRDS(ndvi.ssp126.2100.high,"WR/ndvi.ssp126.2100.high.rds")
-
-ndvi.ssp126.2100.fit.low <- predict(object = ndvi.model.low, newdata = df.ssp126.2100, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
-ndvi.ssp126.2100.low <- cbind(df.ssp126.2100, ndvi.ssp126.2100.fit.low) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
-
-saveRDS(ndvi.ssp126.2100.low,"WR/ndvi.ssp126.2100.low.rds")
+saveRDS(ndvi.ssp126.2100,"WR/ndvi.ssp126.2100.rds")
 
 
 #NDVI 370 2100
-ndvi.ssp370.2100.fit.high <- predict(object = ndvi.model.high, newdata = df.ssp370.2100, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% setNames(c("ndvi","trend","signal"))
-ndvi.ssp370.2100.high <- cbind(df.ssp370.2100, ndvi.ssp370.2100.fit.high) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
+ndvi.ssp370.2100.fit <- predict(object = ndvi.model, newdata = df.ssp370.2100, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% setNames(c("ndvi","trend","signal"))
+ndvi.ssp370.2100 <- cbind(df.ssp370.2100, ndvi.ssp370.2100.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
 
-saveRDS(ndvi.ssp370.2100.high,"WR/ndvi.ssp370.2100.high.rds")
-
-ndvi.ssp370.2100.fit.low <- predict(object = ndvi.model.low, newdata = df.ssp370.2100, listw = wr.kmat, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% setNames(c("ndvi","trend","signal"))
-ndvi.ssp370.2100.low <- cbind(df.ssp370.2100, ndvi.ssp370.2100.fit.low) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
-
-saveRDS(ndvi.ssp370.2100.low,"WR/ndvi.ssp370.2100.low.rds")
-
+saveRDS(ndvi.ssp370.2100,"WR/ndvi.ssp370.2100.rds")
 
 ```
+
+```{r model-future-ndvi-quadra, eval = F}
+df.ssp126 <- readRDS("WR/df.ssp126.rds")
+df.ssp370 <- readRDS("WR/df.ssp370.rds")
+df.ssp126.2100 <- readRDS("WR/df.ssp126.2100.rds")
+df.ssp370.2100 <- readRDS("WR/df.ssp370.2100.rds")
+ndvi.model <- readRDS("WR/ndvi.model.rds")
+wr.kmat <- readRDS("WR/wr.kmat.rds")
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
+
+#NDVI 126 2050
+
+ndvi.ssp126.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp126) 
+plot(wr.sf.95$NDVI, ndvi.ssp126.fit)
+
+ndvi.ssp126 <- cbind(df.ssp126, ndvi.ssp126.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","geometry"))
+
+saveRDS(ndvi.ssp126,"WR/ndvi.ssp126.rds")
+
+# NDVI 370 2050
+ndvi.ssp370.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp370)
+
+ndvi.ssp370 <- cbind(df.ssp370, ndvi.ssp370.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","geometry"))
+
+saveRDS(ndvi.ssp370,"WR/ndvi.ssp370.rds")
+
+
+#NDVI 126 2010
+ndvi.ssp126.2100.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp126.2100)
+
+ndvi.ssp126.2100 <- cbind(df.ssp126.2100, ndvi.ssp126.2100.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","geometry"))
+
+saveRDS(ndvi.ssp126.2100,"WR/ndvi.ssp126.2100.rds")
+
+
+#NDVI 370 2100
+ndvi.ssp370.2100.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp370.2100)
+ndvi.ssp370.2100 <- cbind(df.ssp370.2100, ndvi.ssp370.2100.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","geometry"))
+
+saveRDS(ndvi.ssp370.2100,"WR/ndvi.ssp370.2100.rds")
+
+```
+
+
 
 ### Plots
 
@@ -1162,9 +1281,9 @@ wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 # 2050 -----
 
-wr.sf.126.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bogs","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff)), by = "gid")
+wr.sf.126.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff)), by = "gid")
 
-wr.sf.370.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bogs","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff)), by = "gid")
+wr.sf.370.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff)), by = "gid")
 
 na.lines.126 <- which(complete.cases(st_drop_geometry(wr.sf.126.2050))==F)
 na.lines.370 <- which(complete.cases(st_drop_geometry(wr.sf.370.2050))==F)
@@ -1180,9 +1299,9 @@ saveRDS(wr.sf.370.2050, "WR/wr.sf.370.2050.rds")
 
 # 2100 ----
 
-wr.sf.126.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bogs","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff.2100)), by = "gid")
+wr.sf.126.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff.2100)), by = "gid")
 
-wr.sf.370.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bogs","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff.2100)), by = "gid")
+wr.sf.370.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff.2100)), by = "gid")
 
 na.lines.126 <- which(complete.cases(st_drop_geometry(wr.sf.126.2100))==F)
 na.lines.370 <- which(complete.cases(st_drop_geometry(wr.sf.370.2100))==F)
@@ -1274,7 +1393,7 @@ diffs <- c("diffTemp","diffPrecip","diffNDVI","diffRunoff")
 
 
 for(i in c(1:length(list.sf))){
-  for(x in diffs[[3]]){
+  for(x in diffs[3]){
   g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
   scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],mid=palettes[2, grep(x,names(palettes))],high = palettes[1, grep(x,names(palettes))],
                        midpoint = 0, aesthetics = c("fill","col"),
@@ -1414,39 +1533,74 @@ ggsave(plot = r4,filename = "WR/diffrunoff.370.100.png",dpi = "retina", width = 
 ```
 
 
-### Forecast TOC SSP126
+### Forecast TOC SSP126 2050
 
 ```{r sem-model-toc-ssp126-2050, eval = F}
 sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
-wr.sf.126 <- readRDS("WR/wr.sf.126.rds")
+wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 
 fm <- logTOC~NDVI+logRunoff+Bog
 
-wr.pred.ssp126 <- predict(sem.fen.simple,wr.sf.126,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+wr.pred.ssp126 <- predict(sem.fen.simple,wr.sf.126.2050,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
 
-wr.ssp126 <- cbind(wr.sf.126,wr.pred.ssp126)
+wr.ssp126 <- cbind(wr.sf.126.2050,wr.pred.ssp126)
 wr.ssp126$TOC <- exp(wr.ssp126$fit)
 wr.ssp126 <- merge(wr.ssp126, select(st_drop_geometry(sem.pred.wr),c("gid","wr.pred.fit","toc95")))
-saveRDS(wr.ssp126,"WR/wr.ssp126.50.rds")
+saveRDS(wr.ssp126,"WR/wr.ssp126.2050.rds")
 
 ```
 
-### Forecast TOC SSP370
+### Forecast TOC SSP370 2050
 
 ```{r sem-model-toc-ssp370-2050, eval = F}
 sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
-wr.sf.370 <- readRDS("WR/wr.sf.370.rds")
+wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 
 fm <- logTOC~NDVI+logRunoff+Bog
 
-wr.pred.ssp370 <- predict(sem.fen.simple,wr.sf.370,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+wr.pred.ssp370 <- predict(sem.fen.simple,wr.sf.370.2050,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
 
-wr.ssp370 <- cbind(wr.sf.370,wr.pred.ssp370)
+wr.ssp370 <- cbind(wr.sf.370.2050,wr.pred.ssp370)
 wr.ssp370$toc <- exp(wr.ssp370$fit)
 wr.ssp370 <- merge(wr.ssp370, select(st_drop_geometry(sem.pred.wr),c("gid","wr.pred.fit","toc95")))
-saveRDS(wr.ssp370,"WR/wr.ssp370.50.rds")
+saveRDS(wr.ssp370,"WR/wr.ssp370.2050.rds")
+```
+
+### Forecast TOC SSP126 2100
+
+```{r sem-model-toc-ssp126-2050, eval = F}
+sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+wr.sf.126.2100 <- readRDS("WR/wr.sf.126.2100.rds")
+sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
+
+fm <- logTOC~NDVI+logRunoff+Bog
+
+wr.pred.ssp126 <- predict(sem.fen.simple,wr.sf.126.2100,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+
+wr.ssp126 <- cbind(wr.sf.126.2100,wr.pred.ssp126)
+wr.ssp126$TOC <- exp(wr.ssp126$fit)
+wr.ssp126 <- merge(wr.ssp126, select(st_drop_geometry(sem.pred.wr),c("gid","wr.pred.fit","toc95")))
+saveRDS(wr.ssp126,"WR/wr.ssp126.2100.rds")
+
+```
+
+### Forecast TOC SSP370 2050
+
+```{r sem-model-toc-ssp370-2050, eval = F}
+sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+wr.sf.370.2100 <- readRDS("WR/wr.sf.370.2100.rds")
+sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
+
+fm <- logTOC~NDVI+logRunoff+Bog
+
+wr.pred.ssp370 <- predict(sem.fen.simple,wr.sf.370.2100,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+
+wr.ssp370 <- cbind(wr.sf.370.2100,wr.pred.ssp370)
+wr.ssp370$toc <- exp(wr.ssp370$fit)
+wr.ssp370 <- merge(wr.ssp370, select(st_drop_geometry(sem.pred.wr),c("gid","wr.pred.fit","toc95")))
+saveRDS(wr.ssp370,"WR/wr.ssp370.2100.rds")
 ```
 
 ### Plot Forecast TOC

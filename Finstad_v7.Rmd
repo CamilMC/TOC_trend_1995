@@ -1,0 +1,306 @@
+---
+title: "Geographical modelling of TOCC concentration"
+author: "Camille Crapart"
+date: "29 3 2022"
+output: 
+  bookdown::word_document2:
+   toc: true
+   toc_float: true
+   number_sections: true
+   fig_caption: true
+   extra_dependencies: "subfig"
+always_allow_html: true
+bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+csl: acs-earth-and-space-chemistry.csl
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F, error = F)
+options(knitr.kable.NA="", kableExtra.auto_format = F)
+```
+
+```{r libraries-data, results=F}
+library(captioner)
+library(dplyr)
+library(kableExtra)
+memory.limit(size = 100000)
+
+fennoscandia <- readRDS("fennoscandia.Rdata")
+
+
+fig_nums <- captioner() 
+table_nums <- captioner(prefix = "Table")
+
+compute.effect.size <- function(df.coef){
+
+df.es <- df.coef[,1:3]
+n <- length(df.es$Parameter)
+m <- df.es$Parameter
+
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    df.es[i,2] <- 1.01^(df.coef[i,2])
+    df.es[i,3] <- 1.01^(df.coef[i,2])*log(1.01)*df.coef[i,3]
+  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest")){
+    df.es[i,2] <- exp(df.coef[i,2]*0.01)
+    df.es[i,3] <- 0.01*df.coef[i,2]*df.coef[i,3]
+  }else if(m[i] %in% c("TNdep")){
+    df.es[i,2] <- exp(df.coef[i,2]*25)
+    df.es[i,3] <- 25*exp(df.coef[i,2]*25)*df.coef[i,3]
+  }
+}
+
+df.es$Percent <- 100*(df.es$Estimate-1)
+
+return(df.es)
+
+}
+
+# other es
+eslog <- 1.01
+es <- 0.01
+```
+
+# Introduction 
+
+In Nordic boreal lakes, increased flux of natural organic matter from catchments to rivers and lakes has resulted in a widespread darkening of freshwater, a phenomenon referred to as browning. This trend has been documented since the 80 @Monteith2007, when several monitoring programs were implemented to document the effect of acid deposition abatement policies. The two successive sulphur protocols of Helsinki in 1985 and in Oslo 1994 @UNECE were followed by regional synoptic surveys on water quality, one in 1986  @Henriksen1989 and one in 1995 (Northern European Lake Survey @Henriksen1998). The former covered 1 000 lakes in Norway, while the latter survey included also almost 4 000 lakes in Sweden, Finland, Denmark, as well as Scotland, Wales and Russian Kola and Karelia. A 50% decrease of acid rains was observed between the period 76-85 and the period 95-2001 @Menz2004. Since then the SO2 levels in European air has declined further by 74%, and the sulphate in dry and wet deposition decreased by 61 and 60%, respectively @Fagerli2019.  This has led to that the regional median values of sulphate in lakes have decreased by 41 and 61% in Northern and southern parts of Norway, Sweden, and Finland, respectively, between the period 2012-2016 to 1990-1994  @Garmo2020. Finstad et al. @Finstad2016 demonstrated that this reduced sulphate load has increased the solubility of dissolved organic matter (DOM), thereby increasing the concentration of organic matter in surface waters. @DeWit2007a. 
+
+However, also other environmental factors are important in governing the brownification of the surface waters. A main pressure is climate change, with especially changing runoff patterns, expected to lead to an increased flushing of DOM to surface waters. @DeWit2016a. Longer growing seasons increase the primary production and thereby the biomass in the catchments @Finstad2016. In addition, there are land-use changes that tend towards more and more intensive forestry practices. Small-scale farming used out-field resources as grazing pastures for their husbandry @Myrstener2021. The abandonment of these practices has resulted in increased standing forest biomass. Finstad et al.5, modelling the increase of DOM concentrations in 70 Norwegian lakes over 30 years, found that the increase in terrestrial biomass (using Normalized difference vegetation index (NDVI) as its proxy) along with increasing temperature were significant drivers of freshwater DOM concentration.
+
+Forest management is an essential tool in achieving the commitments in the Fennoscandian climate policies. @Sundnes2020 In line with the Declaration on Forest and Land Use signed on November 2021 @UNClimateChangeConferenceUK2021, the Fennoscandian governments consider forest as a leverage for offsetting their carbon emissions and reaching their zero-emission goals. @NordicCouncilofMinisters2021  With 43,5, 65,5 and 70,9% @OECD2020, respectively, of their territories covered with forest, Norway, Sweden and Finland are not subject to deforestation.  On the contrary, the boreal forest covering Fennoscandia is part of the largest organic carbon pool on Earth. According to Bradshaw et al. @Bradshaw2015, the mean value of the total organic carbon store in the boreal biome is about 1041,5 Pg, compared to 500 in the tropical forests. This carbon is mainly stored in soils, such as in peatlands. During the last centuries, a growth of boreal forests has been a net sink for CO2 . The increase in biomass is mainly because the forests benefited from a milder climate, with longer growing seasons, as well as the accumulation of reactive nitrogen from long-range transported air pollution. This enhanced growing rate partially compensated the CO2 emissions generated by deforestation in other parts of the world. @LeNoe2021. Current policies in the Nordics promote the intensification of the forest industry. In Norway, the ministry of Environment (Miljødirektoratet) subsidies densification of the planted areas and the afforestation of new so-called Climate forests   @Miljodirektoratet2013. In Sweden and Finland, where most of the forest area is productive, timber industry is a major economical resource. @RoyalSwedish2015 Forestry products account for 23% of the swedish total exports and the standing biomass doubled over the last 100 years @Narin. Formas, the Swedish government research council for sustainable development, promotes bioeconomy as a major climate mitigation tool. @Formas2012. Similarly, in Finland the national subsidy schemes aim at intensifying the forestry sector. A fifth of the Finnish export of goods come from the wood industry. @Forestry2014  The Finnish forest legislation was renewed in the 2010s to improve its competitiveness while conserving its goals in terms of sustainability.
+
+The planned intensification of forest management and afforestation has, on the other hand, raised concern regarding the water quality @NorskVann In Norway, 90% of the raw water used for drinking water comes from surface waters. @EnergifaktaNorge2020  . Browning has potential impact on the required raw water treatment to ensure potability of water.@Eikebrokk2018 In addition, brownification has impacts  on the local ecosystems and leads to increased greenhouse gases emissions from the lakes, especially in small lakes @DeWit2018. 90% of the total organic matter in boreal lakes is dissolved (i.e., DOM) @Larsen2011 and has several key roles in the lake ecosystem. DOM is the main source of food and energy for heterotrophic bacteria. With darker waters, the light available for photosynthesis decreases, favouring heterotrophic bacteria above autotrophic bacteria, shifting the gas balance from a sink to a source of greenhouse gases  @Tranvik2009. In addition, the sunlight is absorbed by the coloured DOM, warming the upper layer of the lakes and causing prolonged stratification. Moreover, warm and dark water, with limited light availability, potentially disturb local species and fish production @Karlsson2009 @Craig2017. The current browning of freshwater lakes and rivers also entails the darkening of coastal waters, delaying phytoplankton spring blooms and decreasing primary production @Opdal2019a. Understanding the governing factors for DOM concentration under local anthropogenic and regional climatic stresses is therefore essential to forecast potential damages to the water quality and ecosystem services.
+
+Larsen et al @Larsen2011a developed in 2011 an empirical model for predicting the spatial variation of TOC concentrations (as a proxy for DOM) in the 1 000 Norwegian lakes of the 1995 Northern European Lake Survey. @Henriksen1998 The model was based on the lakes catchment characteristics, using catchment NDVI (Normalized Differential Vegetation Index), area fractions of bogs and area specific runoff as predictors. The current study expands on the DOM model basis by including almost 4 000 lakes and catchments from Sweden and Finland. 
+
+To test the assumption that NDVI, %bogs and relative runoff are the main explanatory predictors for DOM additional catchment characteristics are initially included in the model. Furthermore, spatial error linear model and a geographically weighted model are used as spatial modelling tools to account for the spatial autocorrelation between the response and predictor variables. Based on the fitted model, the effect size (i.e., magnitude of effect) of a relative increase of each of the predictor variables are estimated. Finally, the fitted models are used to predict the runoff on DOM from the entire area of Fennoscandia by forecasting future average TOC concentration in the ensemble of Fenno-Scandinavian catchment water regions draining into the sea. These models allow us to test two hypotheses: 1) That climate change, with increased temperature and runoff, will increase the DOM concentration in Fennoscandian lake; and 2) That the climate forest policy is likely to exacerbate the ongoing brownification.
+
+
+
+# Methods
+
+## Data preparation 
+
+The dataset comprised the `r dim(fennoscandia)[1]` lakes sampled during the Northern Lake Survey in 1995 @Henriksen1998. The TOC concentration is used as a proxy for the response variable DOM @Henriksen1997. Eight explanatory parameters, describing each of the 4 736 catchments, were compiled as predictor variables (i.e., NDVI, proportion of forest (Forest), arable land (Arable) and peat (Bog), mean runoff intensity (Runoff), precipitation intensity (Precip) and temperature (Temp), total nitrogen (TN-dep)). These descriptors were computed as mean values of each parameter over the catchment (`r fig_nums("insert-maps", display = "c")`). The complete procedure for extraction, compilation and preparation of historic data is available in Supplementary 1. Here a short summary is presented. All logarithmic transformations use the natural logarithm.
+
+* The total organic carbon (TOC) concentration (`r fig_nums("insert-maps", display = "c")`a) is a proxy for DOM. The data were extracted from the Northern Lake Survey dataset from 1995 , with the denomination mg C/L. As the TOC concentration values were skewed the data were log-transformed (log TOC) to normalize the distribution.
+
+* Normalized difference vegetation index (NDVI) values (`r fig_nums("insert-maps", display = "c")`b) for the summer months (June, July and August) are used a proxy for the amount of biomass. They were downloaded from the GIMMS database and averaged  for 1994. I.e., the year preceding sampling @TheNationalCenterforAtmosphericResearch2018. 
+
+* Mean runoff (Runoff) values as L/m2/s (i.e., mm/s) were derived from the CORDEX model for the period 1960 to 199031 @CORDEX @Kreienkamp2012. As the runoff intensities were skewed the data were log-transformed (log Runoff) to normalize the distribution (`r fig_nums("insert-maps", display = "c")`c). 
+
+* Mean temperature (Temp) in degrees of centigrade (ºC) (`r fig_nums("insert-maps", display = "c")`d) and precipitation (Precip) in mm/year for the years 1970 to 2000 in each catchment were downloaded from the WorldClim database @WorldClim. As the precipitation distribution was not normally distributed the data were log transformed (log Precip) (`r fig_nums("insert-maps", display = "c")`e).
+
+*	Proportions of bogs (`r fig_nums("insert-maps", display = "c")`f), forested area (`r fig_nums("insert-maps", display = "c")`g) and arable land (`r fig_nums("insert-maps", display = "c")`h) within each catchment are computed from the Corine Land Cover (CLC) database @CopernicusCLC, and correspond to the 2000 data, as land use data prior to this were not available. Several CLC categories were merged to create the three categories used in this study (see Supplementary 1). Although distributions of the different land use are not normally distributed they are not log transformed due to many zeros in the data. Other possible transformations (square, square roots) did not contribute to normalize the distribution. 
+
+*	Total nitrogen deposition (TN-dep) data (sum of dry and wet deposition; `r fig_nums("insert-maps", display = "c")`i) were extracted from EMEP models @EMEP. Data from 2000 were used as this were the first available data.
+
+
+Future changes in climate parameters are based on predicted changes in climate drivers derived from the Coupled Model Intercomparison Project (Phase 6) (CMIP6), run by the World Climate Research Program @WRCP22 using two different socio-economic pathways: @Riahi2017 SSP1-2.6 as the best scenario, assuming the global warming will be limited to less than 2°C, and SSP 3-7.0 as the realistic worst-case scenario @Hausfather2019 @CORDEX2021.Several institutions run the CMIP6 models to forecast future climate. Based on a review conducted by Raju et al. @Raju2020, the results from the model developed by the CRNM (Centre National de Recherches Météorologiques) were used to extract future runoff, temperature, and precipitation values.
+
+
+
+## Spatial DOM models
+
+Larsen et al. @Larsen2011 used a multiple linear regression model (LM) to predict the effect of climate change on the TOC concentration in 1 000 Norwegian lakes. In this study, including almost 4 000 lakes in Sweden and Finland, a similar LM is reproduced, confirming that biomass (measured as NDVI), %bog coverage (Bog), and log of runoff intensity (log Runoff) are the main explanatory factors for the spatial differences in DOM levels in Norway, Sweden, and Finland. The spatial autocorrelation of the response (TOC) and predictor variables (NDVI, Bog and Runoff) are then accounted for by fitting a Spatial Error Linear Model (SELM) and a Geographically Weighted Regression (GWR) model. The SELM includes the spatial autocorrelation in the error term, while the GWR model computes a model for each individual datapoint.
+
+The LM and SELM models are fitted both on scaled and unscaled variables. The scaled estimates (i.e., slope “a” as in the simple model $y = ax+b$) are used to compare the impact of the predictor variables on the same scale, while the unscaled estimates are used to estimate the effect sizes. The GWR model is fitted only with unscaled variables, as only the local effect sizes are assessed. The equations used to calculate the effect size for each pair response/predictor variable are explained in Supplementary 2. The GWR model computes a linear regression giving a stronger weight to the closest adjacent lakes. The considered neighbours are chosen to be the 500 nearest surrounding lakes, where weight for each lake is attributed following a gaussian distribution decline.
+
+Future changes in DOM concentrations are forecasted using the fitted spatial error linear models based on main predictors. Future runoff scenarios of TOC are predicted based on predicted changes in future surface runoff. Future NDVI is modelled based on temperature and precipitation derived from CRNM, since no forecast exist for this index. The proportion of bogs is not expected to change, therefore no changes are made regarding their future evolution.
+
+Polygons representing the water regions, were used to cover the whole territory of Fennoscandia, rather than only the catchments of the lakes included in the Northern Lake Survey. Water regions are the ensemble of the watercourse that drain to the sea within a coastal section @NVE. The water regions were computed from an elevation model (ref Anders). After cleaning, the dataset consisted of 1 392 polygons (see Supplementary 3).
+
+```{r summary-of-models}
+mymodels <- data.frame(Model = c("OLS (6)", "SELM (6)", "SELM (3)", "SELM (3F)", "GWR (3)", "GWR (3F)"), NSF = c("Y", "Y", "Y", "Y", "Y", "Y"), Norway = c("N", "N", "Y", "Y", "N", "N"), Estimates = c("S/U", "S/U", "S/U", "S/U", "U", "U")) 
+knitr::kable(mymodels)
+
+```
+
+`r table_nums("summary_of_models", "Summary of models presented in the article (Y: yes, N: no, U: unscaled estimates, S: scaled estimates)")`
+
+### Mapping of predictor and response variable
+
+Eight explanatory parameters, describing each of the `r dim(fennoscandia)[1]` catchments as predictor variables, were computed as mean values of each parameter over the catchment (`r fig_nums("insert-maps", display = "c")`) I.e., NDVI, proportion of forest (Forest), arable land (Arable) and peat (Bog), mean runoff intensity (Runoff), precipitation intensity (Precip) and temperature (Temp), total nitrogen (TN-dep).
+
+```{r insert-maps, fig.dim = c(6,9)}
+knitr::include_graphics(c("map.TOC.png","map.ndvi.png","map.Runoff.png","map.Precip.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png"))
+```
+
+`r fig_nums("insert-maps", "Maps of DOM (TOC, a) and its predictor variables : Biomass (NDVI, b), mean runoff intensity (Runoff, c), temperature (Temp, d), precipitation intensity (Precip, e), peat (Bog, f), proportion of forest (Forest, c), and arable land (Arable, d), and total nitrogen deposition (TN-dep, i) in the studied catchments")`
+
+### Correlations between predictor variables
+
+`r table_nums("corrplot", "Correlation plot for predictor variables")`
+
+```{r corrplot, fig.dim=c(4,4)}
+m <- c("logTOC","NDVI","logRunoff","logPrecip","Temp","Bog","Arable","Forest","TNdep")
+cor.mat <- cor(dplyr::select(fennoscandia,m[-1]))
+corrplot::corrplot(cor.mat, method = "number",type = "lower", number.cex = 0.7, tl.cex = 0.7, cl.cex = 0.7)
+```
+
+Pearson correlation coefficients between the eight predictor variables are given in `r table_nums("corrplot", display = "c")`. All correlations are represented , regardless of their p-value. The highest Pearson correlation coefficient (r) is between TN-dep and Temp (r = `r round(cor(fennoscandia$Temp,fennoscandia$TNdep),2)`). This is due to that the N-deposition is highest in the warmer southern regions of Fennoscandia. Inherently, log Precip and log Runoff are correlated (r = `r round(cor(fennoscandia$logPrecip,fennoscandia$logRunoff),2)`). ), though runoff is expected to be a stronger predictor for DOM as it reflects more directly the potential variation in soil water flow-paths carrying DOM from soil to lakes. Log Precip and log Runoff can have both positive and negative effects on DOM concentration. In watersheds dominated by shallow soils, rock outcrop and peats (e.g., west coast of Norway), increased precipitation and runoff leads to an overall dilution of the DOM concentration in surface waters. On the other hand, in areas with till soil, the predominant water flow-path during wet periods is through the organic rich forest floor, flushing large amounts of DOM directly into the surface waters . @Vogt1990 During winter, a high amount of precipitation generates a deep snow layer that limits vegetation growth and thereby reduce the DOM production in the catchment. 
+
+NDVI (`r fig_nums("rawndvi", display = "c")`) has as expected a strong positive correlation with % forest cover (`r fig_nums("rawclc", display = "c")`) (r = 0.58) (Table 1), although the two parameters do not provide the same information. NDVI does not distinguish between different types of vegetation, as it only reflects vegetation amount and density, which on the other hand is not accounted for in the land cover. Land cover data has a finer resolution than NDVI data. The minimum mapping unit in Corine Land Cover is 25 ha, for a minimum of 100 m linear feature, while NDVI has a much coarser resolution of 16 000 ha (8 km2). Moreover, the national mappings are based on satellite images that are interpreted in a semi-automatic manner, which results in slight deviations between countries. Finland and Sweden, for example, use two different methods to identify the forest cover.36 On the contrary, the NDVI is uniformly processed regardless of demographic regions. There are thus advantages and disadvantages regarding the use of NDVI and Forest cover. NDVI takes more into account the variations in amount of vegetation than type of vegetation, and thus more directly relevant to the production of DOM, while forest cover can be used to evaluate the impact of afforestation on the levels of DOM caused both response to climate change and forest management.
+
+```{r rawndvi, fig.dim = c(3,5)}
+knitr::include_graphics("NDVI/ndvi.fen.95.png")
+```
+
+`r fig_nums("rawndvi", "Map of average summer NDVI (June, July and August 1995) in Fennoscandia")`
+
+```{r rawclc, fig.dim = c(8,5)}
+knitr::include_graphics("Corine_Land_Cover/map-clc2.png")
+```
+
+`r fig_nums("rawclc", "Map of CORINE Land Cover (2000) in Norway, Sweden and Finland")`
+
+### Spatial autocorrelation & VIF
+
+Spatial autocorrelation and collinearity between the eight predictor variables in `r table_nums("corrplot", display = "c")` are evaluated using the Moran’s I index and the Variance Inflation Factor (VIF), respectively. The results are presented in `r table_nums("moran-vif-table", display = "c")`.
+
+```{r moran-vif-table}
+lm.all <- lm(data = fennoscandia, formula = as.formula(paste(m[1],"~",paste(m[-1],collapse = "+"))))
+lm.vif <- car::vif(lm.all) %>% as.data.frame() %>% setNames("VIF")
+
+moran.df <- readRDS("moran.df.Rdata")
+
+moran.limit <- 1/(dim(fennoscandia)[1]-1)
+
+moran.vif.df <- merge(moran.df,lm.vif, by.x = "parameter", by.y = 0)
+moran.vif.df[,2:4] <- round(moran.vif.df[,2:4],2)
+
+moran.vif.df[,-3] %>% 
+  dplyr::mutate(
+    VIF = cell_spec(VIF,color = ifelse(VIF > 3,"red", "black"), bold = ifelse(VIF > 5, T, F)),
+    moran.I = cell_spec(moran.I,bold = ifelse(moran.I > moran.limit, T, F),color = ifelse(moran.I > 0.8, "red","black"))) %>%
+  knitr::kable(digits = 2, 
+    caption = table_nums("moran-vif-table",paste("Moran's I AND Variance Inflation Factor (VIF) of predictor and predictor variable (Moran's I limit = ", format(moran.limit,scientific = T, digits = 2),")",sep = "")),
+    label = NA,
+    escape = F,
+    col.names = c("Predictor","Moran's I","VIF")) %>%    
+  kable_styling(bootstrap_options = "bordered", position = "center")
+        
+```
+
+The most spatial auto-correlated variables according to Moran’s I test (temperature, log of precipitation, and total N deposition) have also the highest VIF (`r table_nums("moran-vif-table", display = "c")`). Temperature has a VIF above 5 (VIF = `r round(lm.vif["Temp",],2)`) and was strongly correlated to TN-deposition (`r table_nums("corrplot", display = "c")`), as well as with NDVI and Forest. The high VIF value (VIF = `r round(lm.vif["logPrecip",],2)`) of log of precipitation is mainly due to its inherent strong correlation with log of runoff intensity. TN-deposition was not strongly correlated with the other explanatory variables, so it was included in the model although it has a high VIF value. However, temperature and log of precipitation were excluded.  
+
+# Modelling of TOC concentration
+
+## Comparison of linear model and spatial error model 
+
+```{r load-tables}
+s.lm.coef <- readRDS("s.lm.coef.rds")
+lm.effectsize <- readRDS("lm.effectsize.rds")
+
+s.sem.coef <- readRDS("s.sem.coef.rds")
+sem.effectsize <- readRDS("sem.effectsize.rds")
+
+```
+
+Using the six selected predictor variables in [section 3.1]{#overview} a linear model (LM) and a Spatial Error Model (SELM) were fitted for the logTOC against the selected predictor variables. The Spatial Error Model takes into account the spatial autocorrelation of the predictor variables in the error term of the regression. To compare the two models, the Akaike Information Criterion was calculated.
+
+Both models were fitted with and without scaled variables. The effect size calculated using the raw (non-scaled) coefficients according to the method explained in Supplementary 2. A comparison of the regression coefficients and effect size for each predictor variables is shown on `r fig_nums("compare-plots-1", display = "c")`. 
+
+The effect sizes are expressed as % change in TOC concentration caused by a 1% increase in NDVI (0.01 on the NDVI index), runoff, bog and forest coverage and arable land (proportion increase of 0.01), and a 25 ug/m2  increase of nitrogen deposition (1% of the range of TNdep), respectively. These relative changes are arbitrarily chosen to represent the impact of each predictor variable on a comparable basis.
+
+The scaled and effect size estimates are positive for an increase in NDVI, , Forest, Arable land and TN-dep, while the response is negative for an increase in log Runoff (`r fig_nums("compare-plots-1", display = "c")`). The SELM, having lower AIC (relative model fit) and Moran’s I (spatial autocorrelation) of the residuals , performs better than the LM, both with scaled and with unscaled variables. The estimates values by the two models are similar, though the LM tends to give higher values than the SELM. 
+
+NDVI and log Runoff have the highest scaled response estimates (`r fig_nums("compare-plots-1", display = "c")`), with a significant difference between the LM and SELM. For these two parameters, the spatial lagged SELM provides lower response estimates, suggesting that using a LM over a varied region may over-estimate the impact of these parameters. Log Runoff has high scaled estimates but the effect size is low compared to the other parameters (`r round(s.lm.coef[which(s.lm.coef$Parameter == "s.logRunoff"), which(names(s.lm.coef) == "Estimate")],2)` for LM and `r round(s.sem.coef[which(s.sem.coef$Parameter == "s.logRunoff"), which(names(s.sem.coef) == "Estimate")],2)` for SELM).
+
+Proportion of , Forest, and TN-dep have similar scaled estimate between 0,15 and 0,21, though their effect size differ significantly (`r fig_nums("compare-plots-1", display = "c")`). An 1% increase in the proportion of bog coverage would have a major impact, though this is  an unrealistic change, except in the case of local peat restoration project. A more realistic 1% increase in forest cover  will have a relative more limited though still clearly significant impact on the TOC: `r round(lm.effectsize[which(lm.effectsize$Parameter == "Forest"), which(names(lm.effectsize) == "Percent")],2)`% by LM and `r round(sem.effectsize[which(sem.effectsize$Parameter == "Forest"), which(names(sem.effectsize) == "Percent")],2)`% for SELM. TN-dep has the lowest effect size with about a `r round(sem.effectsize[which(sem.effectsize$Parameter == "TNdep"), which(names(sem.effectsize) == "Percent")],2)` % increase in TOC due to a 250 ug/m2 increase in reactive N loading. Although the annual Total N-deposition from long-range transported air pollution slowly decreases, the amount of reactive N continues to accumulate in these boral watersheds. Moreover, the use of Nitrogen fertilizers to increase forest production will serve to sustain  high N-saturation levels. 
+
+A 1% increase in the proportion of arable land has a low scaled estimate (`r round(s.lm.coef[which(s.lm.coef$Parameter == "Arable"), which(names(s.lm.coef) == "Percent")],2)`) by LM and `r round(sem.effectsize[which(s.sem.coef$Parameter == "Arable"), which(names(s.sem.coef) == "Percent")],2)` for SELM. The effect size is however comparable to the effect of a 1% increase of forest for the LM model (`r round(lm.effectsize[which(lm.effectsize$Parameter == "Arable"), which(names(lm.effectsize) == "Percent")],2)` %) , albeit it remains lower for the SELM model (`r round(sem.effectsize[which(sem.effectsize$Parameter == "Arable"), which(names(sem.effectsize) == "Percent")],2)` %). The unscaled estimates for Forest and Arable are similar, while the scaled estimate of Arable is ten times smaller than the scaled estimate for Forest, the standard deviation of the proportion of arable land being much bigger. 
+
+```{r compare-models}
+knitr::include_graphics("compare.lm.selm.png")
+```
+
+`r fig_nums(name = "compare-plots-1",caption = "Comparison of scaled estimate (left) and effect sizes for a 1% increase in the predictor variables (right) using LM and SELM models, based on the Fennoscandian dataset", display = "f")`
+
+### Spatial error model with forest as predictor instead of NDVI {#forest}
+
+```{r compare-effect-size-simple-forest}
+sem.coef.forest <- readRDS("sem.coef.forest.rds")
+sem.effectsize.forest <- readRDS("sem.effectsize.forest.rds")
+sem.coef.norge.forest <- readRDS("sem.coef.norge.forest.rds")
+sem.effectsize.forest.norge <- readRDS("sem.effectsize.forest.norge.rds")
+
+knitr::include_graphics("effectsize.forest.plot.png")
+```
+
+`r fig_nums("compare-effect-size-simple-forest", "Effect size for SELM model with forest as predictor instead of NDVI")`
+
+Replacing NDVI as explanatory variable in the SELM models with Forest cover renders a rather small effect size of a 1% increase in Forest cover (`r fig_nums("compare-effect-size-simple-forest", display = "c")`) compared to a 1% increase in NDVI (`r fig_nums("compare-plots-2", display = "c")`).  
+
+On the contrary, considering Forest cover instead of NDVI yields greater impact to the proportion of bogs: 15% (`r fig_nums("compare-effect-size-simple-forest", display = "c")`) compared to 1% (`r fig_nums("compare-plots-2", display = "c")`) for Fennoscandian dataset, and even more for the model based on the Norwegian dataset. The effect size of a 1% increase in runoff remains unchanged at `r round(sem.effectsize.forest[which(sem.effectsize.forest$Parameter == "logRunoff"), which(names(sem.effectsize.forest) == "Percent")],2)`% and `r round(sem.effectsize.forest.norge[which(sem.effectsize.forest.norge$Parameter == "logRunoff"), which(names(sem.effectsize.forest.norge) == "Percent")],2)`%, based on the Fennoscandian dataset and Norwegian dataset, respectively.
+
+## Forecast in water regions
+
+Forecasted simulations of DOM are based on scenarios of changes in the three main predictors, NDVI, log Runoff and Bogs. The changes in temperature and precipitation (used to assess NDVI) and of Runoff simulations using CMIP6. The catchments included in the 1995 synoptic study were expanded to 1 392 water regions (see Supplementary 3) covering the entire Fennoscandia.   
+
+
+In order to cover the whole territory of Fennoscandia, and not only some lakes catchment as with the Northern lake Survey, we used the polygons representing the water regions. Water regions are the ensemble of the watercourse that drain to the sea within a coastal section @NVE. The water regions were computed from an elevation model (ref Anders). After cleaning, the dataset is composed of 1392 polygons (see Supplementary 3). 
+
+### Modelling of mean TOC in 1995 in water regions
+
+NDVI, runoff and land cover in 1995 for the 1 392 water regions (`r fig_nums("wr-maps-95", display = "c")`) were extracted using the same protocol as for the Northern Lake Survey dataset. The average TOC concentration, not sampled for each of the water regions, was modelled using the spatial error model (SELM) fitted in [section 3.3](#sem-simple). 
+
+```{r wr-maps-95, fig.scap= NA}
+knitr::include_graphics(c("WR/wr.ndvi.plot.png","WR/wr.bogs.plot.png","WR/wr.runoff.plot.png","WR/wr.toc.png"))
+```
+
+`r fig_nums("wr-maps-95","Map of the mean values of predictor variables and modelled TOC as response parameter in the 1 392 water regions in 1995") `
+
+### Forecast of predictor variables
+
+Temperature and precipitation values were used to model future NDVI, since no forecast exist for this index. The proportion of bogs is not expected to change, therefore no hypothesis is taken concerning their future evolution.
+
+
+#### Runoff 
+
+Future annual runoff intensities were extracted from the CRMP-CM6 model and averaged for the period 2041-2060 and for the period 2081-2100 to match the temperature and precipitation data. The average forecasted and the differences in averaged runoff intensities compared to the period 1970-2000 for two different climate change assumptions are shown `r fig_nums("future_runoff",display = "c")`.
+
+```{r future-runoff-2050, fig.dim= c(6,8)}
+knitr::include_graphics(c("WR/SSP126.2050.diffRunoff.png","WR/SSP370.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png","WR/SSP126.2100.diffRunoff.png"))
+```
+
+`r fig_nums("future-runoff","Forecast of mean runoff intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in runoff compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+
+
+#### NDVI 2041-2060
+
+There is no forecast for NDVI in CMIP6. Summer NDVI values for 2050 were instead predicted using a spatial error model based on forecast for temperature and precipitations in the period 2041-2060 and for the period 2081-2100. This model was fitted using summer NDVI, temperature and precipitations in 1995 (mean 1970-2000). 
+
+Average temperature and precipitation for 1995 were extracted from the Worldclim database @WorldClim. Future temperature and precipitation values are extracted from the CRNM-CM6 model. They are presented respectively in `r fig_nums("ssp-temp-prec", display = "c")`. Modelled future and changes in NDVI are shown in `r fig_nums("ssp-ndvi",display = "c")`.
+
+
+```{r ssp-temp-prec, fig.dim= c(6,8)}
+knitr::include_graphics(c("WR/SSP126.2050.diffTemp.png", "WR/SSP126.2050.diffPrecip.png", "WR/SSP126.2100.diffTemp.png","WR/SSP370.2100.diffPrecip.png"))
+```
+
+`r fig_nums("ssp-temp-prec","Forecast of mean temperature and precipitation for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and changes in temperature and precipitation compared to the average for 1995, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+
+```{r ssp-ndvi, fig.dim= c(6,8)}
+knitr::include_graphics(c("WR/SSP126.2050.diffNDVI.png","WR/SSP370.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","WR/SSP370.2100.diffNDVI.png"))
+```
+
+`r fig_nums("ssp-ndvi","Prediction of mean summer NDVI for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and changes in summer NDVI compared to the summer average for 1995, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+
+### Forecast of mean DOM concentration in 2041-2060
+
+Using the Spatial Error Linear Model (SELM), fitted for Fennoscandia in  [section 3.3](#sem-simple) the future DOM concentrations were predicted based on the 2ºC target and the realistic worst-case climate change scenarios (SPP 1-2.6 and SSP 3-7.0), respectively (`r fig_nums("wr-maps-95", display = "c")`).
+
+```{r ssp-toc, fig.dim= c(6,8)}
+knitr::include_graphics(c("WR/map.toc.126.png", "WR/map.toc.diff.126.png","WR/map.toc.370.png","WR/map.toc.diff.370.png"))
+```
+
+`r fig_nums("ssp-toc","Forecast of TOC concentration under SSP 1-2.6 and SSP 3.7-0 (mg/L)")`
+
+The largest climate largest induced increases in DOM concentrations are predicted to mainly be in southern Sweden and in many very small coastal water regions. A slight decrease in DOM is predicted for mid Sweden and Finland under the 2ºC scenario, though this is less distinct for the more realistic worst-case scenario. 
+
+```{r compare-ssp, fig.dim = c(10,20)}
+knitr::include_graphics("WR/compare.ssp.png")
+```
+
+`r fig_nums("compare-ssp","Boxplot of ranges in Temperature, Precipitation, NDVI, Runoff and TOC in 1995 and for 2050 under the scenarios SSP1-2.6 and SSP3-7.0.")`

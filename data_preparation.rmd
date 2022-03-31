@@ -331,6 +331,11 @@ Forest:
 * 24: Coniferous forest
 * 25: Mixed forest
 
+Bare:
+31: Bare rocks
+32: Sparsely vegetated areas
+33: Burnt areas
+
 ```{r extract-land-cover, eval = F}
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
 plot(corine)
@@ -354,6 +359,8 @@ arable <- colSums(clc.tab.prop[c(12,18,19,10),]) %>% as.data.frame() %>% setName
 saveRDS(arable,"arable.rds")
 forest <- colSums(clc.tab.prop[c(23,24,25),]) %>% as.data.frame() %>% setNames("forest") %>% tibble::rownames_to_column(var = "ebint")
 saveRDS(forest,"forest.rds")
+bare <- colSums(clc.tab.prop[c(31,32,33),]) %>% as.data.frame() %>% setNames("bare") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(bare,"bare.rds")
 
 ```
 
@@ -439,6 +446,7 @@ alt.df <- readRDS("alt.df.Rdata")
 bogs <- readRDS("bogs.rds")
 arable <- readRDS("arable.rds")
 forest <- readRDS("forest.rds")
+bare <- readRDS("bare.rds")
 
 ndep <- readRDS("ndep.df.Rdata")
 sdep <- readRDS("sdep.df.rds")
@@ -453,6 +461,7 @@ fennoscandia_raw <- merge(country,toc.df, by = "ebint") %>%
   merge(bogs, by = "ebint") %>%
   merge(arable, by = "ebint")%>%
   merge(forest,by = "ebint") %>%
+  merge(bare, by = "ebint") %>%
   merge(ndep, by = "ebint") %>% 
   merge(sdep, by = "ebint")
 
@@ -463,6 +472,7 @@ fennoscandia_raw <- fennoscandia_raw %>% filter(toc_mg_l >= 0)
 fennoscandia_raw <- fennoscandia_raw %>% filter(runoff > 0)
 fennoscandia_raw <- fennoscandia_raw %>% filter(ndvi.value > 0)
 fennoscandia_raw <- fennoscandia_raw %>% filter(is.na(slope) == F)
+fennoscandia_raw <- fennoscandia_raw %>% filter(alt != 0)
 fennoscandia_raw <- fennoscandia_raw %>% filter(uncertain == FALSE)
 fennoscandia_raw$uncertain <- NULL
 
@@ -499,8 +509,8 @@ Lots of 0 in N-dep, bogs and arable : not transformed
 ```{r log-transform, eval = F}
 fennoscandia <- readRDS("fennoscandia_raw.rds")
 
-v <- c("toc_mg_l","runoff","temp","prec","bogs","arable","forest","tndep","tsdep")
-names(fennoscandia)[which(names(fennoscandia) %in% v)] <- c("TOC", "Runoff","Temp","Precip","Bog","Forest","Arable","TNdep","TSdep")
+v <- c("toc_mg_l","runoff","temp","prec","slope","alt","bogs","arable","forest","bare","tndep","tsdep")
+names(fennoscandia)[which(names(fennoscandia) %in% v)] <- c("TOC", "Runoff","Temp","Precip","Slope","Alt","Bog","Arable","Forest","Bare","TNdep","TSdep")
 
 fennoscandia$logTOC <- log(fennoscandia$TOC) 
 fennoscandia$s.logTOC <- scale(fennoscandia$logTOC) 
@@ -516,7 +526,7 @@ fennoscandia$Temp <- fennoscandia$Temp / 10 # divided by 10 because the temperat
 fennoscandia$s.Temp <-  scale(fennoscandia$Temp) 
 fennoscandia$logPrecip <- log(fennoscandia$Precip+1e-5)
 fennoscandia$s.logPrecip <- scale(fennoscandia$logPrec)
-fennoscandia$s.slope <- scale(fennoscandia$slope)
+fennoscandia$s.Slope <- scale(fennoscandia$Slope)
 fennoscandia$s.TNdep <- scale(fennoscandia$TNdep)
 fennoscandia$rdn <- fennoscandia$drdn+fennoscandia$wrdn
 fennoscandia$oxn <- fennoscandia$doxn+fennoscandia$woxn
