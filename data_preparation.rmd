@@ -364,6 +364,14 @@ saveRDS(bare,"bare.rds")
 
 ```
 
+## Soil thickness
+```{r soil-thickness}
+soil <- raster::raster("DAAC/average_soil_and_sedimentary-deposit_thickness.tif")
+catchment.poly <- readRDS("catchment.poly.Rdata")
+soil.df <- extract(soil, catchment.poly, sp = T, df = T, na.rm = T)
+
+```
+
 ## NDEP - EMEP data
 
 https://emep.int/mscw/mscw_moddata.html#Comp

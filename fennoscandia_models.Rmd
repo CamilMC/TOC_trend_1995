@@ -349,7 +349,7 @@ scaled.df$Parameter <- factor(scaled.df$Parameter, levels = c("s.TNdep","s.Fores
 scaled.plot <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model, col = Model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
   labs(x = "Scaled Estimate", y = "Predictor", subtitle = paste("LM: AIC =",round(AIC(s.lm.fennoscandia),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSELM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
-  theme_bw(base_size = 6)+theme(legend.position = "bottom")
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
 
 ```
 
@@ -366,7 +366,7 @@ effectsize.plot <- ggplot(h.df, aes(group = Model))+
   geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.fennoscandia),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSELM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
-  theme_bw(base_size = 6)+theme(legend.position = "bottom")
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
 
 ```
 
@@ -497,7 +497,7 @@ s.moran.I.res.sem <- moran.test(s.sem.fen.simple$residuals, k.neigh.w, alternati
 sem.AIC <- 2*(n-1)-2*sem.fen.simple$LL
 moran.I.res.sem <- moran.test(sem.fen.simple$residuals, k.neigh.w, alternative = "two.sided")
 
-summary.table.simple.sem <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize.fen[,2:4]) %>%
+summary.table.simple.sem <- cbind(dplyr::select(sem.coef.simple,Parameter),s.sem.coef.simple[,2:3],sem.coef.simple[,2:3],sem.effectsize.fen[,2:4]) %>%
                 rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
                 rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"",moran.I.res.sem$estimate[[1]], "","","",""))
 summary.table.simple.sem[,-1] <- apply(summary.table.simple.sem[,-1],2,as.numeric)
@@ -506,16 +506,16 @@ saveRDS(summary.table.simple.sem, "summary.table.simple.sem.rds")
 ```
 
 ```{r compare-estimates-simple}
-n <- c(names(s.sem.coef),"Model")
+n <- c(names(s.sem.coef.simple),"Model")
 m <- cbind.data.frame(s.sem.coef.norge, Model = "Norway")
-o <- cbind.data.frame(s.sem.coef, Model = "Fennoscandia")
+o <- cbind.data.frame(s.sem.coef.simple, Model = "Fennoscandia")
   
 scaled.df <- rbind(m,o)
 
 scaled.plot <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x = "Scaled estimates",y = "predictor variables", subtitle = paste("Fennoscandia: AIC =",round(s.sem.AIC,2),"; Moran's I = ",round(s.moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(s.sem.AIC.norge,2),"; Moran's I =",round(s.moran.I.res.sem.norge$estimate[[1]],2)))+
-  theme_bw(base_size = 6)+
+  labs(x = "Scaled estimates",y = "Predictor", subtitle = paste("Fennoscandia: AIC =",round(s.sem.AIC,2),"; Moran's I = ",round(s.moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(s.sem.AIC.norge,2),"; Moran's I =",round(s.moran.I.res.sem.norge$estimate[[1]],2)))+
+  theme_bw(base_size = 8)+
   theme(legend.position = "bottom")
 
 ```
@@ -532,7 +532,7 @@ effectsize.plot <- ggplot(h.df, aes(group = Model))+
   geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "", subtitle = paste("Fennoscandia: AIC =",round(sem.AIC,2),"; Moran's I = ",round(moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(sem.AIC.norge,2),"; Moran's I =",round(moran.I.res.sem.norge$estimate[[1]],2)))+
-  theme_bw(base_size = 6)+theme(legend.position = "bottom")
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
 ```
 
 ```{r compare-plots-2, fig.dim = c(10,5)}
@@ -561,6 +561,7 @@ saveRDS(sem.forest.norge, "sem.forest.norge.Rdata")
 ```
 
 ```{r sem-forest-results}
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
 sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
 sem.forest.norge <- readRDS("sem.forest.norge.Rdata")
@@ -587,6 +588,7 @@ saveRDS(summary.table.sem.forest,"summary.table.sem.forest.rds")
 ``` 
 
 ```{r sem-forest-norge}
+norge.kmat <- readRDS("norge.kmat.Rdata")
 
 sem.coef.norge.forest <- sem.forest.norge$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
@@ -615,13 +617,14 @@ m <- cbind.data.frame(sem.effectsize.forest,model = "Fennoscandia") %>% setNames
 o <- cbind.data.frame(sem.effectsize.forest.norge,model = "Norway")
   
 h.df <- rbind(m,o)
+h.df$Parameter <- factor(h.df$Parameter, levels = c("Bog","logRunoff","Forest"))
 
 effectsize.plot <- ggplot(h.df, aes(group = model))+
   geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "", subtitle = paste("Fennoscandia: AIC =",round(sem.AIC,2),"; Moran's I = ",round(moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(sem.AIC.norge,2),"; Moran's I =",round(moran.I.res.sem.norge$estimate[[1]],2)))+
-  theme_bw()+theme(legend.position = "bottom")
-ggsave(plot = effectsize.plot,filename = "effectsize.forest.plot.png", dpi = "retina", width = 6, height = 8, units = "cm")
+  labs(x = "Effect size in %", y = "Predictor", subtitle = paste("Fennoscandia: AIC =",round(sem.AIC,2),"; Moran's I = ",round(moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(sem.AIC.norge,2),"; Moran's I =",round(moran.I.res.sem.norge$estimate[[1]],2)))+
+  theme_bw(base_size = 6)+theme(legend.position = "bottom")
+ggsave(plot = effectsize.plot,filename = "effectsize.forest.plot.png", dpi = "retina", width = 7, height = 8, units = "cm")
 ```
 
 `r fig_nums("compare-effect-size-simple-forest", "Effect size for SELM model with forest as predictor instead of NDVI")`
