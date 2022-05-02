@@ -1,0 +1,331 @@
+---
+title: "Supplementary 5 - Forest impact"
+author: "Camille M. Crapart"
+date: "5 1 2022"
+output: 
+  bookdown::html_document2:
+   toc: true
+   toc_float: true
+   number_sections: true
+   fig_caption: true
+   code_folding: hide
+bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+link-citations: yes
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", fig.show = "hold")
+options(knitr.kable.NA="", knitr.kable.format ="html")
+```
+```{r library, collapse = T}
+library(dplyr)
+library(tibble)
+
+library(DBI)
+library(sf)
+library(gimms)
+
+library(ncdf4)
+library(rgdal)
+
+library(stringr)
+library(ggplot2)
+library(RColorBrewer)
+library(cowplot)
+library(spdep)
+library(spatialreg)
+
+library(kableExtra)
+library(reshape2)
+
+source("f_plotspatial.R")
+fennoscandia <- readRDS("fennoscandia.rds")
+
+memory.limit(size = 160000)
+
+library(captioner)
+fig_nums <- captioner() 
+table_nums <- captioner(prefix = "Table")
+```
+
+NDVI and Forest cover are both proxy for the biomass amount on the catchment. However, they are poorly correlated (`r round(cor(fennoscandia$NDVI, fennoscandia$Forest),2)`) and are not expected to have exactly the same effect on TOC  concentration in time. To investigate the effect of an increase of forest cover in Norway, Sweden and Finland, in line with the forest policies in these three countries, an alternative model was fitted using Forest (instead of NDVI), Bog and Runoff as predictors based on the Northern Lake Survey (1995). Then, the model was tested with the 2019 survey and the forecast made for 2100, when planted trees will have reached maturity.
+
+# Spatial error model with Forest as predictor {#forest}
+
+```{r compare-effect-size-simple-forest}
+sem.coef.forest <- readRDS("sem.coef.forest.rds")
+sem.effectsize.forest <- readRDS("sem.effectsize.forest.rds")
+sem.coef.norge.forest <- readRDS("sem.coef.norge.forest.rds")
+sem.effectsize.forest.norge <- readRDS("sem.effectsize.forest.norge.rds")
+
+knitr::include_graphics("effectsize.forest.plot.png")
+```
+
+`r fig_nums("compare-effect-size-simple-forest", "Effect size for SELM model with forest as predictor instead of NDVI")`
+
+To compare their relative impact, a second SELM was fitted with Forest replacing NDVI  as explanatory variable. It renders a relatively small effect size by a 1% increase  in Forest (`r fig_nums("compare-effect-size-simple-forest", display = "c")`) compared to a 1% increase in NDVI (`r fig_nums("compare-plots-2", display = "c")`).  
+
+Replacing NDVI with Forest enhance the relative impact of Bogs. I.e., 15% (`r fig_nums("compare-effect-size-simple-forest", display = "c")`) compared to 1% (`r fig_nums("compare-plots-2", display = "c")`) for Fennoscandian dataset, and even more for the model based on the Norwegian dataset. The effect size of a 1% increase in runoff remains unchanged at `r round(sem.effectsize.forest[which(sem.effectsize.forest$Parameter == "logRunoff"), which(names(sem.effectsize.forest) == "Percent")],2)`% and `r round(sem.effectsize.forest.norge[which(sem.effectsize.forest.norge$Parameter == "logRunoff"), which(names(sem.effectsize.forest.norge) == "Percent")],2)`%, based on the Fennoscandian dataset and Norwegian dataset, respectively.
+
+# Fitting NIVA data with forest
+
+Fitting the log(TOC) concentration using Forest as predictor instead of NDVI results in a reasonable fit, as displayed on `r fig_nums("niva_fit_obs",display = "c")`, even if the lower values are over-estimated and the higher values are over-estimated.  This is a similar pattern compared to the model fitted with NDVI, where the high TOC concentrations in the south-east of Norway were under-estimated. The maps of the predicted and observed TOC concentrations are shown on `r fig_nums("niva_fit_forest",display = "c")`.
+
+
+```{r predict-toc-forest}
+sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
+niva_final <- readRDS("NIVA_test/niva_final.rds")
+niva.kmat <- readRDS("NIVA_test/niva.kmat.rds")
+
+fm <- logTOC ~ Forest + logRunoff + Bog 
+sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
+niva_fit <- predict(sem.forest.fen, niva_final, niva.kmat)
+
+niva_predict_forest <- cbind(niva_final, niva_fit)
+niva_predict_forest$diffTOC <- exp(niva_predict_forest$fit) - niva_predict_forest$toc_2019
+niva_predict_forest$diffLogTOC <- log(niva_predict_forest$toc_2019) - niva_predict_forest$fit
+
+ggplot(niva_predict_forest) + geom_point(aes(x = log(toc_2019), y = fit)) + labs(x = "Sampled log(TOC)", y = "Fitted log(TOC)", title = "a)")
+ggplot(niva_predict_forest) + geom_point(aes(x = fit, y = log(toc_2019)-fit)) + labs(y = "Residuals", x = "Fitted log(TOC)", title = "b")
+
+saveRDS(niva_predict_forest,"NIVA_test/niva_predict_forest.rds")
+
+```
+
+`r fig_nums("niva_fit_obs", "Fitted vs observed log(TOC) concentration on the 2019-survey data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`
+
+```{r plot-toc-predictions-forest, eval = F}
+niva_predict_forest <- readRDS("NIVA_test/niva_predict_forest.rds")
+nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(st_crs(wr.sf.95))
+mypal <- brewer.pal(9, name = "RdYlGn")
+lims.toc <- c(min(c(niva_predict_forest$toc_2019, exp(niva_predict_forest$fit))), max((c(niva_predict_forest$toc_2019, exp(niva_predict_forest$fit)))))
+
+diff.niva.forest <- ggplot() + geom_sf(data = nor, fill = "lightgray", col = "lightgray") +
+  geom_sf(data = niva_predict_forest, aes(fill = diffTOC, col = diffTOC)) + 
+  scale_color_gradient2(low = mypal[9],high = mypal[1], mid = mypal[5], midpoint = 0, name = "Difference between\nobserved and predicted TOC\nwith Forest, bogs, runoff (mg/L)", aesthetics = c("fill","col"))+
+  labs(x = "", y = "")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+ggsave(plot = diff.niva.forest, filename = "NIVA_test/diff.niva.forest.png", dpi = "retina", width = 8, height = 10, units = "cm")
+  
+fitted.niva.forest <- ggplot() +geom_sf(data = nor, fill = "lightgray", col = "lightgray") +
+  geom_sf(data = niva_predict_forest, aes(fill = exp(fit), col = exp(fit))) + 
+  scale_color_distiller(type = "seq", palette = 8, aesthetics = c("fill","col"), direction = 1, name = "Fitted TOC (mg/L)", limits = lims.toc)+
+  labs(x = "", y = "")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+
+ggsave(plot = fitted.niva.forest, filename =  "NIVA_test/fitted.niva.forest.png",dpi = "retina", width = 8, height = 10, units = "cm")
+
+obs.niva.forest <- ggplot() + geom_sf(data = nor, fill = "lightgray", col = "lightgray") +
+  geom_sf(data = niva_predict_forest, aes(fill = toc_2019, col = toc_2019)) + 
+  scale_color_distiller(type = "seq", palette = 8, aesthetics = c("fill","col"), direction = 1, name = "Sampled TOC (mg/L)", limits = lims.toc)+
+  labs(x = "", y = "")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+ggsave(plot = obs.niva.forest, filename = "NIVA_test/obs.niva.forest.png",dpi = "retina", width = 8, height = 10, units = "cm", device = "png")
+```
+
+```{r fitted-vs-obs-forest-niva, fig.show = "hold", fig.align = "center"}
+knitr::include_graphics(c("NIVA_test/obs.niva.forest.png","NIVA_test/fitted.niva.forest.png","NIVA_test/diff.niva.forest.png"))
+```
+
+`r fig_nums("niva_fit_forest", "Observed, fitted and difference between observed and fitted values for TOC concentration on the 2019-survey data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`
+
+# Forecast of mean TOC concentration with an increase of forest cover
+
+An increase in forest cover as a nature-based solution (NbS) to sequester CO2 to abate climate change @Lethonen2021, @RegionSkane2020, @Haugland2014 may have an impact on the TOC concentration in lakes. In this section, we use the model fitted in [section 3.5](#forest) to predict the TOC concentration in water regions pending an increase in forest cover. 
+
+
+
+## TOC prediction for 1995 on water regions
+
+The water regions model is based on water districts determined by an elevation model. Hence, the mean TOC concentration in the water bodies for each of these water regions was not sampled. Therefore, the original TOC concentration in 1995 was modeled thanks to the SELM model fitted with Forest, NDVI and logRunoff as predictor on the Northern Lake Survey Data. The catchment characteristics (NDVI, Forest and logRunoff) were extracted in the same way as in the model with NDVI as predictor. The resulting mean TOC concentration is shown on `r fig_nums("wr_fit_forest-95", display = T)`. As proved by the test on observed TOC concentration for the 2019-dataset, high TOC concentrations are likely to be underestimated in the south-east of Norway and in other regions with high TOC concentration, like south Sweden. 
+
+```{r sem-model-toc-forest, eval = F}
+sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
+fm <- logTOC~Forest+logRunoff+Bog
+wr.pred <- predict(sem.forest.fen,wr.sf.95,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+
+sem.pred.forest.wr <- cbind(wr.sf.95,wr.pred$fit)
+sem.pred.forest.wr$TOC95 <- exp(sem.pred.forest.wr$wr.pred.fit)
+
+saveRDS(sem.pred.forest.wr,"WR/sem.pred.forest.wr.rds")
+
+map.fit.forest <- ggplot()+geom_sf(data = st_as_sf(sem.pred.forest.wr), aes(fill = TOC95, col = TOC95))+
+  scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
+                       name = "Modelled TOC 1995 (mg/L)\n using forest model")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.fit.forest, filename = "WR/wr.toc.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
+```
+
+```{r plot-forest-95}
+knitr::include_graphics("WR/wr.toc.forest.png")
+```
+
+`r fig_nums("wr_fit_forest-95", "Fitted mean TOC concentration for the water regions in 1995 data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`
+
+## Prediction of forest increase in Norway, Sweden and Finland
+
+We assessed the increase in forest cover based on numbers presented in policy papers. In Finland, 26,18 million ha @Lukestat are covered with forest and 90 000 are expected to be planted by 2065 @Lethonen2021. This represents roughly an mean increase of 0,34%. In Sweden, the forest covers 28 million hectares @SwedishForestAgency2012. The Swedish forest policy includes the afforestation of 190 000 ha @StatensOffentligaUtredningar2020, representing a 0,68% increase. In Norway, the forest covers 8,443 million ha and the plan for afforestation is to increase this cover up to 9,78 million hectare, i.e. 16%.  
+
+However, the potential increase in the proportion of forest cover differs between the water regions as the proportion of forest in a region with a 100% forest cover cannot increase further. Likewise, it is unlikely that a water region with a 0% forest cover (bare rocks, glaciers) can be afforested. Therefore, the potential increase of forest cover was calculated using a beta-distribution shape (see Supplementary 3). The increase was calculated to be, on average, 0,34% for Finland, 0.68% for Sweden and 16% for Norway. 
+
+```{r points-in-polygons, collapse = T}
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
+wr.centroid <- st_centroid(wr.sf.95, of_largest_polygon = T)
+sem.pred.forest.wr <- readRDS("WR/sem.pred.forest.wr.rds")
+
+nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(st_crs(wr.centroid))
+swe <- st_read("Country_shapefile/sweden.shp") %>% st_transform(st_crs(wr.centroid))
+fin <- st_read("Country_shapefile/finland.shp") %>% st_transform(st_crs(wr.centroid))
+
+wr.norge <- wr.centroid[nor,]
+wr.norge$Nation <- "Norway"
+wr.sweden <- wr.centroid[swe,]
+wr.sweden$Nation <- "Sweden"
+wr.finland <- wr.centroid[fin,]
+wr.finland$Nation <- "Finland"
+
+wr.norge$forest_increase <- dbeta(wr.norge$Forest,shape1 = 3, shape2 = 8)/10
+ggplot(wr.norge)+geom_point(aes(x=Forest,y = forest_increase))+labs(x="Current forest proportion", y = "Planned increase",title = "Norway")
+mean(wr.norge$forest_increase)
+
+wr.sweden$forest_increase <- dbeta(wr.sweden$Forest,shape1 = 3, shape2 = 7)/100
+ggplot(wr.sweden)+geom_point(aes(x=Forest,y = forest_increase))+labs(x="Current forest proportion", y = "Planned increase",title = "Sweden")
+mean(wr.sweden$forest_increase)
+
+wr.finland$forest_increase <- dbeta(wr.finland$Forest,shape1 = 2, shape2 = 7)/100
+ggplot(wr.finland)+geom_point(aes(x=Forest,y = forest_increase))+labs(x="Current forest proportion", y = "Planned increase",title = "Finland")
+mean(wr.finland$forest_increase)
+
+average.increase <- c(mean(wr.norge$forest_increase)*100,mean(wr.sweden$forest_increase)*100,mean(wr.finland$forest_increase)*100) 
+
+wr.forest.total <- rbind(wr.norge,wr.sweden,wr.finland)
+
+wr.sf.forest <- wr.sf.95 %>% sp::merge(dplyr::select(st_drop_geometry(wr.forest.total), c("gid","forest_increase","Nation")), by = "gid") %>% sp::merge(dplyr::select(st_drop_geometry(sem.pred.forest.wr), c("gid","wr.pred.fit","TOC95")), by = "gid")
+
+mypal <- brewer.pal(name = "YlGn", n = 9)
+
+```
+
+```{r predict-forest-increase}
+sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
+
+wr.sf.forest$Forest95 <- wr.sf.forest$Forest
+wr.sf.forest$Forest <- wr.sf.forest$Forest95 + wr.sf.forest$forest_increase
+
+fm <- logTOC~Forest+logRunoff+Bog
+pred.forest <- predict(sem.forest.fen,wr.sf.forest,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+
+wr.forest.pred <- cbind(wr.sf.forest,pred.forest)
+wr.forest.pred$TOC <- exp(wr.forest.pred$fit)
+
+saveRDS(wr.forest.pred,"wr.forest.pred.rds")
+```
+
+```{r plot-forest-increase, eval = F}
+
+forest.increase.norge <- ggplot(filter(wr.sf.forest,Nation == "Norway"))+
+  geom_sf(aes(fill=forest_increase*100, col = forest_increase*100))+
+  scale_fill_distiller(type = "seq", palette = 2, aesthetics = c("fill","colour"), name = "Forest increase (%)", direction = 1)+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+ggsave(plot = forest.increase.norge, filename = "WR/forest.increase.norge.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+forest.increase.sweden <- ggplot(filter(wr.sf.forest,Nation == "Sweden"))+
+  geom_sf(aes(fill=forest_increase*100, col = forest_increase*100))+
+  scale_fill_distiller(type = "seq", palette = 1, aesthetics = c("fill","colour"), name = "Forest increase (%)", direction = 1)+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+ggsave(plot = forest.increase.sweden, filename = "WR/forest.increase.sweden.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+forest.increase.finland <- ggplot(filter(wr.sf.forest,Nation == "Finland"))+
+  geom_sf(aes(fill=forest_increase*100, col = forest_increase*100))+
+  scale_fill_distiller(palette = 4, aesthetics = c("fill","colour"), name = "Forest increase (%)", direction = 1)+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+ggsave(plot = forest.increase.finland, filename = "WR/forest.increase.finland.png",dpi = "retina", width = 6, height = 8, units = "cm")
+```
+
+`r fig_nums("forest-increase-NSF", "Predicted proportion of forest increase depending on the current proportion of forest fir Norway, Sweden and Finland")`
+
+```{r map-increase-forest, fig.show = "hold"}
+knitr::include_graphics(c("WR/forest.increase.norge.png","WR/forest.increase.sweden.png","WR/forest.increase.finland.png" ))
+```
+
+`r fig_nums("map-increase-forest","Current proportion of forest and estimated potential for increase of forest cover by the year 2050 for Norway, Sweden and Finland")`
+
+
+## TOC forecast for 2100 with forest increase
+
+The forecast applies for year 2100, when all the planted trees will have reached maturity @Miljodirektoratet2013.
+
+```{r plot-forest-pred, eval = F}
+wr.forest.pred <- readRDS("wr.forest.pred.rds")
+
+wr.forest.long <- wr.forest.pred %>% st_drop_geometry() %>% dplyr::select(c("gid","Nation","Forest95","Forest","forest_increase")) %>% melt(id.vars = c("gid","Nation"), value.name = "Proportion")
+
+levels(wr.forest.long$variable) <- c("Forest (1995)", "Forest (2100)", "Forest increase")
+wr.forest.long$Nation <- factor(wr.forest.long$Nation, c("Norway","Sweden","Finland")) 
+wr.forest.long$Proportion <- wr.forest.long$Proportion * 100
+wr.forest.long$Mean <- wr.forest.long 
+
+average.increase <- wr.forest.pred %>% st_drop_geometry() %>% group_by(Nation) %>% summarise(mean = mean(forest_increase)*100)
+
+x.lab <- paste("Mean forest increase with beta distribution\nNorway: ", round(average.increase[2,2],2), "%, Sweden:", round(average.increase[3,2],2), "%, Finland: ", round(average.increase[1,2],2), "%",sep = "")
+
+boxplot_compare <- ggplot(wr.forest.long)+
+  geom_boxplot(aes(x="", y = Proportion), size = 0.3, outlier.size = 0.3)+
+  labs(x = x.lab, y = "%")+
+  theme_bw(base_size = 6)+facet_grid(rows = vars(variable), cols = vars(Nation), scales = "free_y")
+ggsave(plot = boxplot_compare, filename = "WR/boxplot.forest.png",dpi = "retina", width = 8, height = 10, units = "cm")
+
+map.forest <- ggplot(wr.forest.pred)+geom_sf(aes(fill = Forest95, col = Forest95))+
+   scale_fill_distiller(type = "seq", palette = 2, aesthetics = c("colour","fill"), direction = 1, name = "Forest proportion 1995")+
+   theme_minimal(base_size = 6)+
+   theme(legend.position = "bottom")
+ggsave(plot = map.forest, filename = "WR/map.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+map.toc.forest <- ggplot()+geom_sf(data = wr.forest.pred, aes(fill = TOC, col = TOC))+
+  scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, name = "Modelled TOC with\n an increase of forest cover (mg/L)")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+
+ggsave(plot = map.toc.forest, filename = "WR/map.toc.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+map.diff.toc.forest <- ggplot()+geom_sf(data = wr.forest.pred, aes(fill = TOC-TOC95, col = TOC-TOC95))+
+  scale_fill_gradient2(low="#104E8B",mid="#FFFFE0",high = "#CD3700",midpoint = 0, aesthetics = c("colour","fill"),name = "Difference TOC concentration\n with an increase of forest cover")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.diff.toc.forest, filename = "WR/map.diff.toc.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+```
+
+
+```{r map-toc-forest, fig.show = "hold"}
+knitr::include_graphics(c("WR/map.toc.forest.png","WR/map.diff.toc.forest.png"))
+```
+
+`r fig_nums("map-toc-forest","Forecast of TOC concentration due to an increase of forest cover as a NbS to abate climate change.")`
+
+Using the Spatial Error Linear Model, fitted for Fennoscandia in [section 3.5](#forest), the future TOC concentrations were predicted based on the estimated potential for the use of planting forest to sequester CO2 (`r fig_nums("map-increase-forest",display = "c")`), holding the log Runoff and Bog coverage constant. 
+
+
+# Conclusion
+
+In this study, we compare the difference between two modeled values (TOC concentration fitted for 1995 and TOC concentration fitted for 2100). Therefore, we assume that the underestimation effect, for regions with high TOC concentration, is cancelled by the double-fit and that the difference in TOC concentration is a valid indicator for future changes. Moreover, the regions with high TOC concentration are also the regions with currently high forest cover. In these regions, the increase of forest cover is expected to be low, therefore the change of TOC concentration is also likely to be low. 
+
+In addition, an increase in forest cover will not immediately lead to an increase in TOC concentration, as soil formation and runoff processes are long-term processes that might not be captured in a space-for-time analysis. However, by comparing the predictions for 2100, i.e., after the full growth of the new forests), we assume that the "new" forest soils will have a pool of SOC comparable to the "old" forest soils. **actually how much time does it take to form new forest soil similar to old forest???**
+
+
+As the previsions for planting new forest are much higher in Norway then in Sweden, the difference in TOC in the future is also highest in Norway. The forest increase is between 0 and 2% in Sweden and Finland, depending on the catchment, and the increase in TOC concentration remains under 0.5 mg/L in most of them. In Norway, the maximum increase is around 1.5 mg/L, in the North and in mid-Norge. 
+
+
+
+
+# References
+

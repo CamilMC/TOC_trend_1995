@@ -8,13 +8,14 @@ output:
    toc_float: true
    number_sections: true
    fig_caption: true
+   code_folding: hide
 bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 link-citations: yes
 
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center")
+knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T)
 options(knitr.kable.NA="", knitr.kable.format ="html")
 ```
 ```{r library}
@@ -42,6 +43,9 @@ source("f_plotspatial.R")
 
 memory.limit(size = 160000)
 
+library(captioner)
+fig_nums <- captioner() 
+table_nums <- captioner(prefix = "Table")
 ```
 # Water regions data
 
@@ -531,7 +535,7 @@ clc.wr.sum <- cbind(clc.wr.bogs, clc.wr.forest,clc.wr.glacier, clc.wr.bare)
 saveRDS(clc.wr.sum,"WR/clc/clc.wr.sum.Rdata")
 
 ```
-```{r plot-forest, eval = F}
+```{r plot-forest-clc, eval = F}
 clc.wr.sf <- readRDS("WR/clc.wr.sf.Rdata")
 wr.forest <- ggplot()+geom_sf(data=clc.wr.sf,aes(fill=forest, col = forest))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
@@ -567,7 +571,7 @@ saveRDS(tp,"WR/tp.rds")
 ```
 
 ## Elevation
-```{r altitude-wr}
+```{r altitude-wr, eval = F}
 wr.sf <- readRDS("WR/wr.sf.rds")
 alt.nor <- raster::getData("alt",country = "NOR", mask = T)
 alt.swe <- raster::getData("alt",country = "SWE", mask = T)
@@ -775,7 +779,11 @@ ggsave(plot = map.log, filename = "WR/wr.log.toc.png",dpi = "retina", width = 6,
 
 # Forecast
 
-## Extract temperature and precipitation 
+## Forecast of predictors
+
+### Forecast NDVI 
+
+#### Extract future temperature and precipitation 
 
 ```{r extract-future-temp, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
@@ -868,9 +876,8 @@ saveRDS(df.ssp370.2100, "WR/df.ssp370.2100.rds")
 
 ```
 
-## Forecast NDVI 
 
-### NDVI model based on past temperature and precipitation values
+#### NDVI model based on past temperature and precipitation values
 
 We model NDVI based on temperature and precipitation, and use this model to predict the future NDVI in 2050. 
 Choice of future data: ssp 126 as best scenario, ssp 370 as worse scenario @Hausfather2019 @CORDEX2021
@@ -947,6 +954,9 @@ plot(wr.sf.95$NDVI, predict(m3),  pch = ".", main="NDVI", xlab="Observed", ylab=
 ```
 
 ```{r ndvi-model-fen}
+fennoscandia <- readRDS("fennoscandia.rds")
+fennoscandia.spdf <- readRDS("fennoscandia.spdf.rds")
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 quadra.lm.ndvi <- lm(NDVI ~ (Temp + I(Temp^2)) * (log(Precip) + I(log(Precip)^2)), data = fennoscandia)
 quadra.lm.ndvi <- step(quadra.lm.ndvi)
@@ -970,57 +980,8 @@ resi.plot.wr <- ggplot(wr.ndvi.model)+geom_sf(aes(fill = ndvi.residuals, col = n
 ggsave(plot = resi.plot.wr,filename = "WR/wr.ndvi.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
 ```
 
-```{r other-tests}
-ndvi.model.high <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(area), data = filter(wr.sf.95, NDVI > 0.4), listw = wr.kmat.h)
-plot(filter(wr.sf.95,NDVI > 0.4)$NDVI, ndvi.model.high$fitted.values)
-abline(a = 0, b = 1)
-saveRDS(ndvi.model.high, "WR/ndvi.model.high.rds")
 
-ndvi.model.low <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(area), data = filter(wr.sf.95, NDVI < 0.4), listw = wr.kmat.l)
-plot(filter(wr.sf.95,NDVI < 0.4)$NDVI, ndvi.model.low$fitted.values)
-abline(a = 0, b = 1)
-saveRDS(ndvi.model.low, "WR/ndvi.model.low.rds")
-
-
-# low altitude
-wr.n.s.la <- knearneigh(filter(wr.centroid, Alt < 200), k = 100)
-wr.n.nb.la <- knn2nb(wr.n.s.la)
-wr.kmat.la <- nb2listw(wr.n.nb.la)
-ndvi.model.la <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(Alt), data = filter(wr.sf.95, Alt < 200), listw = wr.kmat.la)
-plot(filter(wr.sf.95,Alt < 200)$NDVI, ndvi.model.la$fitted.values)
-abline(a = 0, b = 1)
-
-wr.n.s.ha <- knearneigh(filter(wr.centroid, Alt > 200), k = 100)
-wr.n.nb.ha <- knn2nb(wr.n.s.ha)
-wr.kmat.ha <- nb2listw(wr.n.nb.ha)
-ndvi.model.ha <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(Alt), data = filter(wr.sf.95, Alt > 200), listw = wr.kmat.ha)
-plot(filter(wr.sf.95,Alt > 200)$NDVI, ndvi.model.ha$fitted.values)
-abline(a = 0, b = 1)
-
-x <- wr.sf.95$Temp
-y <- wr.sf.95$Precip
-z <- wr.sf.95$Alt
-w <- wr.sf.95$NDVI
-
-plot(w, exp((log(z)-sd(z))^2))
-plot(log(z)^2, w)
-
-a <- 1
-b <- 2
-p <- 2
-q <- 5
-
-f <- (x-a)^(p-1)*(b-x)^(q-1)/(beta(p,q)*(b-a)^(p+q+1))
-f.ndvi <- nls(NDVI ~ exp(-(Temp-b)^2)+exp(-(log(Alt)-u)^2), data = wr.sf.95, start = c(b = 2, u = 4))
-plot(wr.sf.95$NDVI, fitted.values(f.ndvi))
-
-x <- seq(0,1,by = 0.01)
-y <- 1/exp((x-sd(x))^2)
-plot(x,y)
-```
-
-
-### Forecast
+#### Forecast NDVI in 2050 and 2100
 
 ```{r model-future-ndvi, eval = F}
 df.ssp126 <- readRDS("WR/df.ssp126.rds")
@@ -1112,13 +1073,12 @@ saveRDS(ndvi.ssp370.2100,"WR/ndvi.ssp370.2100.rds")
 ```
 
 
-## Forecast runoff
+### Forecast runoff 2050 and 2100
 
-### Extraction of CMIP6 data
 
 In the historical dataset in Worldclim, the runoff is given as a yearly average in kg/m2/s, or mm/s. 
 
-In the CNRM-CM6 forecast we get the monthly forecast for runoff (in mm/s). 
+In the CNRM-CM6 forecast we get the monthly forecast for runoff (in mm/s) and convert it in mm/y.
 
 ```{r extract-future-runoff, eval = F}
 wr.sf <- readRDS("WR/wr.sf.rds")
@@ -1162,9 +1122,9 @@ saveRDS(ssp370.runoff.2100,"WR/ssp370.runoff.2100.rds")
 ```
 
 
-## Forecast TOC
 
-### Gather datasets
+
+### Gather datasets and plot
 
 ```{r future-wr, eval = F}
 ndvi.ssp126 <- readRDS("WR/ndvi.ssp126.rds")
@@ -1217,7 +1177,7 @@ saveRDS(wr.sf.370.2100, "WR/wr.sf.370.2100.rds")
 
 ```
 
-```{r plots-ssp126-2050, eval = F}
+```{r create-plots-forecasts, eval = F}
 wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
 wr.sf.126.2100 <- readRDS("WR/wr.sf.126.2100.rds")
 wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
@@ -1305,8 +1265,34 @@ for(i in c(1:length(list.sf))){
 }
 }
 
-
 ```
+
+```{r print-plot-forecast-temp, fig.dim = c(6,8)}
+knitr::include_graphics(c("WR/SSP126.2050.diffTemp.png","WR/SSP370.2050.diffTemp.png","WR/SSP126.2100.diffTemp.png","WR/SSP370.2100.diffTemp.png"))
+```
+
+`r fig_nums("future-temp","Forecast of mean temperature intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in temperature compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+
+```{r print-plot-forecast-precip, fig.dim = c(6,8)}
+knitr::include_graphics(c("WR/SSP126.2050.diffPrecip.png","WR/SSP370.2050.diffPrecip.png","WR/SSP126.2100.diffPrecip.png","WR/SSP370.2100.diffPrecip.png"))
+```
+
+`r fig_nums("future-precipitation","Forecast of mean precipitation intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in precipitation compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+
+```{r print-plot-forecast-ndvi, fig.dim = c(6,8)}
+knitr::include_graphics(c("WR/SSP126.2050.diffNDVI.png","WR/SSP370.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","WR/SSP370.2100.diffNDVI.png"))
+```
+
+`r fig_nums("future-ndvi","Forecast of mean NDVI for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in NDVI compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+
+```{r print-plot-forecast-runoff, fig.dim = c(6,8)}
+knitr::include_graphics(c("WR/SSP126.2050.diffRunoff.png","WR/SSP370.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png","WR/SSP370.2100.diffRunoff.png"))
+```
+
+`r fig_nums("future-runoff","Forecast of mean runoff intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in runoff compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+
+## Forecast TOC for 2050 and 2100
+
 
 ### Forecast TOC SSP126 2050
 
@@ -1361,6 +1347,7 @@ saveRDS(wr.ssp126,"WR/wr.ssp126.2100.rds")
 
 ```
 
+
 ### Forecast TOC SSP370 2100
 
 ```{r sem-model-toc-ssp370-2100, eval = F}
@@ -1381,22 +1368,26 @@ saveRDS(wr.ssp370,"WR/wr.ssp370.2100.rds")
 ### Plot Forecast TOC
 
 ```{r boxplots-ssp126}
-temperature <- c(sem.pred.wr$temp,wr.ssp126$temp126,wr.ssp370$temp370)
-precipitation <- c(sem.pred.wr$prec,wr.ssp126$prec126,wr.ssp370$prec370)
-ndvi <- c(sem.pred.wr$ndvi,wr.ssp126$ndvi126,wr.ssp370$ndvi370)
-runoff <- c(sem.pred.wr$runoff,wr.ssp126$runoff126,wr.ssp370$runoff370)
-toc <- c(sem.pred.wr$toc95,wr.ssp126$toc,wr.ssp370$toc)
+sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
+wr.ssp126 <- readRDS("WR/wr.ssp126.rds")
+wr.ssp370 <- readRDS("WR/wr.ssp370.rds")
+
+temperature <- c(sem.pred.wr$Temp,wr.ssp126$temp126,wr.ssp370$temp370)
+precipitation <- c(sem.pred.wr$Precip,wr.ssp126$prec126,wr.ssp370$prec370)
+ndvi <- c(sem.pred.wr$NDVI,wr.ssp126$ndvi126,wr.ssp370$ndvi370)
+runoff <- c(sem.pred.wr$Runoff,wr.ssp126$runoff126,wr.ssp370$runoff370)
+toc <- c(sem.pred.wr$TOC95,wr.ssp126$toc,wr.ssp370$toc)
 
 neworder <- c("1995","SSP126","SSP370")
 model <- factor(c(rep("1995",dim(sem.pred.wr)[1]),rep("SSP126", dim(wr.ssp126)[1]), rep("SSP370", dim(wr.ssp370)[1])),levels = neworder)
 
-compare.ssp <- data.frame(value = c(temperature, precipitation, ndvi, runoff,toc), variable = c(rep("Temperature (°C(", length(temperature)), rep("Precipitation (mm)", length(precipitation)), rep("NDVI",length(ndvi)), rep("Runoff (mm/s)",length(runoff)), rep("TOC (mg/L)", length(toc))), model = rep(model,5)) 
+compare.ssp <- data.frame(value = c(temperature, precipitation, ndvi, runoff,toc), variable = c(rep("Temperature (°C)", length(temperature)), rep("Precipitation (mm)", length(precipitation)), rep("NDVI",length(ndvi)), rep("Runoff (mm/y)",length(runoff)), rep("TOC (mg/L)", length(toc))), model = rep(model,5)) 
 
 ggplot(compare.ssp)+geom_boxplot(aes(y= value,col=variable))+
   labs(y="", x = "")+scale_color_brewer(type = "seq",palette = "Dark2",direction = -1)+
   theme_minimal()+
   theme(legend.position = "", axis.text.x = element_blank())+
-  facet_grid(cols = vars(model), rows = vars(factor(variable, levels = c("Temperature","Precipitation","NDVI","Runoff","TOC"))), scales = "free_y", shrink = T)
+  facet_grid(cols = vars(model), rows = vars(factor(variable, levels = c("Temperature (°C)","Precipitation (mm)","NDVI","Runoff (mm/y)","TOC (mg/L)"))), scales = "free_y", shrink = T)
 ggsave("WR/compare.ssp.png", width = 10, height = 20, units = "cm", dpi = "retina")
 
 ```
@@ -1452,8 +1443,8 @@ for(x in c("diffTOC","diffTOC.percent")){
 max.lim <- apply(all.diff, 2, max, na.rm = T)
 min.lim <- apply(all.diff, 2, min, na.rm = T)
 
-palettes <- data.frame(diffTOC =  brewer.pal(name = "RdBu", n = 9)[c(9,5,1)],
-                       diffTOC.percent = brewer.pal(name = "RdBu", n = 9)[c(9,5,1)])
+palettes <- data.frame(diffTOC =  brewer.pal(name = "RdBu", n = 9)[c(1,5,9)],
+                       diffTOC.percent = brewer.pal(name = "RdBu", n = 9)[c(1,5,9)])
 legends <- c("Difference TOC (mg/L)", "Difference TOC (%)")
 
 diffs <- c("diffTOC","diffTOC.percent")
@@ -1467,7 +1458,7 @@ for(i in c(1:length(list.sf))){
                        high = palettes[1, grep(x,names(palettes))],
                        midpoint = 0, aesthetics = c("fill","col"),
                        name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""), 
-                       limits = c(min.lim[[x]], max.lim[[x]]),
+                       limits = c(min.lim[[x]], max.lim[[x]]))+
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
   
@@ -1494,36 +1485,23 @@ for(i in c(1:length(list.sf))){
 
 ```
 
+# Sea watersheds
 
-### Forecast TOC with increased forest
-```{r sem-model-toc-forest, eval = F}
-sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
+The drainage basin of the Baltic sea was 
+https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/f86c56e9-d8a0-42ba-b1c7-
+
+Baltic sea drainage basin: https://www.grida.no/resources/5324
+
+Approximately matching the borders Norway/Sweden/Finland. 
+
+```{r compute-discharge}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
-fm <- logTOC~Forest+logRunoff+Bog
-wr.pred <- predict(sem.forest.fen,wr.sf.95,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
-
-sem.pred.forest.wr <- cbind(wr.sf.95,wr.pred$fit)
-sem.pred.forest.wr$TOC95 <- exp(sem.pred.forest.wr$wr.pred.fit)
-
-saveRDS(sem.pred.forest.wr,"WR/sem.pred.forest.wr.rds")
-
-map.fit.forest <- ggplot()+geom_sf(data = st_as_sf(sem.pred.forest.wr), aes(fill = TOC95, col = TOC95))+
-  scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
-                       name = "Modelled TOC 1995 (mg/L)\n using forest model")+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = map.fit.forest, filename = "WR/wr.toc.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
-```
-
-```{r points-in-polygons}
-wr.centroid <- st_centroid(wr.sf.95, of_largest_polygon = T)
-wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
-sem.pred.forest.wr <- readRDS("WR/sem.pred.forest.wr.rds")
+wr.centroid <- st_centroid(wr.sf.95, of_largest_polygon = T) %>% select("gid","geometry")
+sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 
 nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(st_crs(wr.centroid))
 swe <- st_read("Country_shapefile/sweden.shp") %>% st_transform(st_crs(wr.centroid))
 fin <- st_read("Country_shapefile/finland.shp") %>% st_transform(st_crs(wr.centroid))
-
 
 wr.norge <- wr.centroid[nor,]
 wr.norge$Nation <- "Norway"
@@ -1531,105 +1509,80 @@ wr.sweden <- wr.centroid[swe,]
 wr.sweden$Nation <- "Sweden"
 wr.finland <- wr.centroid[fin,]
 wr.finland$Nation <- "Finland"
+wr.nation <- rbind(wr.norge,wr.sweden,wr.finland)
 
+wr.sf.95 <- wr.sf.95 %>% sp::merge(dplyr::select(st_drop_geometry(wr.nation), c("gid","Nation")), by = "gid") %>% sp::merge(dplyr::select(st_drop_geometry(sem.pred.wr), c("gid","wr.pred.fit","TOC95")), by = "gid")
+names(wr.sf.95[which(names(wr.sf.95) == "TOC95")]) <- "TOC"
 
-wr.norge$forest_increase <- dbeta(wr.norge$Forest,shape1 = 3, shape2 = 8)/10
-ggplot(wr.norge)+geom_point(aes(x=Forest,y = forest_increase))
-mean(wr.norge$forest_increase)
+wr.ssp126.2050 <- readRDS("WR/wr.ssp126.2050.rds")%>% sp::merge(dplyr::select(st_drop_geometry(wr.nation), c("gid","Nation")), by = "gid") 
+wr.ssp370.2050 <- readRDS("WR/wr.ssp370.2050.rds") %>% sp::merge(dplyr::select(st_drop_geometry(wr.nation), c("gid","Nation")), by = "gid") 
+wr.ssp126.2100 <- readRDS("WR/wr.ssp126.2100.rds") %>% sp::merge(dplyr::select(st_drop_geometry(wr.nation), c("gid","Nation")), by = "gid") 
+wr.ssp370.2100 <- readRDS("WR/wr.ssp370.2100.rds") %>% sp::merge(dplyr::select(st_drop_geometry(wr.nation), c("gid","Nation")), by = "gid") 
 
-wr.sweden$forest_increase <- dbeta(wr.sweden$Forest,shape1 = 3, shape2 = 7)/1000
-ggplot(wr.sweden)+geom_point(aes(x=Forest,y = forest_increase))
-mean(wr.sweden$forest_increase)
+list.sf <- list(wr.sf.95, wr.ssp126.2050, wr.ssp126.2100, wr.ssp370.2050, wr.ssp370.2100)
+names(list.sf) <- c("Data1995","SSP126.2050", "SSP126.2100", "SSP370.2050", "SSP370.2100")
 
-wr.finland$forest_increase <- dbeta(wr.finland$Forest,shape1 = 2, shape2 = 7)/100
-ggplot(wr.finland)+geom_point(aes(x=Forest,y = forest_increase))
-mean(wr.finland$forest_increase)
+export <- function(sf){
+  discharge <- sf$Runoff*sf$area # Q in L/y
+  toc.export <- discharge * sf$TOC * 10^(-15) # amount of exported TOC in Tg/y 
+  sf2 <- cbind(sf,discharge,toc.export)
+  return(sf2)
+}
 
-average.increase <- c(mean(wr.norge$forest_increase)*100,mean(wr.sweden$forest_increase)*100,mean(wr.finland$forest_increase)*100) 
+list.sf <- lapply(list.sf, export)
 
+list.mean <- c()
 
-wr.forest.total <- rbind(wr.norge,wr.sweden,wr.finland)
-wr.sf.forest <- merge(wr.sf.95, select(st_drop_geometry(wr.forest.total), c("gid","forest_increase","Nation"))) %>% merge(select(st_drop_geometry(sem.pred.forest.wr), c("gid","wr.pred.fit","TOC95")), by = "gid")
-mypal <- brewer.pal(name = "YlGn", n = 9)
+for(i in 1:length(list.sf)){
+  list.mean[[i]] <- list.sf[[i]] %>% st_drop_geometry() %>% group_by(Nation) %>% summarise(total = sum(toc.export)) %>% as.data.frame()
+}
 
+names(list.mean) <- names(list.sf)
 
-forest.increase.norge <- ggplot(filter(wr.sf.forest,Nation == "Norway"))+
-  geom_sf(aes(fill=forest_increase*100, col = forest_increase*100))+
-  scale_fill_distiller(type = "seq", palette = 2, aesthetics = c("fill","colour"), name = "Forest increase (%)", direction = 1)+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = forest.increase.norge, filename = "WR/forest.increase.norge.png",dpi = "retina", width = 6, height = 8, units = "cm")
+list.diff <- c()
 
-forest.increase.sweden <- ggplot(filter(wr.sf.forest,Nation == "Sweden"))+
-  geom_sf(aes(fill=forest_increase*100, col = forest_increase*100))+
-  scale_fill_distiller(type = "seq", palette = 1, aesthetics = c("fill","colour"), name = "Forest increase (%)", direction = 1)+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = forest.increase.sweden, filename = "WR/forest.increase.sweden.png",dpi = "retina", width = 6, height = 8, units = "cm")
+for(i in 1:length(list.mean)){
+  df1 <- list.mean[[1]]
+  df2 <- list.mean[[i]]
+  diff <- df2[,2] - df1[,2]
+  
+  x <- cbind(list.mean[[i]],diff)
+  names(x) <- c("Nation", names(list.mean)[i], paste("diff", names(list.mean)[i], sep = ""))
+  list.diff[[i]] <- x
+}
 
-forest.increase.finland <- ggplot(filter(wr.sf.forest,Nation == "Finland"))+
-  geom_sf(aes(fill=forest_increase*100, col = forest_increase*100))+
-  scale_fill_distiller(palette = 4, aesthetics = c("fill","colour"), name = "Forest increase (%)", direction = 1)+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = forest.increase.finland, filename = "WR/forest.increase.finland.png",dpi = "retina", width = 6, height = 8, units = "cm")
+toc.export.df <- list.diff[[1]] %>% merge(list.diff[[2]], by = "Nation") %>% merge(list.diff[[3]], by = "Nation") %>% merge(list.diff[[4]], by = "Nation") %>% merge(list.diff[[5]], by = "Nation") %>% melt(id.vars = c("Nation"), value.name = "TOC_ton")
 
+toc.export.df$Model <- NA
+m.126 <- grep("126",toc.export.df$variable)
+m.370 <- grep("370",toc.export.df$variable)
 
-#forest.increase.plot <- cowplot::plot_grid(plotlist = list(forest.increase.norge, forest.increase.sweden,forest.increase.finland), ncol = 3)
-#save_plot(plot = forest.increase.plot, filename = "WR/forest_increase.png")
+toc.export.df$Model[m.126] <- "SSP126"
+toc.export.df$Model[m.370] <- "SSP370"
+toc.export.df$Model[-c(m.126,m.370)] <- "Historical"
 
-```
+toc.export.df$Year <- NA
+m.95 <- grep("95",toc.export.df$variable)
+m.2050 <- grep("2050",toc.export.df$variable)
+m.2100 <- grep("2100",toc.export.df$variable)
 
-```{r predict-forest-increase}
-wr.sf.forest$Forest95 <- wr.sf.forest$Forest
-wr.sf.forest$Forest <- wr.sf.forest$Forest95 + wr.sf.forest$forest_increase
+toc.export.df$Year[m.95] <- "1995"
+toc.export.df$Year[m.2050] <- "2050"
+toc.export.df$Year[m.2100] <- "2100"
 
-fm <- logTOC~Forest+logRunoff+Bog
-pred.forest <- predict(sem.forest.fen,wr.sf.forest,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+toc.export.df$Diff <- NA
+m.d <- grep("diff",toc.export.df$variable)
 
-wr.forest.pred <- cbind(wr.sf.forest,pred.forest)
-wr.forest.pred$TOC <- exp(wr.forest.pred$fit)
+toc.export.df$Diff[m.d] <- "D"
+toc.export.df$Diff[-m.d] <- "A"
 
-saveRDS(wr.forest.pred,"wr.forest.pred.rds")
-```
-
-```{r plot-forest}
-wr.forest.pred <- readRDS("wr.forest.pred.rds")
-
-wr.forest.long <- wr.forest.pred %>% st_drop_geometry() %>% select(c("gid","Nation","Forest95","Forest","forest_increase")) %>% melt(id.vars = c("gid","Nation"), value.name = "Proportion")
-
-levels(wr.forest.long$variable) <- c("Forest (1995)", "Forest (2100)", "Forest increase")
-wr.forest.long$Nation <- factor(wr.forest.long$Nation, c("Norway","Sweden","Finland")) 
-wr.forest.long$Proportion <- wr.forest.long$Proportion * 100
-wr.forest.long$Mean <- wr.forest.long 
-
-average.increase <- wr.forest.pred %>% st_drop_geometry() %>% group_by(Nation) %>% summarise(mean = mean(forest_increase)*100)
-
-x.lab <- paste("Mean forest increase with beta distribution\nNorway: ", round(average.increase[2,2],2), "%, Sweden:", round(average.increase[3,2],2), "%, Finland: ", round(average.increase[1,2],2), "%",sep = "")
-
-boxplot_compare <- ggplot(wr.forest.long)+
-  geom_boxplot(aes(x="", y = Proportion), size = 0.3, outlier.size = 0.3)+
-  labs(x = x.lab, y = "%")+
-  theme_bw(base_size = 6)+facet_grid(rows = vars(variable), cols = vars(Nation), scales = "free_y")
-ggsave(plot = boxplot_compare, filename = "WR/boxplot.forest.png",dpi = "retina", width = 8, height = 10, units = "cm")
-
-map.forest <- ggplot(wr.forest.pred)+geom_sf(aes(fill = Forest95, col = Forest95))+
-   scale_fill_distiller(type = "seq", palette = 2, aesthetics = c("colour","fill"), direction = 1, name = "Forest proportion 1995")+
-   theme_minimal(base_size = 6)+
-   theme(legend.position = "bottom")
-ggsave(plot = map.forest, filename = "WR/map.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-map.toc.forest <- ggplot()+geom_sf(data = wr.forest.pred, aes(fill = TOC, col = TOC))+
-  scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, name = "Modelled TOC with\n an increase of forest cover (mg/L)")+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-
-ggsave(plot = map.toc.forest, filename = "WR/map.toc.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-map.diff.toc.forest <- ggplot()+geom_sf(data = wr.forest.pred, aes(fill = TOC-TOC95, col = TOC-TOC95))+
-  scale_fill_gradient2(low="#104E8B",mid="#FFFFE0",high = "#CD3700",midpoint = 0, aesthetics = c("colour","fill"),name = "Difference TOC concentration\n with an increase of forest cover")+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = map.diff.toc.forest, filename = "WR/map.diff.toc.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
+ggplot(filter(toc.export.df, Diff == "D")) + geom_point(aes(x=Year, y = TOC_ton, col = Model, shape= Model)) +
+  geom_path(aes(x=Year, y = TOC_ton, col = Model, shape= Model, group = Model), size = 0.3) +
+  labs(x="Year", y= "TOC (Tg)")+
+  scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
+  facet_grid(rows=vars(Nation))+
+  geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
+  theme_bw(base_size = 5)
+ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 8, height = 6, units = "cm")
 
 ```

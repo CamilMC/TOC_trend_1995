@@ -26,6 +26,7 @@ source("f_plotspatial.R")
 fennoscandia <- readRDS("fennoscandia.Rdata")
 norge <- fennoscandia %>% filter(nation == "Norway")
 ```
+
 # Spatial autocorrelation and variance inflation factor
 
 The spatial autocorrelation of the independent variables is evaluated thanks to the Moran's I index. X is the variable of interest, N the number of spatial units, and $w_{ij}$ a diagonal weight matrix.
