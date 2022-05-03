@@ -7,14 +7,15 @@ output:
     toc: true
     toc_float: true
     number_sections: true
-    code_folding: show
+    code_folding: hide
 ---
   
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T)
+options(knitr.kable.NA="", knitr.table.format = "html")
 ```
 
-```{r library}
+```{r libraries}
 library(DBI)
 library(sf)
 library(dplyr)
@@ -33,7 +34,9 @@ library(tibble)
 library(kableExtra)
 
 source("f_plotspatial.R")
+```
 
+```{r function-effect-size}
 compute.effect.size <- function(df.coef){
 
 df.es <- df.coef[,1:3]
@@ -45,12 +48,14 @@ for(i in 1:n){
   if(grepl("log",m[i])==T){
     df.es[i,2] <- 1.01^(df.coef[i,2])
     df.es[i,3] <- 1.01^(df.coef[i,2])*log(1.01)*df.coef[i,3]
-  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest")){
+  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest","Temp")){
     df.es[i,2] <- exp(df.coef[i,2]*0.01)
     df.es[i,3] <- 0.01*df.coef[i,2]*df.coef[i,3]
-  }else if(m[i] %in% c("TNdep")){
+  }else if(m[i] %in% c("TNdep","TSdep")){
     df.es[i,2] <- exp(df.coef[i,2]*25)
     df.es[i,3] <- 25*exp(df.coef[i,2]*25)*df.coef[i,3]
+  } else {
+    df.es[i,2] <- exp(df.coef) # effect size for temperature???
   }
 }
 
@@ -63,21 +68,24 @@ return(df.es)
 # other es
 eslog <- 1.01
 es <- 0.01
+```
 
-
+```{r fig-num-function}
 library(captioner)
 fig_nums <- captioner() 
 table_nums <- captioner(prefix = "Table")
 ```
 
-# Northern Lake Survey data
+# Catchment data for Norway, Sweden and Finland
 
-## Catchment polygons and TOC data from ecco_biwa datavase
+
+## Catchment polygons
 
 The catchment and TOC data are stored on the PostgreSQL database ecco_biwa, accessed through Rstudio using the st_read function (sf package @Pebesma2021) and the dplyr package @Wickhman2021. 
-Each catchment polygon is linked to the corresponding TOC concentration via an ebint internal to the ecco_biwa database.
+Each catchment polygon is linked to the corresponding TOC concentration via an "ebint" (identifyer), internal to the ecco_biwa database.
 
 The catchment polygons were designed by an elevation model and are assigned to the studied lake based on the distance to the sampling coordinates.
+
 
 ```{r load-data, eval = F}
 con <- dbConnect(RPostgreSQL::PostgreSQL(),user = "camille.crapart", password = "camille",host = "vm-srv-wallace.vm.ntnu.no", dbname = "nofa")
@@ -94,13 +102,12 @@ country <- filter(ebint.waterchem, ebint %in% ebint)
 saveRDS(country,"country.Rdata")
 ```
 
-## Catchment extraction and transformation
-
 ```{r catchment-poly, eval = F}
 catchment.poly.1000 <- st_read(con,query = "SELECT ebint, geom FROM catchments.lake_catchments WHERE ebint IN (SELECT ebint FROM environmental.north_euro_lake_surv_1995)")
 saveRDS(catchment.poly.1000,"catchment.poly.1000.Rdata")
-
 ```
+
+The catchment polygons were reprojected in WGS84 to match the satellite data that will be extracted later, and in EPSG:3035 (European projection) to match the CORINE land cover data. 
 
 ```{r catchment-plot, eval = F}
 catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
@@ -110,6 +117,8 @@ saveRDS(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.Rdata")
 ```
 
 ## TOC
+
+The TOC data was measured after the Northern Lake Survey 1995 @Henriksen1998. It was stored in the ecco_biwa database.
 
 ```{r toc, eval = F}
 
@@ -130,26 +139,25 @@ The values stored in the ecocast dataset are composed of the ndvi value and a fl
 
 
 ```{r summer-ndvi, eval = F}
+
+# Download Gimms NDVI
 # http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
 
 ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
-
-
 ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
 saveRDS(ndvi.max,"ndvi.max.rds")
 
+# NDVI extraction
 
 ndvi.max <- readRDS("ndvi.max.rds")
+catchment.poly <- readRDS("catchment.poly.Rdata")
 
 summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
 
-
 summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
 
-plot(summer.scandinavia)
-
 summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
-plot(summer.scan)
+saveRDS(summer.scan, "summer.scan.rds")
 
 summer.ndvi <- raster::extract(summer.mean,catchment.poly, fun = mean, df = T, sp = T)
 names(summer.ndvi) <- c("ebint","ndvi")
@@ -158,69 +166,30 @@ summer.ndvi$flag.value <- summer.ndvi$ndvi - floor(summer.ndvi$ndvi/10)*10 + 1
 
 saveRDS(summer.ndvi, "summer.ndvi.Rdata")
 write.csv(summer.ndvi,"summer.ndvi.csv")
-
-
 ```
 
-```{r yearly-ndvi, eval = F}
-
-# extract NDVI
-ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
-ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
-saveRDS(ndvi.max,"ndvi.max.rds")
-
-ndvi.max <- readRDS("ndvi.max.rds")
-
-year.mean <- mean(ndvi.max)
-year.scandinavia <- raster::crop(year.mean,c(0,35,55,73))
-plot(year.scandinavia)
-
-year.scan <- reclassify(year.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
-plot(year.scan)
-
-year.ndvi <- raster::extract(year.scan, catchment.poly, fun = mean, na.rm = T, df = T, sp = T)
-names(year.ndvi) <- c("ebint","ndvi")
-year.ndvi$ndvi.value <- (floor(year.ndvi$ndvi)/10)/1000
-year.ndvi$flag.value <- year.ndvi$ndvi - (floor(year.ndvi$ndvi)/10*10+1) 
-
-saveRDS(year.ndvi, "year.ndvi.Rdata")
-
-# map NDVI 
-ndvi.plot <- (floor(year.scan)/10)/1000
-plot(ndvi.plot)
-
+```{r maps-ndvi, eval = F}
+summer.scan <- readRDS("summer.scan.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
-ndvi.plot.sf <- ndvi.plot %>% as("SpatialPixelsDataFrame") %>% st_as_sf() %>% st_transform(st_crs(wr.sf.95)) 
 
-map.ndvi <- ggplot() + geom_sf(data = ndvi.plot.sf, aes(col = layer), shape = 15)+
-  scale_color_distiller(type = "seq", palette = 2, direction = 1)+labs(color = "Summer NDVI 1995")+
-  labs(subtitle = "a)")+
-  theme_void(base_size = 2)
-ggsave(plot = map.ndvi, filename = "NDVI/map.ndvi.png", dpi = "retina", width = 6, height = 8, units = "cm")
+ndvi.plot <- (floor(summer.scan)/10)/1000
 
-
-wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 ndvi.plot.spdf <- ndvi.plot %>% as("SpatialPixelsDataFrame") %>% spTransform(projection(wr.sf.95)) %>% as.data.frame()
 
 map.ndvi <- ggplot() + geom_tile(data = ndvi.plot.spdf, aes(x = x, y = y, fill = layer, width = 10000, height = 10000))+
-  scale_fill_distiller(type = "seq", palette = 2, direction = 1)+labs(color = "Summer NDVI 1995", subtitle = "a)")+
-  theme_void(base_size = 8)
-ggsave(plot = map.ndvi, filename = "NDVI/map.ndvi.png", dpi = "retina", units = "cm")
-
+  scale_fill_distiller(type = "seq", palette = 2, direction = 1)+labs(fill = "Summer NDVI 1995", subtitle = "a)")+
+  theme_void(base_size = 8)+
+  theme(legend.position = "bottom")
+ggsave(plot = map.ndvi, filename = "NDVI/map.ndvi.nsf.png", dpi = "retina", units = "cm")
 ```
-
-
 
 ## CORDEX: runoff data
 
-See the cordex website (insert citation https://portal.enes.org/data/data-metadata-service/search-and-download/cordex-access
-) for info. Downloading at https://esg-dn1.nsc.liu.se/projects/esgf-liu/ 
+The runoff data was downloaded from the CORDEX database @CORDEXvERC. The data is available at https://esg-dn1.nsc.liu.se/projects/esgf-liu/.
 
 The names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
 
-For runoff, the 30 years mean from 1960 to 1990 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf )
-
-
+THe mean of the 30 years between 1960 and 1990 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf).
 
 ```{r runoff, eval = F}
 #runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
@@ -260,83 +229,9 @@ ggplot(st_as_sf(runoff.fennoscandia))+geom_sf(aes(fill=layer,col=layer))
 
 ```
 
-```{r extract-runoff-old, eval = F}
-runoff.file.60s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_196101-197012.nc"
-runoff.file.70s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_197101-198012.nc"
-runoff.file.80s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_198101-199012.nc"
-#runoff.file.80s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_19101-199012.nc"
-
-
-# get coordinates
-runoff.nc <- nc_open(runoff.file.60s)
-runoff.info <- GDALinfo(runoff.nc)
-attr.runoff <- attr(runoff.info,"mdata")
-
-rot.info <- attr.runoff[grep("^rotated",attr(runoff.info,"mdata"))]
-coord <- sapply(rot.info, FUN = function(x) {
-  unlist(str_split(x, pattern = "="))[2]})
-coord.num<- round(as.numeric(coord[2:3]),2)
-
-y <- coord.num[1]
-x <- coord.num[2]
-
-target.crs <- paste0("+proj=ob_tran +o_proj=longlat +o_lon_p=" , 
-                     x, " +o_lat_p=", y, 
-                     " +lon_0=180 +to_meter=0.0174532925199433")
-
-# 60s
-runoff.60.stack <- stack(runoff.file.60s, varname = "mrros")
-runoff.60.mean  <- mean(runoff.60.stack)
-
-projection(runoff.60.mean) <- CRS("EPSG:4326")
-runoff.60.rotated <- projectRaster(runoff.60.mean,crs = target.crs)
-runoff.60.wgs84 <- runoff.60.rotated
-projection(runoff.60.wgs84) <- CRS("EPSG:4326")
-
-
-runoff.60s <- raster::extract(runoff.60.wgs84,catchment.poly, fun = mean, na.rm = T, df = T, exact = F, sp = T)
-runoff.60.df <- runoff.60s@data
-names(runoff.60.df) <- c("ebint","runoff.60s")
-
-# 70s
-runoff.70.stack <- stack(runoff.file.70s, varname = "mrros")
-runoff.70.mean  <- mean(runoff.70.stack)
-
-projection(runoff.70.mean) <- CRS("EPSG:4326")
-runoff.70.rotated <- projectRaster(runoff.70.mean,crs = target.crs)
-runoff.70.wgs84 <- runoff.70.rotated
-projection(runoff.70.wgs84) <- CRS("EPSG:4326")
-
-
-runoff.70s <- raster::extract(runoff.70.wgs84,catchment.poly, fun = mean, na.rm = T, df = T, exact = F, sp = T)
-runoff.70.df <- runoff.70s@data
-names(runoff.70.df) <- c("ebint","runoff.70s")
-
-# 80s
-runoff.80.stack <- stack(runoff.file.80s, varname = "mrros")
-runoff.80.mean  <- mean(runoff.80.stack)
-
-projection(runoff.80.mean) <- CRS("EPSG:4326")
-runoff.80.rotated <- projectRaster(runoff.80.mean,crs = target.crs)
-runoff.80.wgs84 <- runoff.80.rotated
-projection(runoff.80.wgs84) <- CRS("EPSG:4326")
-
-
-runoff.80s <- raster::extract(runoff.80.wgs84,catchment.poly, fun = mean, na.rm = T, df = T, exact = F, sp = T)
-runoff.80.df <- runoff.80s@data
-names(runoff.80.df) <- c("ebint","runoff.80s")
-
-runoff.df <- merge(runoff.60.df,runoff.70.df, by = "ebint") %>% merge(runoff.80.df, by = "ebint")
-runoff.df$mean.runoff <- rowMeans(runoff.df[,2:4])
-saveRDS(runoff.df, "runoff.df.Rdata")
-
-```
-
 ## Temperature,precipitation and slope
 
-Temperature and precipitation are downloaded from the database Worldclim. Temperature is the mean annual temperature from 1970 to 2000 in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset. 
-
-https://www.worldclim.org/data/worldclim21.html 
+Temperature and precipitation are downloaded from the database Worldclim. Temperature is the mean annual temperature from 1970 to 2000 in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset : https://www.worldclim.org/data/worldclim21.html 
 
 ```{r temp-prec, eval = F}
 #monthly mean temperature for 1970-2000
@@ -349,9 +244,9 @@ saveRDS(annual.prec,"annual.prec.Rdata")
 boxplot(annual.prec$bio12)
 ```
 
-```{r altitude, eval = F}
+The altitude data was accessed through the "getData" function, and comes from the NASA digital elevation model (SRTM 90 m). The slope was then computed using the "terrain" function from the raster package.  
 
-# altitude
+```{r altitude-slope, eval = F}
 alt.nor <- getData("alt",country = "NOR", mask = T)
 alt.swe <- getData("alt",country = "SWE", mask = T)
 alt.fin <- getData("alt",country = "FIN", mask = T)
@@ -375,7 +270,6 @@ plot(slope.nona)
 
 slope.fennoscandia <- raster::extract(slope,catchment.poly, sp = T, df = T, fun = mean)
 saveRDS(slope.df, "slope.df.Rdata")
-
 ```
 
 ## Land cover
@@ -433,19 +327,12 @@ saveRDS(bare,"bare.rds")
 
 ```
 
-## Soil thickness
-```{r soil-thickness, eval = F}
-soil <- raster::raster("DAAC/average_soil_and_sedimentary-deposit_thickness.tif")
-catchment.poly <- readRDS("catchment.poly.Rdata")
-soil.df <- extract(soil, catchment.poly, sp = T, df = T, na.rm = T)
+## Nitrogen and sulfur deposition
 
-```
+The nitrogen and sulfur deposition data were extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). 
 
-## NDEP - EMEP data
-
-https://emep.int/mscw/mscw_moddata.html#Comp
-N-deposition (NOx and NH3)
-+ sum of dry deposition of oxidized nitrogen per m2 grid DDEP_OXN_m2Grid
+N-deposition (NOx and NH3) is the sum of: 
++ Dry deposition of oxidized nitrogen per m2 grid DDEP_OXN_m2Grid
 + Wet deposition of oxidized nitrogen WDEP_OXN
 + Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid
 + Wet deposition of reduced nitrogen WDEP_RDN
@@ -473,8 +360,9 @@ ndep.df <- merge(woxn_df,doxn_df, by = "ebint") %>% merge(wrdn_df, by = "ebint")
 ndep.df$tndep <- rowSums(ndep.df@data[,c(2:5)])
 
 saveRDS(ndep.df,"ndep.df.Rdata")
-
 ```
+
+The S-deposition is composed of the sum of wet and dry deposition of SOx. 
 
 ```{r extract-Sdep, eval = F}
 library(ncdf4)
@@ -490,22 +378,20 @@ names(wsox_df) <- c("ebint","wsox")
 dsox_df <- extract(dsox,catchment_poly, sp = T, df = T, na.rm = T, fun = mean)
 names(dsox_df) <- c("ebint","dsox")
 
-
 sdep.df <- merge(wsox_df,dsox_df, by = "ebint")
 sdep.df$tsdep <- rowSums(sdep.df@data[,c(2:3)])
 
 saveRDS(sdep.df,"sdep.df.rds")
-
 ```
 
 
-## Gathering raw data
+## Gathering and cleaning the data
+
+The data was gathered and merged into a single dataframe, based on the catchment identifyer ("ebint").
 
 ```{r gather-data, eval = F}
-
 country <- readRDS("country.Rdata")
 toc.df <- readRDS("toc.df.Rdata")
-
 summer.ndvi <- readRDS("summer.ndvi.Rdata")
 runoff.fennoscandia <- readRDS("CORDEX/runoff.fennoscandia.rds")
 
@@ -554,12 +440,13 @@ fennoscandia_raw <- fennoscandia_raw %>% filter(uncertain == FALSE)
 fennoscandia_raw$uncertain <- NULL
 
 saveRDS(fennoscandia_raw,"fennoscandia_raw.rds")
-
 ```
 
-## Data cleaning
+### Data cleaning
 
 ### Histogram
+
+The distribution of the variables were checked with histograms.
 
 ```{r hist, results = F, fig.dim = c(24,48)}
 fennoscandia_raw <- readRDS("fennoscandia_raw.rds")
@@ -578,11 +465,12 @@ for (i in names(fennoscandia_raw[,-c(1:2)])){
 cowplot::plot_grid(plotlist = h_list,ncol=3)
 ```
 
+
 ### Transformation of variables
 
-TOC, runoff, precipitation and slope are skewed to the right so they are log-transformed.
-Lots of 0 in N-dep, bogs and arable : not transformed
+TOC, Runoff, Precipitation and Slope are skewed to the right so they are log-transformed. N-dep, S-dep, Bog and Arable included many zero, so they were not transformed even if they were skewed. 
 
+Moreover, all the variables were scaled and centered.
 
 ```{r log-transform, eval = F}
 fennoscandia <- readRDS("fennoscandia_raw.rds")
@@ -619,6 +507,9 @@ fennoscandia$ndvi <- NULL
 
 saveRDS(fennoscandia, "fennoscandia.rds")
 saveRDS(fennoscandia.spdf,"fennoscandia.spdf.rds")
+
+norge <- filter(fennoscandia,nation == "Norway")
+saveRDS(norge, "norge.rds")
 ```
 
 ```{r convert-CRS, eval = F}
@@ -631,13 +522,16 @@ saveRDS(fennoscandia.33, "fennoscandia.33.rds")
 
 # Mapping of predictor and response variable
 
+The TOC concentration and the predictor variables were plotted by catchment. 
+
 ```{r map-cat-variable, eval = F}
+fennoscandia.33 <- readRDS("fennoscandia.33.rds")
 m <- c("TOC","NDVI","Runoff","Precip","Temp","Bog","Arable","Forest","TNdep","TSdep")
 u <- c("a) TOC concentration, mgC/L", "b) NDVI on scale 0 to 1", "c) Mean Runoff, mm/y","d) Mean annual precipitation,\n mm/y","e) Mean annual temperature,\n °C","f) Proportion of bogs","g) Proportion of\narable land","h) Proportion of forest","i) Total nitrogen\ndeposition, ug/m2", "j) Total sulphur\ndeposition, ug/m2")
 couleurs <- c("YlOrRd","Greens","Blues","Blues","RdYlBu","YlOrBr","RdYlGn","RdYlGn","PuRd","PuRd")
 dir <- c(T,T,T,T,F,T,T,T,T,T)
 
-for(i in m[10]){
+for(i in m[2]){
   
  mysf <- fennoscandia.33
  mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
@@ -670,16 +564,19 @@ for(i in m[10]){
    
  }
 }
+```
 
+```{r include-maps, hold = T}
+knitr::include_graphics(c("map.TOC.png","map.NDVI.png","map.Runoff.png","map.Precip.png","map.Temp.png","map.Bog.png","map.Arable.png","map.Forest.png","map.TNdep.png","map.TSdep.png"))
 ```
 
 # Spatial autocorrelation & VIF
 
+The spatial autocorrelation of the response and predictor variables were computed using Moran's I (see Supplementary 4). The neighbor matrix was computed first. 
+
 ```{r neighbour-matrix,  eval = F}
 library(spdep)
-k.neigh.set <- knearneigh(fennoscandia.spdf, k = 100)
-k.neigh.nb.set <- knn2nb(k.neigh.set)
-k.neigh.w <- nb2listw(k.neigh.nb.set)
+k.neigh.w <- knearneigh(fennoscandia.spdf, k = 100) %>% knn2nb() %>% nb2listw()
 saveRDS(k.neigh.w,"k.neigh.w.rds")
 ```
 
@@ -707,7 +604,16 @@ for (i in 1:length(moran.list)){
 saveRDS(moran.df,"moran.df.rds")
 ```
 
+```{r vif-table}
+moran.df <- readRDS("moran.df.rds")
+moran.df %>% arrange(desc(moran.I)) %>% kable %>% kable_styling(bootstrap_options = "bordered", position = "center")
+```
+
 # Comparison of linear model and spatial error model 
+
+Two statistical models were applied on our dataset (see Supplementary 4). The linear model does not take into account the geographical correlation between the variables, so a Spatial Error Model (or spatial error linear model, SELM) was tested too. 
+
+Both models were fitted with 9 predictors (including predictors correlated to each other or having a high Variance Inflation Factor) and then with the 6 models less correlated. 
 
 ## Linear model on NSF, 9 predictors
 
@@ -740,6 +646,103 @@ lm.coef.full <- lm.coef.full[-1,] %>% rownames_to_column(var = "Parameter")
 lm.effectsize.full <- compute.effect.size(lm.coef.full)
 saveRDS(lm.effectsize.full, "lm.effectsize.full.rds")
 ``` 
+
+## Spatial error linear model on NSF with 9 predictors
+
+```{r sem-9-pred, eval = F}
+k.neigh.w <- readRDS("k.neigh.w.rds")
+
+fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bog+s.Arable+s.Forest+s.TNdep+s.TSdep+s.Temp+s.logPrecip
+s.sem.fen.9 <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
+saveRDS(s.sem.fen.9,"s.sem.fen.9.Rdata")
+
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+Forest+TNdep+TSdep+Temp+logPrecip
+sem.fen.9 <- errorsarlm(fm,fennoscandia,k.neigh.w)
+saveRDS(sem.fen.9,"sem.fen.9.Rdata")
+```
+
+```{r sem-results-9}
+s.sem.fen.9 <- readRDS("s.sem.fen.9.Rdata")
+sem.fen.9 <- readRDS("sem.fen.9.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.rds")
+
+
+s.sem.coef <- s.sem.fen.9$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+s.sem.coef <- s.sem.coef %>% rownames_to_column(var = "Parameter")
+s.sem.coef$std.error <- s.sem.fen.9$rest.se[-1]
+saveRDS(s.sem.coef, "s.sem.coef.9.rds")
+
+sem.coef <- sem.fen.9$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+sem.coef <- sem.coef %>% rownames_to_column(var = "Parameter")
+sem.coef$std.error <- sem.fen.9$rest.se[-1]
+
+
+sem.effectsize <- compute.effect.size(sem.coef)
+saveRDS(sem.effectsize, "sem.effectsize.9.rds")
+
+n <- length(sem.coef$Parameter)
+
+s.sem.AIC <- 2*(n-1)-2*s.sem.fen.9$LL
+sem.AIC <- 2*(n-1)-2*sem.fen.9$LL
+
+s.moran.I.res.sem <- moran.test(s.sem.fen.9$residuals, k.neigh.w, alternative = "two.sided")
+
+moran.I.res.sem <- moran.test(sem.fen.9$residuals, k.neigh.w, alternative = "two.sided")
+
+summary.table.sem <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize[,2:4]) %>%
+                rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
+                rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"", moran.I.res.sem$estimate[[1]], "","","",""))
+summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
+
+saveRDS(summary.table.sem, "summary.table.sem.9.rds")
+```
+
+## Comparative plots 9
+
+```{r compare-estimates-lm-9}
+s.lm.coef.full <- readRDS("s.lm.coef.full.rds")
+s.sem.coef.9 <- readRDS("s.sem.coef.9.rds")
+
+n <- c(names(s.sem.coef.9),"Model")
+m <- cbind.data.frame(s.lm.coef.full[,1:3],Model = "LM") %>% setNames(n)
+o <- cbind.data.frame(s.sem.coef.9,Model = "SELM")
+  
+scaled.df <- rbind(m,o)
+scaled.df$Parameter <- factor(scaled.df$Parameter, levels = c("s.TNdep","s.TSdep","s.Forest","s.Arable","s.Bog","s.logRunoff","s.Temp","s.logPrecip","s.NDVI"))
+
+scaled.plot <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model, col = Model), position = "dodge", width = 0.5)+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
+  labs(x = "Scaled Estimate", y = "Predictor", subtitle = paste("LM: AIC =",round(AIC(s.lm.fennoscandia.full),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSELM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
+
+```
+
+```{r compare-effect-size-9}
+lm.effectsize.full <- readRDS("lm.effectsize.full.rds")
+sem.effectsize.9 <- readRDS("sem.effectsize.9.rds")
+
+n <- c(names(sem.effectsize.9),"Model")
+m <- cbind.data.frame(lm.effectsize.full,Model = "LM") %>% setNames(n)
+o <- cbind.data.frame(sem.effectsize.9,Model = "SELM")
+  
+h.df <- rbind(m,o)
+h.df$Parameter <- factor(h.df$Parameter, levels = c("TNdep","TSdep","Forest","Arable","Bog","logRunoff","Temp","logPrecip","NDVI"))
+
+effectsize.plot <- ggplot(h.df, aes(group = Model))+
+  geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.fennoscandia.full),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSELM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
+
+```
+
+```{r compare-plots-9, fig.dim = c(10,5)}
+compare.9 <- cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
+save_plot(plot = compare.9, filename = "compare.lm.selm.9.png")
+print(compare.9)
+```
 
 ## Linear model on NSF, 6 predictors
 
@@ -811,12 +814,13 @@ summary.table.lm <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm.co
 summary.table.lm[,-1] <- apply(summary.table.lm[,-1],2,as.numeric)
 
 saveRDS(summary.table.lm, "summary.table.lm.rds")
-
 ```
+
+
 
 ## Spatial error linear model on NSF with 6 predictors
 
-```{r sem, eval = F}
+```{r sem-6-pred, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.rds")
 norge.kmat <- readRDS("norge.kmat.Rdata")
 
@@ -832,11 +836,10 @@ saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
 
 ```
 
-```{r sem-results}
+```{r sem-results-6}
 s.sem.fennoscandia <- readRDS("s.sem.fennoscandia.Rdata")
 sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
 k.neigh.w <- readRDS("k.neigh.w.rds")
-
 
 s.sem.coef <- s.sem.fennoscandia$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
@@ -870,7 +873,9 @@ summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
 saveRDS(summary.table.sem, "summary.table.sem.rds")
 ```
 
-## Comparative plots
+
+
+## Comparative plots 6
 
 ```{r compare-estimates}
 n <- c(names(s.sem.coef),"Model")
@@ -887,7 +892,7 @@ scaled.plot <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=P
 
 ```
 
-```{r compare-effect-size}
+```{r compare-effect-size-6}
 
 n <- c(names(sem.effectsize),"Model")
 m <- cbind.data.frame(lm.effectsize,Model = "LM") %>% setNames(n)
@@ -907,6 +912,7 @@ effectsize.plot <- ggplot(h.df, aes(group = Model))+
 ```{r compare-plots-1, fig.dim = c(10,5)}
 compare.1 <- cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 save_plot(plot = compare.1, filename = "compare.lm.selm.png")
+print(compare.1)
 ```
 
 # Spatial error linear models with 3 predictors
@@ -1058,6 +1064,7 @@ effectsize.plot <- ggplot(h.df, aes(group = Model))+
 ```{r compare-plots-2, fig.dim = c(10,5)}
 compare.2 <- cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
 save_plot(plot = compare.2, filename = "compare.nor.fen.png" )
+print(compare.2)
 ```
 
 `r fig_nums(name = "compare-plots-2", caption = "Comparison of scaled estimates and effect sizes from the limited SELM  model based on the Norwegian (green) and Fennoscandian (orange) datasets.")`
@@ -1151,9 +1158,87 @@ effectsize.plot <- ggplot(h.df, aes(group = model))+
   labs(x = "Effect size in %", y = "Predictor", subtitle = paste("Fennoscandia: AIC =",round(sem.AIC,2),"; Moran's I = ",round(moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(sem.AIC.norge,2),"; Moran's I =",round(moran.I.res.sem.norge$estimate[[1]],2)))+
   theme_bw(base_size = 6)+theme(legend.position = "bottom")
 ggsave(plot = effectsize.plot,filename = "effectsize.forest.plot.png", dpi = "retina", width = 7, height = 8, units = "cm")
+print(effectsize.plot)
 ```
 
 `r fig_nums("compare-effect-size-simple-forest", "Effect size for SELM model with forest as predictor instead of NDVI")`
+
+## Summary table LM and SELM Fennoscandia
+
+```{r lm-table-results}
+summary.table.lm <- readRDS("summary.table.lm.rds")
+summary.table.sem <- readRDS("summary.table.sem.rds")
+
+n <- 6
+
+knitr::kable(summary.table.lm,digits = 3) %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3,"SIM" = 2),italic = T) %>%
+  column_spec(column = 8, bold = T) %>% 
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+
+knitr::kable(summary.table.sem,digits = 4) %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2, "SELM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
+## Summary tables simple model Norway
+
+```{r summary-table-norway}
+summary.table.sem.norge <- readRDS("summary.table.sem.norge.rds")
+n <- 3
+
+knitr::kable(summary.table.sem.norge,digits = 4) %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2,"SELM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
+## Summary tables simple model Fennoscandia
+
+```{r summary-table-simple-fen}
+summary.table.simple.sem <- readRDS("summary.table.simple.sem.rds")
+n <- 3
+
+knitr::kable(summary.table.simple.sem,digits = 4) %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2,"SELM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+## Residual plots
+
+```{r residual-plots}
+# lm models: s.lm.fennoscandia and lm.fennoscandia
+norge <- readRDS("norge.rds")
+
+s.lm.fennoscandia <- readRDS("s.lm.fennoscandia.rds")
+lm.fennoscandia <- readRDS("lm.fennoscandia.rds")
+
+s.sem.fennoscandia <- readRDS("s.sem.fennoscandia.Rdata")
+sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
+
+sem.norge.simple <- readRDS("sem.norge.simple.Rdata")
+sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+
+sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
+sem.forest.norge <- readRDS("sem.forest.norge.Rdata")
+
+f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia$residuals, plottitle = "Residuals for scaled LM")
+f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia$residuals, plottitle = "Residuals for scaled SELM")
+f_plotspatial(data = fennoscandia,var = lm.fennoscandia$residuals, plottitle = "Residuals for LM")
+f_plotspatial(data = fennoscandia,var = sem.fennoscandia$residuals, plottitle = "Residuals for SELM")
+f_plotspatial(data = fennoscandia,var = sem.fen.simple$residuals, plottitle = "Residuals for SELM with ndvi, runoff et bogs for Fennoscandia")
+f_plotspatial(data = norge,var = sem.norge.simple$residuals, plottitle = "Residuals for SELM with ndvi, runoff et bogs for Norway")
+f_plotspatial(data = fennoscandia,var = sem.forest.fen$residuals, plottitle = "Residuals for SELM with forest")
+f_plotspatial(data = norge,var = sem.forest.norge$residuals, plottitle = "Residuals for SELM with forest for Norway")
+
+```
+
+`r knitr::knit_exit()`
 
 # Appendix: Geographically Weighted Regression
 
@@ -1280,6 +1365,18 @@ knitr::kable(summary.table.gwr.forest,digits = 3, caption = table_nums("gwr-resu
 ```
 
 Replacing NDVI in the GWR model with the proportion of forest does not change the local effect sizes of runoff in the model, and a similar spot of very high and very low effect sizes appears for the proportion of bogs. A similar spot is visible on the map representing the local effect sizes for an increase in forest proportion, but the effect sizes values are not unusual there. Once again, this spot is not explained by an unusual original proportion of forest (see Supplementary 2). The range of effect sizes goes from `r round(min(gwr.effectsize.percent$forest),0)` % to `r round(max(gwr.effectsize.percent$forest),0)`%.
+
+## GWR additional plots
+
+```{r explore-bogs}
+gwr.effectsize.percent <- readRDS("gwr.ndvi.effectsize.percent.rds")
+plot(fennoscandia$bogs*100,gwr.effectsize.percent$bogs, xlab = "Proportion of bogs, %", ylab = "Effect size of a 10% increase in bogs, %")
+```
+
+```{r explore-forest}
+gwr.effectsize.percent <- readRDS("gwr.forest.effectsize.percent.rds")
+plot(fennoscandia$forest*100,gwr.effectsize.percent$forest, xlab = "Proportion of forest, %", ylab = "Effect size of a 10% increase in forest, %")
+```
 
 ## Conclusion GWR
 
