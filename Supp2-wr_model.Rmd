@@ -15,7 +15,7 @@ link-citations: yes
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T)
+knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T, fig.show = "hold")
 options(knitr.kable.NA="", knitr.kable.format ="html")
 ```
 ```{r library}
@@ -33,11 +33,15 @@ library(stringr)
 library(ggplot2)
 library(RColorBrewer)
 library(cowplot)
+library(png)
+
 library(spdep)
 library(spatialreg)
 
 library(kableExtra)
 library(reshape2)
+library(grid)
+library(gridExtra)
 
 source("f_plotspatial.R")
 
@@ -352,7 +356,7 @@ saveRDS(runoff.sf,"runoff.sf.Rdata")
 ```
 
 
-## Bogs and forest
+## Land Cover
 
 ```{r wr-bogs-forest, eval = F}
 library(rgdal)
@@ -528,10 +532,12 @@ saveRDS(clc.wr,"WR/clc/clc.wr.Rdata")
 clc.wr <- readRDS("WR/clc/clc.wr.Rdata")
 clc.wr.bogs <- select(clc.wr, c("gid","V36")) %>% setNames(c("gid","bogs"))
 clc.wr.forest <- select(clc.wr,c("V23","V24","V25")) %>% rowSums() %>% as.data.frame() %>% setNames("forest")
+clc.wr.arable <- select(clc.wr,c("V12","V16","V18","V19","V20")) %>% rowSums() %>% as.data.frame() %>% setNames("arable")
+
 clc.wr.glacier <- select(clc.wr,c("V34")) %>% rowSums() %>% as.data.frame() %>% setNames("glacier")
 clc.wr.bare <- select(clc.wr,c("V31","V32","V33")) %>% rowSums() %>% as.data.frame() %>% setNames("bare")
 
-clc.wr.sum <- cbind(clc.wr.bogs, clc.wr.forest,clc.wr.glacier, clc.wr.bare)
+clc.wr.sum <- cbind(clc.wr.bogs, clc.wr.forest,clc.wr.arable,clc.wr.glacier, clc.wr.bare)
 saveRDS(clc.wr.sum,"WR/clc/clc.wr.sum.Rdata")
 
 ```
@@ -569,6 +575,42 @@ tp <- cbind(wr.sf[,1],temp.wr[,3]) %>% cbind(prec.wr[,3])
 saveRDS(tp,"WR/tp.rds")
 
 ```
+
+
+## TNdep
+
+```{r extract Ndep, eval = F}
+library(ncdf4)
+EMEP_file <- "EMEP/EMEP01_rv4.42_year.2000met_2000emis_rep2021.nc"
+wr.sf <- readRDS("WR/wr.sf.rds")
+
+woxn <- raster(EMEP_file, varname = "WDEP_OXN") 
+doxn <- raster(EMEP_file, varname = "DDEP_OXN_m2Grid")
+wrdn <- raster(EMEP_file, varname = "WDEP_RDN")
+drdn <- raster(EMEP_file, varname = "DDEP_RDN_m2Grid")
+
+woxn_wr <- extract(woxn,wr.sf, sp = T, df = T, na.rm = T, fun = mean) 
+names(woxn_wr) <- c("gid","area","woxn")
+saveRDS(woxn_wr,"woxn_wr.rds")
+
+doxn_wr <- extract(doxn,wr.sf, sp = T, df = T, na.rm = T, fun = mean)
+names(doxn_wr) <- c("gid","area","doxn")
+saveRDS(doxn_wr,"doxn_wr.rds")
+
+wrdn_wr <- extract(wrdn,wr.sf, sp = T, df = T, na.rm = T, fun = mean)
+names(wrdn_wr) <- c("gid","area","wrdn")
+saveRDS(wrdn_wr,"wrdn_wr.rds")
+
+drdn_wr <- extract(drdn,wr.sf, sp = T, df = T, na.rm = T, fun = mean)
+names(drdn_wr) <- c("gid","area","drdn")
+saveRDS(drdn_wr,"drdn_wr.rds")
+
+ndep.wr <- merge(woxn_wr,doxn_wr, by = "gid") %>% merge(wrdn_wr, by = "gid") %>% merge(drdn_wr, by = "gid")
+ndep.wr$tndep <- rowSums(ndep.wr@data[,c(3:6)])
+
+saveRDS(ndep.wr,"WR/ndep.wr.rds")
+```
+
 
 ## Elevation
 ```{r altitude-wr, eval = F}
@@ -608,9 +650,10 @@ alt.wr <- readRDS("WR/alt.wr.rds")
 slope.wr <- readRDS("WR/slope.wr.rds")
 slope.wr$area <- NULL
 tp <- readRDS("WR/tp.rds")
+ndep.wr <- readRDS("WR/ndep.wr.rds")
 wr.sf <- readRDS("WR/wr.sf.rds")
 
-all.wr.sf <- merge(wr.sf,runoff.wr95,by = "gid") %>% merge(ndvi.wr,by="gid") %>% merge(clc.wr.sum,by = "gid") %>% merge(st_drop_geometry(tp),by = "gid") %>% merge(alt.wr, by = "gid") %>% merge(slope.wr, by = "gid")
+all.wr.sf <- merge(wr.sf,runoff.wr95,by = "gid") %>% merge(ndvi.wr,by="gid") %>% merge(clc.wr.sum,by = "gid") %>% merge(st_drop_geometry(tp),by = "gid") %>% merge(alt.wr, by = "gid") %>% merge(slope.wr, by = "gid") %>% merge(ndep.wr, by = "gid")
 
 saveRDS(all.wr.sf, "WR/all.wr.sf.rds")
 
@@ -623,7 +666,7 @@ saveRDS(all.wr.sf, "WR/all.wr.sf.rds")
 
 all.wr.sf <- readRDS("WR/all.wr.sf.rds")
 
-wr.sf.95 <- all.wr.sf %>% filter(ndvi != 0) %>% filter(runoff > 0) %>% filter(is.na(bogs) == F) %>% filter(is.na(alt) == F) %>% filter(is.na(slope) == F)
+wr.sf.95 <- all.wr.sf %>% dplyr::filter(ndvi != 0) %>% filter(runoff > 0) %>% filter(is.na(bogs) == F) %>% filter(is.na(alt) == F) %>% filter(is.na(slope) == F)
 wr.sf.95 <- wr.sf.95[!duplicated(wr.sf.95$gid),]
 wr.sf.95$Runoff <- wr.sf.95$runoff *365*24*60*60 # from kg/m2/s to kg/m2/year or mm/y
 wr.sf.95$logRunoff <- log(wr.sf.95$Runoff)
@@ -655,8 +698,7 @@ saveRDS(wr.sf.95, "WR/wr.sf.95.rds")
 ```
 
 ```{r get-weird-cat-clc, eval = F}
-noforest <- filter(wr.sf.95,forest == 0)
-dplyr::select(noforest,c("gid","area")) 
+noforest <- filter(wr.sf.95,forest == 0) #%>% dplyr::select(noforest,c("gid","area")) 
 
 #ggplot(noforest[which.max(noforest$area),])+geom_sf(aes(fill=as.factor(gid)))
 weird.gid <- noforest$gid[which.max(noforest$area)]
@@ -677,6 +719,8 @@ wr.sf.95$bogs[which(wr.sf.95$gid == weird.cat$gid)] <- weird.tab.prop[36]
 
 wr.sf.95$forest[which(wr.sf.95$gid == weird.cat$gid)] <- weird.tab.prop[24]+weird.tab.prop[24]+weird.tab.prop[25]
 
+wr.sf.95$arable[which(wr.sf.95$gid == weird.cat$gid)] <- weird.tab.prop[12]+weird.tab.prop[16]+weird.tab.prop[18]+weird.tab.prop[19]+weird.tab.prop[20]
+
 wr.sf.95$glacier[which(wr.sf.95$gid == weird.cat$gid)] <- weird.tab.prop[34]
 
 wr.sf.95$bare[which(wr.sf.95$gid == weird.cat$gid)] <- weird.tab.prop[31]+weird.tab.prop[32]+weird.tab.prop[33]
@@ -687,8 +731,8 @@ saveRDS(wr.sf.95,"WR/wr.sf.95.rds")
 ```{r final-df, eval= F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
-toreplace <- which(names(wr.sf.95) %in% c("ndvi","bogs","forest","glacier","bare","temp","prec","alt","slope"))
-names(wr.sf.95)[toreplace] <- c("NDVI","Bog","Forest","Glacier","Bare","Temp","Precip","Alt","Slope")
+toreplace <- which(names(wr.sf.95) %in% c("ndvi","bogs","forest","arable","glacier","bare","temp","prec","alt","slope","tndep"))
+names(wr.sf.95)[toreplace] <- c("NDVI","Bog","Forest","Arable","Glacier","Bare","Temp","Precip","Alt","Slope","TNdep")
 
 wr.sf.95$area <- as.numeric(wr.sf.95$area)
 
@@ -696,37 +740,48 @@ saveRDS(wr.sf.95, "WR/wr.sf.95.rds")
 ```
 
 
-
-```{r plot-variables, eval = F}
+```{r plot-wr-variable, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
+m <- c("NDVI","Runoff","Precip","Temp","Bog","Forest","Arable","TNdep")
+u <- c("NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean annual precipitation,\n mm/y","Mean annual temperature,\n °C","Proportion of bogs","Proportion of Forest","Proportion of\narable land","Total Nitrogen Deposition")
+couleurs <- c("Greens","Blues","Blues","RdYlBu","YlOrBr","RdYlGn","RdYlGn","PuRd")
+dir <- c(T,T,T,F,T,T,T,T)
 
-mypal.b <- brewer.pal(name = "YlOrBr", n = 9)
-wr.bogs <- ggplot(wr.sf.95)+geom_sf(aes(fill=Bog,col=Bog))+ 
-  scale_fill_gradient2(low=mypal.b[1],mid=mypal.b[5],high = mypal.b[9],midpoint = median(wr.sf.95$Bog), aesthetics = c("fill","col"), name = "Proportion of bogs")+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = wr.bogs, filename = "WR/wr.bogs.png",dpi = "retina", width = 6, height = 8, units = "cm")
+for(i in m[8]){
+  
+ mysf <- wr.sf.95
+ mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
+ display.brewer.pal(name = couleurs[which(m == i)], n = 9)
+ 
 
-mypal.n <- brewer.pal(name = "YlGn", n = 9)
-wr.ndvi <- ggplot()+geom_sf(data = wr.sf.95,aes(fill=NDVI,col=NDVI))+ 
- scale_fill_gradient2(low=mypal.n[1],mid=mypal.n[5],high = mypal.n[9],midpoint = median(wr.sf.95$NDVI), aesthetics = c("fill","col"),name = "NDVI 1995") + 
-   theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = wr.ndvi , filename = "WR/wr.ndvi.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-mypal.r <- brewer.pal(name = "Blues", n = 9)
-wr.runoff <- ggplot()+geom_sf(data = wr.sf.95,aes(fill=Runoff,col=Runoff))+ 
-  scale_fill_gradient2(name = "Runoff, mm/y", low=mypal.r[1],mid=mypal.r[5],high = mypal.r[9],midpoint = median(wr.sf.95$Runoff), aesthetics = c("fill","col"))+
-   theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = wr.runoff , filename = "WR/wr.runoff.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-mypal.f <- brewer.pal(name = "YlGn", n = 9)
-wr.forest <- ggplot(wr.sf.95)+geom_sf(aes(fill=Forest,col=Forest))+ 
-  scale_fill_gradient2(name="Proportion of forest", low=mypal.f[1],mid=mypal.f[5],high = mypal.f[9],midpoint = median(wr.sf.95$Forest), aesthetics = c("fill","col"))+
-   theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = wr.forest , filename = "WR/wr.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
+ if(dir[which(m == i)] == T){
+midcol <- median(mysf[[i]])
+ map <- ggplot(mysf)+geom_sf(aes(fill = .data[[i]], col = .data[[i]]))+
+                     scale_fill_gradient2(low = mypal[1], mid = mypal[5], high = mypal[9],
+                                          midpoint = midcol,
+                                          aesthetics = c("colour","fill"), 
+                                          name = paste(u[grep(i,m)],"\n(",i,")",sep=""))+
+    theme_minimal(base_size = 6)+
+    theme(legend.position = "bottom")
+    
+  filename_i <- paste("WR/wr.map",i,"png",sep = ".")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 6, height = 8, units = "cm")
+  
+ } else if(dir[which(m == i)] == F){
+   midcol <- 0
+   map <- ggplot(mysf)+geom_sf(aes(fill = .data[[i]], col = .data[[i]]))+
+                     scale_fill_gradient2(low = mypal[9], mid = mypal[5], high = mypal[1],
+                                          midpoint = midcol,
+                                          aesthetics = c("colour","fill"), 
+                                          name = paste(u[grep(i,m)],"\n(",i,")",sep=""))+
+    theme_minimal(base_size = 6)+
+    theme(legend.position = "bottom")
+    
+  filename_i <- paste("WR/wr.map",i,"png",sep = ".")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 6, height = 8, units = "cm")
+   
+ }
+}
 
 ```
 
@@ -749,11 +804,11 @@ saveRDS(wr.kmat,"WR/wr.kmat.rds")
 
 ```{r sem-model-toc-wr-95, eval = F}
 library(spatialreg)
-sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
-fm <- logTOC~NDVI+logRunoff+Bog
-wr.pred <- predict(sem.fen.simple,wr.sf.95,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
+wr.pred <- predict(sem.fennoscandia.5,wr.sf.95,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
 
 sem.pred.wr <- cbind(wr.sf.95,wr.pred$fit)
 sem.pred.wr$TOC95 <- exp(sem.pred.wr$wr.pred.fit)
@@ -885,101 +940,73 @@ CRNM according to @Raju2020
 
 Using a SELM model for NDVI, we notice that high residuals are observed in catchments where original NDVI is lower than 0,4. Myers-Smith et al. @Myers-Smith2020 show that the relationship between NDVI and the Arctic biomass is not linear: under 0,4, an increase in NDVI reflects the vegetalisation of bare ground, while over 0,4, an increase of NDVI reflects an increased productivity in established forests. 
 
+```{r ndvi-model-test}
+library(betareg)
+library(VGAM)
 
-```{r ndvi-model, eval = F}
 wr.kmat <- readRDS("WR/wr.kmat.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 cor.ndvi <- wr.sf.95 %>% st_drop_geometry() %>% cor()
 corrplot::corrplot(cor.ndvi, method = "number")
 
+#LM
+summary(m1 <- lm(NDVI ~ Temp * log(Precip), data = wr.sf.95))
+summary(m1 <- step(m1))
+plot(wr.sf.95$NDVI, predict(m1),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted",abline(0,1))
+
+# SELM
 ndvi.model <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(Alt), data = wr.sf.95, listw = wr.kmat)
 AIC <- 2*(3-1)-2*ndvi.model$LL
 plot(wr.sf.95$NDVI, ndvi.model$fitted.values)
 abline(a = 0, b = 1)
 
-saveRDS(ndvi.model, "WR/ndvi.model.rds")
-
-sem.residuals <- cbind(wr.sf.95, ndvi.model$residuals)
-
-ndvi.sem.residuals.plot <- ggplot(sem.residuals)+geom_sf(aes(fill=ndvi.model.residuals,col=ndvi.model.residuals))+
-  scale_fill_gradient2(low="#B03060",mid="#FFFFBF",high = "#008B45",midpoint = 0, aesthetics = c("fill","col"),
-                       name = "NDVI model residuals") + 
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = ndvi.sem.residuals.plot,filename = "WR/ndvi.sem.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
-```
-
-```{r tests-ndvi, eval = F}
-library(betareg)
-library(VGAM)
-
-# tests
-regmat <- wr.sf.95 %>% st_drop_geometry() %>% select(c("Alt","Temp","Precip")) %>% as.matrix()
-
-beta.ndvi <- betareg.fit(x = regmat, y = wr.sf.95$NDVI, type = "BR", 
-                         weights = wr.sf.95$area, control = betareg.control(phi =F))
-beta.ndvi <- betareg(NDVI ~ Temp+Alt+area, data = wr.sf.95, link = "logit", weights = wr.sf.95$area)
-
-plot(wr.sf.95$NDVI, beta.ndvi$fitted.values)
-
-spatial.beta.ndvi <- errorsarlm(formula = logclink(NDVI)~Temp+log(Precip)+log(Alt), data = fennoscandia, listw = k.neigh.w)
-plot(logclink(fennoscandia$NDVI), spatial.beta.ndvi$fitted.values)
-plot(fennoscandia$NDVI, logclink(spatial.beta.ndvi$fitted.values))
-
-
-beta.resi <- cbind(wr.sf.95, spatial.beta.ndvi$residuals)
-ggplot(beta.resi)+geom_point(aes(x = Longitude, y = Latitude, col = spatial.beta.ndvi.residuals))+scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0)
-
-beta.resi.plot <- ggplot(beta.resi)+geom_sf(aes(fill = spatial.beta.ndvi.residuals, col = spatial.beta.ndvi.residuals))+scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+theme_classic(base_size = 6)+theme(legend.position = "bottom")
-ggsave(plot = beta.resi.plot, filename = "WR/beta.resi.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-
 # quadratic
-summary(m1 <- lm(NDVI ~ (Temp + I(Temp^2)) * (log(Precip) + I(log(Precip)^2)), data = wr.sf.95))
-summary(m1 <- step(m1))
-plot(wr.sf.95$NDVI, predict(m1),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted - quadratic",abline(0,1))
-
-#poly 
-summary(m2 <- lm(NDVI ~ poly(cbind(Temp, log(Precip)), degree = 5), data = wr.sf.95))
+summary(m2 <- lm(NDVI ~ (Temp + I(Temp^2)) * (log(Precip) + I(log(Precip)^2)), data = wr.sf.95))
 summary(m2 <- step(m2))
-plot(wr.sf.95$NDVI, predict(m2),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted - poly ",abline(0,1))
+plot(wr.sf.95$NDVI, predict(m2),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted - quadratic",abline(0,1))
 
-#lm
-summary(m3 <- lm(NDVI ~ Temp * log(Precip), data = wr.sf.95))
+# poly 
+summary(m3 <- lm(NDVI ~ poly(cbind(Temp, log(Precip)), degree = 5), data = wr.sf.95))
 summary(m3 <- step(m3))
-plot(wr.sf.95$NDVI, predict(m3),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted",abline(0,1))
-
-
+plot(wr.sf.95$NDVI, predict(m3),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted - poly ",abline(0,1))
 ```
 
-```{r ndvi-model-fen}
+
+```{r ndvi-model-fen, eval = F}
 fennoscandia <- readRDS("fennoscandia.rds")
-fennoscandia.spdf <- readRDS("fennoscandia.spdf.rds")
+fennoscandia.33 <- readRDS("fennoscandia.33.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
+nor <- st_read("Country_shapefile/norway.shp")
+swe <- st_read("Country_shapefile/sweden.shp")
+fin <- st_read("Country_shapefile/finland.shp") 
 
-quadra.lm.ndvi <- lm(NDVI ~ (Temp + I(Temp^2)) * (log(Precip) + I(log(Precip)^2)), data = fennoscandia)
-quadra.lm.ndvi <- step(quadra.lm.ndvi)
-summary(quadra.lm.ndvi)
-plot(fennoscandia$NDVI, quadra.lm.ndvi$fitted.values)
+poly.ndvi <- lm(NDVI ~ poly(cbind(Temp, log(Precip)), degree = 5), data = fennoscandia)
+poly.ndvi <- step(poly.ndvi)
+summary(poly.ndvi)
+plot(fennoscandia$NDVI, poly.ndvi$fitted.values)
 
-fennoscandia.ndvi.model <- fennoscandia.spdf %>% st_as_sf() %>% mutate(ndvi.residuals = quadra.lm.ndvi$residuals) 
+fennoscandia.ndvi.model <- fennoscandia.33 %>% st_as_sf() %>% mutate(ndvi.residuals = poly.ndvi$residuals) 
 
-ggplot(fennoscandia.ndvi.model)+geom_point(aes(x=longitude, y = latitude, col = quadra.lm.ndvi$residuals))+
+fen.residuals <- ggplot()+geom_sf(data = nor, fill = "white")+geom_sf(data = swe, fill = "white")+geom_sf(data = fin, fill = "white")+
+  geom_sf(data = fennoscandia.ndvi.model, aes(fill = poly.ndvi$residuals, col = poly.ndvi$residuals))+
+  scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+
+  theme_classic(base_size = 6)+theme(legend.position = "bottom")
+ggsave(plot = fen.residuals, filename = "WR/poly.ndvi.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+wr.ndvi.test <- predict(object = poly.ndvi, newdata = wr.sf.95)
+plot(wr.sf.95$NDVI, wr.ndvi.test)
+wr.ndvi.model <- wr.sf.95 %>% mutate(ndvi.predicted = wr.ndvi.test, ndvi.residuals = wr.ndvi.test-wr.sf.95$NDVI)
+
+ggplot(wr.ndvi.model)+geom_sf(aes(fill = ndvi.residuals, col = ndvi.residuals))+
   scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+theme_classic(base_size = 6)+theme(legend.position = "bottom")
-resi.plot <- ggplot(fennoscandia.ndvi.model)+geom_sf(aes(fill = ndvi.residuals, col = ndvi.residuals), size = 0.5)+
-  scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+theme_classic(base_size = 6)+theme(legend.position = "bottom")
-ggsave(plot = resi.plot,filename = "WR/quadra.ndvi.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
-
-wr.ndvi.test.2 <- predict(object = quadra.lm.ndvi, newdata = wr.sf.95)
-plot(wr.sf.95$NDVI, wr.ndvi.test.2)
-wr.ndvi.model <- wr.sf.95 %>% mutate(ndvi.predicted = wr.ndvi.test.2, ndvi.residuals = wr.ndvi.test.2-wr.sf.95$NDVI)
-
-resi.plot.wr <- ggplot(wr.ndvi.model)+geom_sf(aes(fill = ndvi.residuals, col = ndvi.residuals), size = 0.5)+
-  scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+theme_classic(base_size = 6)+theme(legend.position = "bottom")
-ggsave(plot = resi.plot.wr,filename = "WR/wr.ndvi.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
+ggsave(filename = "WR/wr.ndvi.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
 ```
 
+```{r plot-residuals-ndvi}
+listgrob <- list("WR/poly.ndvi.residuals.plot.png","WR/wr.ndvi.residuals.plot.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+grid.arrange(grobs = listgrob, ncol = 2, nrow = 1)
+```
 
 #### Forecast NDVI in 2050 and 2100
 
@@ -1126,6 +1153,10 @@ saveRDS(ssp370.runoff.2100,"WR/ssp370.runoff.2100.rds")
 
 ### Gather datasets and plot
 
+Predictions for future TNdep based on IPCC estimated emissions for NOx (summary for policymakers AR6):
+* SSP1-2.6: 1/4 decrease in 2050, stable in 2100
+* SSP3-7.0: x1.5 increase in 20150, x2 increase in 2100
+
 ```{r future-wr, eval = F}
 ndvi.ssp126 <- readRDS("WR/ndvi.ssp126.rds")
 ndvi.ssp370 <- readRDS("WR/ndvi.ssp370.rds") 
@@ -1141,9 +1172,9 @@ wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 # 2050 -----
 
-wr.sf.126.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff)), by = "gid")
+wr.sf.126.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff)), by = "gid")
 
-wr.sf.370.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff)), by = "gid")
+wr.sf.370.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff)), by = "gid")
 
 na.lines.126 <- which(complete.cases(st_drop_geometry(wr.sf.126.2050))==F)
 na.lines.370 <- which(complete.cases(st_drop_geometry(wr.sf.370.2050))==F)
@@ -1153,21 +1184,26 @@ wr.sf.370.2050 <- wr.sf.370.2050[-na.lines.370,]
 
 wr.sf.126.2050$logRunoff <- wr.sf.126.2050$Runoff %>% log()
 wr.sf.370.2050$logRunoff <- wr.sf.370.2050$Runoff %>% log()
+wr.sf.126.2050$TNdep <- wr.sf.126.2050$TNdep95*3/4
+wr.sf.370.2050$TNdep <- wr.sf.370.2050$TNdep95*1.5
 
 saveRDS(wr.sf.126.2050, "WR/wr.sf.126.2050.rds")
 saveRDS(wr.sf.370.2050, "WR/wr.sf.370.2050.rds")
 
 # 2100 ----
 
-wr.sf.126.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff.2100)), by = "gid")
+wr.sf.126.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff.2100)), by = "gid")
 
-wr.sf.370.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff.2100)), by = "gid")
+wr.sf.370.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff.2100)), by = "gid")
 
 na.lines.126 <- which(complete.cases(st_drop_geometry(wr.sf.126.2100))==F)
 na.lines.370 <- which(complete.cases(st_drop_geometry(wr.sf.370.2100))==F)
 
 wr.sf.126.2100 <- wr.sf.126.2100[-na.lines.126,]
 wr.sf.370.2100 <- wr.sf.370.2100[-na.lines.370,]
+
+wr.sf.126.2100$TNdep <- wr.sf.126.2100$TNdep95*3/4
+wr.sf.370.2100$TNdep <- wr.sf.370.2100$TNdep95*2
 
 wr.sf.126.2100$logRunoff <- wr.sf.126.2100$Runoff %>% log()
 wr.sf.370.2100$logRunoff <- wr.sf.370.2100$Runoff %>% log()
@@ -1190,7 +1226,7 @@ diff.var <- function(sf, vars1, vars2){
     for (i in 1:length(vars2)){
     newname <- paste("diff", vars2[i], sep = "")
     
-    if(vars2[i] %in% c("Temp","NDVI")){
+    if(vars2[i] %in% c("Temp","NDVI","TNdep")){
     
     x <- sf2[,vars2[i]] %>% st_drop_geometry()
     y <- sf2[,vars1[i]] %>% st_drop_geometry()
@@ -1214,17 +1250,17 @@ diff.var <- function(sf, vars1, vars2){
     return(sf2)
 }
 
-wr.sf.126.2050 <- diff.var(wr.sf.126.2050, vars1 = c("Temp95","Prec95","NDVI95","Runoff95"), vars2 = c("Temp","Precip","NDVI","Runoff"))
-wr.sf.370.2050 <- diff.var(wr.sf.370.2050, vars1 = c("Temp95","Prec95","NDVI95","Runoff95"), vars2 = c("Temp","Precip","NDVI","Runoff"))
-wr.sf.126.2100 <- diff.var(wr.sf.126.2100, vars1 = c("Temp95","Prec95","NDVI95","Runoff95"), vars2 = c("Temp","Precip","NDVI","Runoff"))
-wr.sf.370.2100 <- diff.var(wr.sf.370.2100, vars1 = c("Temp95","Prec95","NDVI95","Runoff95"), vars2 = c("Temp","Precip","NDVI","Runoff"))
+wr.sf.126.2050 <- diff.var(wr.sf.126.2050, vars1 = c("Temp95","Prec95","NDVI95","Runoff95","TNdep95"), vars2 = c("Temp","Precip","NDVI","Runoff","TNdep"))
+wr.sf.370.2050 <- diff.var(wr.sf.370.2050, vars1 = c("Temp95","Prec95","NDVI95","Runoff95","TNdep95"), vars2 = c("Temp","Precip","NDVI","Runoff","TNdep"))
+wr.sf.126.2100 <- diff.var(wr.sf.126.2100, vars1 = c("Temp95","Prec95","NDVI95","Runoff95","TNdep95"), vars2 = c("Temp","Precip","NDVI","Runoff","TNdep"))
+wr.sf.370.2100 <- diff.var(wr.sf.370.2100, vars1 = c("Temp95","Prec95","NDVI95","Runoff95","TNdep95"), vars2 = c("Temp","Precip","NDVI","Runoff","TNdep"))
 
 list.sf <- list(wr.sf.126.2050, wr.sf.126.2100, wr.sf.370.2050, wr.sf.370.2100)
 names(list.sf) <- c("SSP126.2050", "SSP126.2100", "SSP370.2050", "SSP370.2100")
 
 all.diff <- data.frame(gid = c(wr.sf.126.2050$gid, wr.sf.370.2050$gid, wr.sf.126.2100$gid, wr.sf.370.2100$gid))
 
-for(x in c("diffTemp","diffPrecip","diffNDVI","diffRunoff")){
+for(x in c("diffTemp","diffPrecip","diffNDVI","diffRunoff","diffTNdep")){
   all.vec <- c()
   
   for(i in 1:length(list.sf)){
@@ -1245,51 +1281,79 @@ min.lim <- apply(all.diff, 2, min, na.rm = T)
 
 palettes <- data.frame(diffTemp =  brewer.pal(name = "RdYlBu", n = 9)[c(1,5,9)],
                        diffPrecip =  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)],
-                       diffNDVI <-  brewer.pal(name = "RdYlGn", n = 9)[c(9,5,1)],
-                       diffRunoff <-  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)])
-legends <- c("Difference Temperature (°C)", "Difference Precipitation (mm/y)", "Difference NDVI", "Difference Runoff (mm/y)")
+                       diffNDVI =  brewer.pal(name = "RdYlGn", n = 9)[c(9,5,1)],
+                       diffRunoff =  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)],
+                       diffTNdep = brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)])
+legends <- c("Difference Temperature (°C)", "Difference Precipitation (mm/y)", "Difference NDVI", "Difference Runoff (mm/y)","DIfference Nitrogen Deposition (ug/m2)")
 
-diffs <- c("diffTemp","diffPrecip","diffNDVI","diffRunoff")
+diffs <- c("diffTemp","diffPrecip","diffNDVI","diffRunoff","diffTNdep")
 
 
 for(i in c(1:length(list.sf))){
-  for(x in diffs[c(2,4)]){
+  for(x in diffs[5]){
   g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
   scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],mid=palettes[2, grep(x,names(palettes))],high = palettes[1, grep(x,names(palettes))],
                        midpoint = 0, aesthetics = c("fill","col"),
                        name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""), limits = c(min.lim[[x]], max.lim[[x]])) + 
-  theme_minimal(base_size = 6)+
+  theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
   
-  ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 6, height = 8, units = "cm")
+  ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 12, height = 16, units = "cm")
 }
 }
 
+white <- ggplot()+theme_void()
+ggsave(plot = white, filename = "white.png",dpi = "retina", width = 12, height = 16, units = "cm")
 ```
 
-```{r print-plot-forecast-temp, fig.dim = c(6,8)}
-knitr::include_graphics(c("WR/SSP126.2050.diffTemp.png","WR/SSP370.2050.diffTemp.png","WR/SSP126.2100.diffTemp.png","WR/SSP370.2100.diffTemp.png"))
+```{r print-plot-forecast-temp, fig.dim = c(12,8)}
+t1 <- readPNG("WR/wr.map.Temp.png") %>% rasterGrob
+t2 <- readPNG("WR/SSP126.2050.diffTemp.png") %>% rasterGrob
+t3 <- readPNG("WR/SSP126.2100.diffTemp.png") %>% rasterGrob
+
+grid.arrange(t1, t2, t3, ncol = 3)
+
+t0 <- readPNG("white.png") %>% rasterGrob
+t4 <- readPNG("WR/SSP370.2050.diffTemp.png") %>% rasterGrob
+t5 <- readPNG("WR/SSP370.2100.diffTemp.png") %>% rasterGrob
+
+grid.arrange(t0, t4, t5, ncol = 3)
+#knitr::include_graphics(c("WR/wr.map.Temp.png","WR/SSP126.2050.diffTemp.png","WR/SSP370.2050.diffTemp.png","WR/SSP126.2100.diffTemp.png","WR/SSP370.2100.diffTemp.png"))
 ```
 
 `r fig_nums("future-temp","Forecast of mean temperature intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in temperature compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
 ```{r print-plot-forecast-precip, fig.dim = c(6,8)}
-knitr::include_graphics(c("WR/SSP126.2050.diffPrecip.png","WR/SSP370.2050.diffPrecip.png","WR/SSP126.2100.diffPrecip.png","WR/SSP370.2100.diffPrecip.png"))
+listgrob <- list("WR/wr.map.Precip.png","WR/SSP126.2050.diffPrecip.png","WR/SSP126.2100.diffPrecip.png","white.png","WR/SSP370.2050.diffPrecip.png","WR/SSP370.2100.diffPrecip.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+
+grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
 ```
 
 `r fig_nums("future-precipitation","Forecast of mean precipitation intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in precipitation compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
 ```{r print-plot-forecast-ndvi, fig.dim = c(6,8)}
-knitr::include_graphics(c("WR/SSP126.2050.diffNDVI.png","WR/SSP370.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","WR/SSP370.2100.diffNDVI.png"))
+listgrob <- list("WR/wr.map.NDVI.png","WR/SSP126.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","white.png","WR/SSP370.2050.diffNDVI.png","WR/SSP370.2100.diffNDVI.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+
+grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
 ```
 
 `r fig_nums("future-ndvi","Forecast of mean NDVI for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in NDVI compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
 ```{r print-plot-forecast-runoff, fig.dim = c(6,8)}
-knitr::include_graphics(c("WR/SSP126.2050.diffRunoff.png","WR/SSP370.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png","WR/SSP370.2100.diffRunoff.png"))
+listgrob <- list("WR/wr.map.Runoff.png","WR/SSP126.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png","white.png","WR/SSP370.2050.diffRunoff.png","WR/SSP370.2100.diffRunoff.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+
+grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
 ```
 
 `r fig_nums("future-runoff","Forecast of mean runoff intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in runoff compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+
+```{r print-plot-forecast-tndep, fig.dim = c(6,8)}
+listgrob <- list("WR/wr.map.TNdep.png","WR/SSP126.2050.diffTNdep.png","WR/SSP126.2100.diffTNdep.png","white.png","WR/SSP370.2050.diffTNdep.png","WR/SSP370.2100.diffTNdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+
+grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
+```
+
+`r fig_nums("future-tndep","Forecast of mean total nitrogen deposition for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in TNdep compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
 ## Forecast TOC for 2050 and 2100
 
@@ -1297,13 +1361,13 @@ knitr::include_graphics(c("WR/SSP126.2050.diffRunoff.png","WR/SSP370.2050.diffRu
 ### Forecast TOC SSP126 2050
 
 ```{r sem-model-toc-ssp126-2050, eval = F}
-sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
 wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 
-fm <- logTOC~NDVI+logRunoff+Bog
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
 
-wr.pred.ssp126 <- predict(sem.fen.simple,wr.sf.126.2050,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+wr.pred.ssp126 <- predict(sem.fennoscandia.5,wr.sf.126.2050,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
 
 wr.ssp126 <- cbind(wr.sf.126.2050,wr.pred.ssp126)
 wr.ssp126$TOC <- exp(wr.ssp126$fit)
@@ -1315,13 +1379,13 @@ saveRDS(wr.ssp126,"WR/wr.ssp126.2050.rds")
 ### Forecast TOC SSP370 2050
 
 ```{r sem-model-toc-ssp370-2050, eval = F}
-sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
 wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 
-fm <- logTOC~NDVI+logRunoff+Bog
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
 
-wr.pred.ssp370 <- predict(sem.fen.simple,wr.sf.370.2050,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+wr.pred.ssp370 <- predict(sem.fennoscandia.5,wr.sf.370.2050,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
 
 wr.ssp370 <- cbind(wr.sf.370.2050,wr.pred.ssp370)
 wr.ssp370$TOC <- exp(wr.ssp370$fit)
@@ -1332,13 +1396,13 @@ saveRDS(wr.ssp370,"WR/wr.ssp370.2050.rds")
 ### Forecast TOC SSP126 2100
 
 ```{r sem-model-toc-ssp126-2100, eval = F}
-sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
 wr.sf.126.2100 <- readRDS("WR/wr.sf.126.2100.rds")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 
-fm <- logTOC~NDVI+logRunoff+Bog
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
 
-wr.pred.ssp126 <- predict(sem.fen.simple,wr.sf.126.2100,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+wr.pred.ssp126 <- predict(sem.fennoscandia.5,wr.sf.126.2100,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
 
 wr.ssp126 <- cbind(wr.sf.126.2100,wr.pred.ssp126)
 wr.ssp126$TOC <- exp(wr.ssp126$fit)
@@ -1351,13 +1415,13 @@ saveRDS(wr.ssp126,"WR/wr.ssp126.2100.rds")
 ### Forecast TOC SSP370 2100
 
 ```{r sem-model-toc-ssp370-2100, eval = F}
-sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
 wr.sf.370.2100 <- readRDS("WR/wr.sf.370.2100.rds")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 
-fm <- logTOC~NDVI+logRunoff+Bog
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
 
-wr.pred.ssp370 <- predict(sem.fen.simple,wr.sf.370.2100,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+wr.pred.ssp370 <- predict(sem.fennoscandia.5,wr.sf.370.2100,wr.kmat, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
 
 wr.ssp370 <- cbind(wr.sf.370.2100,wr.pred.ssp370)
 wr.ssp370$TOC <- exp(wr.ssp370$fit)
@@ -1398,42 +1462,49 @@ wr.ssp370.2050 <- readRDS("WR/wr.ssp370.2050.rds")
 wr.ssp126.2100 <- readRDS("WR/wr.ssp126.2100.rds")
 wr.ssp370.2100 <- readRDS("WR/wr.ssp370.2100.rds")
 
-diff.var <- function(sf, vars1, vars2){
+# diff.var <- function(sf, vars1, vars2){
+# 
+#       sf2 <- sf
+#   
+#     newname <- paste("diff", vars2, sep = "")
+#     
+#     x <- sf2[,vars2] %>% st_drop_geometry()
+#     y <- sf2[,vars1] %>% st_drop_geometry()
+#     z <- x-y
+#     
+#     names(z) <- newname
+#     sf2 <- cbind(sf2, z)
+#     
+#     newname2 <- paste("diff", vars2,".percent", sep = "")
+#     
+#     w <- x/y*100-100
+#     names(w) <- newname2
+#     sf2 <- cbind(sf2, w)
+#     
+#     return(sf2)
+# }
+# 
+# wr.ssp126.2050 <- diff.var(wr.ssp126.2050, vars1 = c("TOC95"), vars2 = c("TOC"))
+# wr.ssp370.2050 <- diff.var(wr.ssp370.2050, vars1 = c("TOC95"), vars2 = c("TOC"))
+# wr.ssp126.2100 <- diff.var(wr.ssp126.2100, vars1 = c("TOC95"), vars2 = c("TOC"))
+# wr.ssp370.2100 <- diff.var(wr.ssp370.2100, vars1 = c("TOC95"), vars2 = c("TOC"))
 
-      sf2 <- sf
-  
-    newname <- paste("diff", vars2, sep = "")
-    
-    x <- sf2[,vars2] %>% st_drop_geometry()
-    y <- sf2[,vars1] %>% st_drop_geometry()
-    z <- x-y
-    
-    names(z) <- newname
-    sf2 <- cbind(sf2, z)
-    
-    newname2 <- paste("diff", vars2,".percent", sep = "")
-    
-    w <- x/y*100-100
-    names(w) <- newname2
-    sf2 <- cbind(sf2, w)
-    
-    return(sf2)
-}
-
-wr.ssp126.2050 <- diff.var(wr.ssp126.2050, vars1 = c("TOC95"), vars2 = c("TOC"))
-wr.ssp370.2050 <- diff.var(wr.ssp370.2050, vars1 = c("TOC95"), vars2 = c("TOC"))
-wr.ssp126.2100 <- diff.var(wr.ssp126.2100, vars1 = c("TOC95"), vars2 = c("TOC"))
-wr.ssp370.2100 <- diff.var(wr.ssp370.2100, vars1 = c("TOC95"), vars2 = c("TOC"))
 
 list.sf <- list(wr.ssp126.2050, wr.ssp126.2100, wr.ssp370.2050, wr.ssp370.2100)
 names(list.sf) <- c("SSP126.2050", "SSP126.2100", "SSP370.2050", "SSP370.2100")
 
+for(i in names(list.sf)){
+  list.sf[[i]]$diffTOC <- list.sf[[i]]$TOC - list.sf[[i]]$TOC95
+  list.sf[[i]]$diff.log <- list.sf[[i]]$fit - list.sf[[i]]$wr.pred.fit
+  list.sf[[i]]$exp.diff.log <- exp(list.sf[[i]]$diff.log)
+}
+
 all.diff <- data.frame(gid = c(wr.ssp126.2050$gid, wr.ssp370.2050$gid, wr.ssp126.2100$gid, wr.ssp370.2100$gid))
 
-for(x in c("diffTOC","diffTOC.percent")){
+for(x in c("diffTOC","diff.log","exp.diff.log")){
   all.vec <- c()
   
-  for(i in 1:length(list.sf)){
+  for(i in names(list.sf)){
   vec <- select(st_drop_geometry(list.sf[[i]]),all_of(x))
   all.vec <<- rbind(all.vec,vec)
   }
@@ -1444,59 +1515,49 @@ max.lim <- apply(all.diff, 2, max, na.rm = T)
 min.lim <- apply(all.diff, 2, min, na.rm = T)
 
 palettes <- data.frame(diffTOC =  brewer.pal(name = "RdBu", n = 9)[c(1,5,9)],
-                       diffTOC.percent = brewer.pal(name = "RdBu", n = 9)[c(1,5,9)])
-legends <- c("Difference TOC (mg/L)", "Difference TOC (%)")
+                       diff.log = brewer.pal(name = "RdBu", n = 9)[c(1,5,9)],
+                       exp.diff.log = brewer.pal(name = "RdBu", n = 9)[c(1,5,9)])
+legends <- c("Difference TOC (mg/L)","Difference log(TOC)", "exp(difference log(TOC)")
 
-diffs <- c("diffTOC","diffTOC.percent")
-
+diffs <- c("diffTOC","diff.log", "exp.diff.log")
 
 for(i in c(1:length(list.sf))){
-  for(x in diffs){
+  for(x in diffs[2:3]){
   g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
   scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],
                        mid=palettes[2, grep(x,names(palettes))],
                        high = palettes[1, grep(x,names(palettes))],
                        midpoint = 0, aesthetics = c("fill","col"),
-                       name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""), 
+                       name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""),
                        limits = c(min.lim[[x]], max.lim[[x]]))+
   theme_minimal(base_size = 6)+
   theme(legend.position = "bottom")
   
-  ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 6, height = 8, units = "cm")
+  ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 12, height = 16, units = "cm")
 }
 }
 
+g <- ggplot(list.sf[["SSP126.2050"]])+
+    geom_sf(aes(fill=diff.log,col=diff.log))+
+    scale_fill_gradient2(low=palettes[3,1], mid= palettes[2,1], high = palettes[1,1],limits = c(-1,3), aesthetics = c("fill","col"),name="Difference log(TOC)\n SSP126 - 2050")+
+    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 
-      
-for(i in c(1:length(list.sf))){
-  for(x in diffs[1]){
-  g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
-  scale_fill_gradientn(colors = brewer.pal(name = "RdBu", n = 3), limits = c(-5,8), values = c(0,0.38,1), aesthetics = c("fill","col"),  
-                       name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = "")) + 
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-  
-  ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 6, height = 8, units = "cm")
-}
-}                
-
-
-
+ggsave(plot = g, filename = "WR/SSP126.2050.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
 
 ```
 
-# Sea watersheds
+# Sea watersheds: coastal darkening
 
 The drainage basin of the Baltic sea was 
 https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/f86c56e9-d8a0-42ba-b1c7-
 
 Baltic sea drainage basin: https://www.grida.no/resources/5324
 
-Approximately matching the borders Norway/Sweden/Finland. 
+Approximately matching the borders Norway/Sweden/Finland: include graphics from QGIS
 
 ```{r compute-discharge}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
-wr.centroid <- st_centroid(wr.sf.95, of_largest_polygon = T) %>% select("gid","geometry")
+wr.centroid <- st_centroid(wr.sf.95, of_largest_polygon = T) %>% dplyr::select("gid","geometry")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
 
 nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(st_crs(wr.centroid))
@@ -1551,7 +1612,7 @@ for(i in 1:length(list.mean)){
   list.diff[[i]] <- x
 }
 
-toc.export.df <- list.diff[[1]] %>% merge(list.diff[[2]], by = "Nation") %>% merge(list.diff[[3]], by = "Nation") %>% merge(list.diff[[4]], by = "Nation") %>% merge(list.diff[[5]], by = "Nation") %>% melt(id.vars = c("Nation"), value.name = "TOC_ton")
+toc.export.df <- list.diff[[1]] %>% merge(list.diff[[2]], by = "Nation") %>% merge(list.diff[[3]], by = "Nation") %>% merge(list.diff[[4]], by = "Nation") %>% merge(list.diff[[5]], by = "Nation") %>% melt(id.vars = c("Nation"), value.name = "TOC_Tg")
 
 toc.export.df$Model <- NA
 m.126 <- grep("126",toc.export.df$variable)
@@ -1575,14 +1636,24 @@ m.d <- grep("diff",toc.export.df$variable)
 
 toc.export.df$Diff[m.d] <- "D"
 toc.export.df$Diff[-m.d] <- "A"
+saveRDS(toc.export.df,"WR/toc.export.df.rds")
 
-ggplot(filter(toc.export.df, Diff == "D")) + geom_point(aes(x=Year, y = TOC_ton, col = Model, shape= Model)) +
-  geom_path(aes(x=Year, y = TOC_ton, col = Model, shape= Model, group = Model), size = 0.3) +
+ggplot(filter(toc.export.df, Diff == "D")) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
+  geom_path(aes(x=Year, y = TOC_Tg, col = Model, shape= Model, group = Model), size = 0.3) +
   labs(x="Year", y= "TOC (Tg)")+
   scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
   facet_grid(rows=vars(Nation))+
   geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
   theme_bw(base_size = 5)
 ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 8, height = 6, units = "cm")
+
+ggplot(filter(toc.export.df, Diff == "A")) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
+  geom_path(aes(x=Year, y = TOC_Tg, col = Model, shape= Model, group = Model), size = 0.3) +
+  labs(x="Year", y= "TOC (Tg)")+
+  scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
+  facet_grid(rows=vars(Nation))+
+  geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
+  theme_bw(base_size = 5)
+ggsave(filename = "WR/TOC_export_abs.png", dpi = "retina", width = 8, height = 6, units = "cm")
 
 ```

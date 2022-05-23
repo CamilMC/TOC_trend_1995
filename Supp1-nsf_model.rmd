@@ -30,10 +30,16 @@ library(ggplot2)
 library(cowplot)
 library(spdep)
 library(tibble)
+library(RColorBrewer)
 
 library(kableExtra)
 
+library(gridExtra)
+library(grid)
+library(png)
+
 source("f_plotspatial.R")
+memory.limit(size = 160000)
 ```
 
 ```{r function-effect-size}
@@ -51,10 +57,13 @@ for(i in 1:n){
   }else if(m[i] %in% c("NDVI","Bog","Arable","Forest","Temp")){
     df.es[i,2] <- exp(df.coef[i,2]*0.01)
     df.es[i,3] <- 0.01*df.coef[i,2]*df.coef[i,3]
-  }else if(m[i] %in% c("TNdep","TSdep")){
+  }else if(m[i] %in% c("TNdep")){
     df.es[i,2] <- exp(df.coef[i,2]*25)
     df.es[i,3] <- 25*exp(df.coef[i,2]*25)*df.coef[i,3]
-  } else {
+  }else if(m[i] %in% c("TSdep")){
+    df.es[i,2] <- exp(df.coef[i,2]*11)
+    df.es[i,3] <- 11*exp(df.coef[i,2]*11)*df.coef[i,3]
+  }else {
     df.es[i,2] <- exp(df.coef) # effect size for temperature???
   }
 }
@@ -307,18 +316,23 @@ corine_spdf <- readOGR(dsn= paste0(getwd(),"/Corine_Land_Cover/corine-land-cover
 
 clc.remote <- raster::extract(corine,catchment.poly.corine)
 saveRDS(clc.remote,"clc.remote.Rdata")
-
+```
+```{r corine-tab-prop, eval = F}
+readRDS("clc.remote.Rdata")
 clc.tab <- sapply(clc.remote, function(x) tabulate(x,45))
 clc.tab.area <- clc.tab*prod(res(corine))
 catchment.area <- colSums(clc.tab.area)
 clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
 names(clc.tab.prop) <- catchment.poly.corine$ebint
 saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
+```
 
+```{r corine-select-categories, eval = F}
 clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
+
 bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% tibble::rownames_to_column(var = "ebint")
 saveRDS(bogs,"bogs.rds")
-arable <- colSums(clc.tab.prop[c(12,18,19,10),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
+arable <- colSums(clc.tab.prop[c(12,16,18,19,20),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
 saveRDS(arable,"arable.rds")
 forest <- colSums(clc.tab.prop[c(23,24,25),]) %>% as.data.frame() %>% setNames("forest") %>% tibble::rownames_to_column(var = "ebint")
 saveRDS(forest,"forest.rds")
@@ -385,6 +399,14 @@ saveRDS(sdep.df,"sdep.df.rds")
 ```
 
 
+## Comparison NDVI and forest cover
+
+```{r rawndvi, fig.dim=c(6,8)}
+listgrob <- list("NDVI/map.ndvi.png", "Corine_Land_Cover/Map_clc.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+grid.arrange(grobs = listgrob, ncol = 2)
+```
+
+`r fig_nums("rawndvi", "Map of a) average summer NDVI (June, July and August 1995) in Fennoscandia and b) CORINE Land Cover (2000) in Norway, Sweden and Finland")`
 ## Gathering and cleaning the data
 
 The data was gathered and merged into a single dataframe, based on the catchment identifyer ("ebint").
@@ -531,7 +553,7 @@ u <- c("a) TOC concentration, mgC/L", "b) NDVI on scale 0 to 1", "c) Mean Runoff
 couleurs <- c("YlOrRd","Greens","Blues","Blues","RdYlBu","YlOrBr","RdYlGn","RdYlGn","PuRd","PuRd")
 dir <- c(T,T,T,T,F,T,T,T,T,T)
 
-for(i in m[2]){
+for(i in m[7]){
   
  mysf <- fennoscandia.33
  mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
@@ -609,45 +631,266 @@ moran.df <- readRDS("moran.df.rds")
 moran.df %>% arrange(desc(moran.I)) %>% kable %>% kable_styling(bootstrap_options = "bordered", position = "center")
 ```
 
-# Comparison of linear model and spatial error model 
+# Comparison LM and SELM, 5 selected predictors (NDVI, Runoff, Bog, Arable, TNdep)
+
+## Linear model on NSF, 5 selected predictors 
+
+```{r lm-fennoscandia-5, results = T}
+k.neigh.w <- readRDS("k.neigh.w.rds")
+fennoscandia <- readRDS("fennoscandia.rds")
+
+fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bog+s.Arable+s.TNdep
+s.lm.fennoscandia.5 <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
+saveRDS(s.lm.fennoscandia.5,"s.lm.fennoscandia.5.rds")
+
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
+lm.fennoscandia.5 <- lm(fm, data = fennoscandia, na.action = na.exclude)
+saveRDS(lm.fennoscandia.5,"lm.fennoscandia.5.rds")
+
+s.lm.r2.5 <- summary(s.lm.fennoscandia.5)$adj.r.squared
+s.moran.I.res.lm.5 <- lm.morantest(s.lm.fennoscandia.5, k.neigh.w, alternative = "two.sided")
+
+lm.r2.5 <- summary(lm.fennoscandia.5)$adj.r.squared
+moran.I.res.lm.5 <- lm.morantest(lm.fennoscandia.5, k.neigh.w, alternative = "two.sided")
+
+moran.limit.fennoscandia.5 <- 1/(dim(fennoscandia)[1]-1)
+
+s.lm.coef.5 <- summary(s.lm.fennoscandia.5)$coefficients %>% as.data.frame()
+s.lm.coef.5 <- s.lm.coef.5[-1,] %>% rownames_to_column(var = "Parameter")
+saveRDS(s.lm.coef.5, "s.lm.coef.rds")
+
+lm.coef.5 <- summary(lm.fennoscandia.5)$coefficients %>% as.data.frame()
+lm.coef.5 <- lm.coef.5[-1,] %>% rownames_to_column(var = "Parameter")
+
+lm.effectsize.5 <- compute.effect.size(lm.coef.5)
+saveRDS(lm.effectsize.5, "lm.effectsize.5.rds")
+```
+
+### Posterior distribution of coefficients to check the results of the LM (using SIM).
+
+```{r arm-sim-test-lm-5}
+sm.fennoscandia.5 <- arm::sim(lm.fennoscandia.5,n.sims = 100)
+
+sm.coef.5 <- sm.fennoscandia.5@coef[,-1]
+sm.effectsize.5 <- data.frame(parameter = colnames(sm.coef.5), effect.size = NA, std.error = NA)
+
+n <- dim(sm.coef.5)[2]
+m <- colnames(sm.coef.5)
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    sm.effectsize.5[i,2] <- mean(1.1^(sm.coef.5[,i]))
+    sm.effectsize.5[i,3] <- sd(1.1^(sm.coef.5[,i])*log(1.1)*sm.coef.5[,i])
+  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest")){
+    sm.effectsize.5[i,2] <- mean(exp(sm.coef.5[,i]*0.1))
+    sm.effectsize.5[i,3] <- sd(0.1*exp(sm.coef.5[,i]*0.1)*sm.coef.5[,i])
+  }else if(m[i] %in% c("TNdep","TSdep")){
+    sm.effectsize.5[i,2] <- mean(exp(sm.coef.5[,i]*250))
+    sm.effectsize.5[i,3] <- sd(250*exp(sm.coef.5[,i]*250)*sm.coef.5[,i])
+  }
+}
+
+```
+
+### Summary table LM 
+
+```{r summary-table-lm-5}
+summary.table.lm.5 <- cbind(dplyr::select(lm.coef.5,Parameter),s.lm.coef.5[,2:3],lm.coef.5[,2:3],lm.effectsize.5[,2:4],sm.effectsize.5[,2:3]) %>%
+                rbind(c("AIC",AIC(s.lm.fennoscandia.5),"",AIC(lm.fennoscandia.5),"","","","","","")) %>%
+                rbind(c("R2",s.lm.r2.5,"",lm.r2.5,"","","","","","")) %>%
+                rbind(c("Moran'I res",s.moran.I.res.lm.5$estimate[[1]],"",moran.I.res.lm.5$estimate[[1]],"","","","","",""))
+summary.table.lm.5[,-1] <- apply(summary.table.lm.5[,-1],2,as.numeric)
+
+saveRDS(summary.table.lm.5, "summary.table.lm.5.rds")
+```
+
+### Residual plots
+
+```{r residuals-lm5}
+s.lm.fennoscandia.5 <- readRDS("s.lm.fennoscandia.5.rds")
+lm.fennoscandia.5 <- readRDS("lm.fennoscandia.5.rds")
+
+f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.5$residuals, plottitle = "Residuals for scaled LM")
+f_plotspatial(data = fennoscandia,var = lm.fennoscandia.5$residuals, plottitle = "Residuals for unscaled LM")
+```
+
+## Spatial error linear model on NSF, 5 selected predictors (NDVI, Runoff, Bog, Arable, TNdep)
+
+```{r sem-5-pred, eval = F}
+k.neigh.w <- readRDS("k.neigh.w.rds")
+norge.kmat <- readRDS("norge.kmat.Rdata")
+
+#lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
+
+fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bog+s.Arable+s.TNdep
+s.sem.fennoscandia.5 <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
+saveRDS(s.sem.fennoscandia.5,"s.sem.fennoscandia.5.rds")
+
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
+sem.fennoscandia.5 <- errorsarlm(fm,fennoscandia,k.neigh.w)
+saveRDS(sem.fennoscandia.5,"sem.fennoscandia.5.rds")
+```
+
+```{r sem-results-5}
+s.sem.fennoscandia.5 <- readRDS("s.sem.fennoscandia.5.rds")
+sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.rds")
+k.neigh.w <- readRDS("k.neigh.w.rds")
+
+s.sem.coef.5 <- s.sem.fennoscandia.5$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+s.sem.coef.5 <- s.sem.coef.5 %>% rownames_to_column(var = "Parameter")
+s.sem.coef.5$std.error <- s.sem.fennoscandia.5$rest.se[-1]
+saveRDS(s.sem.coef.5, "s.sem.coef.5.rds")
+
+sem.coef.5 <- sem.fennoscandia.5$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+sem.coef.5 <- sem.coef.5 %>% rownames_to_column(var = "Parameter")
+sem.coef.5$std.error <- sem.fennoscandia.5$rest.se[-1]
+
+
+sem.effectsize.5 <- compute.effect.size(sem.coef.5)
+saveRDS(sem.effectsize.5, "sem.effectsize.5.rds")
+
+n <- length(sem.coef.5$Parameter)
+
+s.sem.AIC.5 <- 2*(n-1)-2*s.sem.fennoscandia.5$LL
+sem.AIC.5 <- 2*(n-1)-2*sem.fennoscandia.5$LL
+
+s.moran.I.res.sem.5 <- moran.test(s.sem.fennoscandia.5$residuals, k.neigh.w, alternative = "two.sided")
+
+moran.I.res.sem.5 <- moran.test(sem.fennoscandia.5$residuals, k.neigh.w, alternative = "two.sided")
+
+summary.table.sem.5 <- cbind(dplyr::select(sem.coef.5,Parameter),s.sem.coef.5[,2:3],sem.coef.5[,2:3],sem.effectsize.5[,2:4]) %>%
+                rbind(c("AIC",s.sem.AIC.5,"",sem.AIC.5,"","","","")) %>%
+                rbind(c("Moran'I res", s.moran.I.res.sem.5$estimate[[1]],"", moran.I.res.sem.5$estimate[[1]], "","","",""))
+summary.table.sem.5[,-1] <- apply(summary.table.sem.5[,-1],2,as.numeric)
+
+saveRDS(summary.table.sem.5, "summary.table.sem.5.rds")
+```
+
+### Residual plots
+
+```{r residuals-sem5}
+s.sem.fennoscandia.5 <- readRDS("s.sem.fennoscandia.5.rds")
+sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.rds")
+
+f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.5$residuals, plottitle = "Residuals for scaled SEM")
+f_plotspatial(data = fennoscandia,var = sem.fennoscandia.5$residuals, plottitle = "Residuals for unscaled SELM")
+```
+
+## Summary table LM and SELM Fennoscandia
+
+```{r summary-table-5}
+summary.table.lm.5 <- readRDS("summary.table.lm.5.rds")
+summary.table.sem.5 <- readRDS("summary.table.sem.5.rds")
+
+n <- 5
+
+knitr::kable(summary.table.lm.5,digits = 3, caption = "LM with 5 selected predictors") %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3,"SIM" = 2),italic = T) %>%
+  column_spec(column = 8, bold = T) %>% 
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+
+knitr::kable(summary.table.sem.5,digits = 3, caption = "SELM with 5 selected predictors") %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2, "SELM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
+## Comparative plots 5
+
+```{r compare-estimates}
+n <- c(names(s.sem.coef.5),"Model")
+m <- cbind.data.frame(s.lm.coef.5[,1:3],Model = "LM") %>% setNames(n)
+o <- cbind.data.frame(s.sem.coef.5,Model = "SELM")
+  
+scaled.df.5 <- rbind(m,o)
+scaled.df.5$Parameter <- factor(scaled.df.5$Parameter, levels = c("s.TNdep","s.Arable","s.Bog","s.logRunoff","s.NDVI"))
+
+scaled.plot.5 <- ggplot(scaled.df.5, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model, col = Model), position = "dodge", width = 0.5)+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
+  labs(x = "Scaled Estimate", y = "Model with 6 predictors")+
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
+```
+
+```{r compare-effect-size-5}
+
+n <- c(names(sem.effectsize.5),"Model")
+m <- cbind.data.frame(lm.effectsize.5,Model = "LM") %>% setNames(n)
+o <- cbind.data.frame(sem.effectsize.5,Model = "SELM")
+  
+h.df.5 <- rbind(m,o)
+h.df.5$Parameter <- factor(h.df.5$Parameter, levels = c("TNdep","Arable","Bog","logRunoff","NDVI"))
+
+effectsize.plot.5 <- ggplot(h.df.5, aes(group = Model))+
+  geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "")+
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
+
+```
+
+```{r compare-plots-5, fig.dim = c(10,5)}
+compare.5 <- cowplot::plot_grid(plotlist = list(scaled.plot.5,effectsize.plot.5),ncol=2)
+save_plot(plot = compare.5, filename = "compare.lm.selm.5.png")
+print(compare.5)
+```
+
+# Other models
+
+##Comparison of linear model and spatial error model, 9 predictors
 
 Two statistical models were applied on our dataset (see Supplementary 4). The linear model does not take into account the geographical correlation between the variables, so a Spatial Error Model (or spatial error linear model, SELM) was tested too. 
 
-Both models were fitted with 9 predictors (including predictors correlated to each other or having a high Variance Inflation Factor) and then with the 6 models less correlated. 
+Both models were fitted with all 9 predictors (including predictors correlated to each other or having a high Variance Inflation Factor) and then a selection of variables. 
 
-## Linear model on NSF, 9 predictors
+### Linear model on NSF, 9 predictors
 
-```{r lm-fennoscandia-full, results = T}
+```{r lm-fennoscandia-9, results = T}
 k.neigh.w <- readRDS("k.neigh.w.rds")
+fennoscandia <- readRDS("fennoscandia.rds")
 
 fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bog+s.Arable+s.Forest+s.TNdep+s.TSdep+s.Temp+s.logPrecip
-s.lm.fennoscandia.full <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
-saveRDS(s.lm.fennoscandia.full,"s.lm.fennoscandia.full.rds")
+s.lm.fennoscandia.9 <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
+saveRDS(s.lm.fennoscandia.9,"s.lm.fennoscandia.9.rds")
 
 fm <- logTOC~NDVI+logRunoff+Bog+Arable+Forest+TNdep+TSdep+Temp+logPrecip
-lm.fennoscandia.full <- lm(fm, data = fennoscandia, na.action = na.exclude)
-saveRDS(lm.fennoscandia.full,"lm.fennoscandia.full.rds")
+lm.fennoscandia.9 <- lm(fm, data = fennoscandia, na.action = na.exclude)
+saveRDS(lm.fennoscandia.9,"lm.fennoscandia.9.rds")
 
-s.lm.r2 <- summary(s.lm.fennoscandia.full)$adj.r.squared
-s.moran.I.res.lm <- lm.morantest(s.lm.fennoscandia.full, k.neigh.w, alternative = "two.sided")
+s.lm.r2 <- summary(s.lm.fennoscandia.9)$adj.r.squared
+s.moran.I.res.lm <- lm.morantest(s.lm.fennoscandia.9, k.neigh.w, alternative = "two.sided")
 
-lm.r2 <- summary(lm.fennoscandia.full)$adj.r.squared
-moran.I.res.lm <- lm.morantest(lm.fennoscandia.full, k.neigh.w, alternative = "two.sided")
+lm.r2 <- summary(lm.fennoscandia.9)$adj.r.squared
+moran.I.res.lm <- lm.morantest(lm.fennoscandia.9, k.neigh.w, alternative = "two.sided")
 
 moran.limit.fennoscandia <- 1/(dim(fennoscandia)[1]-1)
 
-s.lm.coef.full <- summary(s.lm.fennoscandia.full)$coefficients %>% as.data.frame()
-s.lm.coef.full <- s.lm.coef.full[-1,] %>% rownames_to_column(var = "Parameter")
-saveRDS(s.lm.coef.full, "s.lm.coef.full.rds")
+s.lm.coef.9 <- summary(s.lm.fennoscandia.9)$coefficients %>% as.data.frame()
+s.lm.coef.9 <- s.lm.coef.9[-1,] %>% rownames_to_column(var = "Parameter")
+saveRDS(s.lm.coef.9, "s.lm.coef.9.rds")
 
-lm.coef.full <- summary(lm.fennoscandia.full)$coefficients %>% as.data.frame()
-lm.coef.full <- lm.coef.full[-1,] %>% rownames_to_column(var = "Parameter")
+lm.coef.9 <- summary(lm.fennoscandia.9)$coefficients %>% as.data.frame()
+lm.coef.9 <- lm.coef.9[-1,] %>% rownames_to_column(var = "Parameter")
 
-lm.effectsize.full <- compute.effect.size(lm.coef.full)
-saveRDS(lm.effectsize.full, "lm.effectsize.full.rds")
+lm.effectsize.9 <- compute.effect.size(lm.coef.9)
+saveRDS(lm.effectsize.9, "lm.effectsize.9.rds")
+
 ``` 
 
-## Spatial error linear model on NSF with 9 predictors
+```{r summary-table-lm-9}
+summary.table.lm.9 <- cbind(dplyr::select(lm.coef.9,Parameter),s.lm.coef.9[,2:3],lm.coef.9[,2:3],lm.effectsize.9[,2:4]) %>%
+                rbind(c("AIC",AIC(s.lm.fennoscandia.9),"",AIC(lm.fennoscandia.9),"","","")) %>%
+                rbind(c("R2",s.lm.r2,"",lm.r2,"","","")) %>%
+                rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","",""))
+summary.table.lm.9[,-1] <- apply(summary.table.lm.9[,-1],2,as.numeric)
+
+saveRDS(summary.table.lm.9, "summary.table.lm.9.rds")
+```
+
+### Spatial error linear model on NSF, 9 predictors
 
 ```{r sem-9-pred, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.rds")
@@ -699,546 +942,386 @@ summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
 saveRDS(summary.table.sem, "summary.table.sem.9.rds")
 ```
 
-## Comparative plots 9
+### Comparative plots 9
 
 ```{r compare-estimates-lm-9}
-s.lm.coef.full <- readRDS("s.lm.coef.full.rds")
+s.lm.coef.9 <- readRDS("s.lm.coef.9.rds")
 s.sem.coef.9 <- readRDS("s.sem.coef.9.rds")
 
 n <- c(names(s.sem.coef.9),"Model")
-m <- cbind.data.frame(s.lm.coef.full[,1:3],Model = "LM") %>% setNames(n)
+m <- cbind.data.frame(s.lm.coef.9[,1:3],Model = "LM") %>% setNames(n)
 o <- cbind.data.frame(s.sem.coef.9,Model = "SELM")
   
 scaled.df <- rbind(m,o)
 scaled.df$Parameter <- factor(scaled.df$Parameter, levels = c("s.TNdep","s.TSdep","s.Forest","s.Arable","s.Bog","s.logRunoff","s.Temp","s.logPrecip","s.NDVI"))
 
-scaled.plot <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model, col = Model), position = "dodge", width = 0.5)+
+scaled.plot.9 <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model, col = Model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x = "Scaled Estimate", y = "Predictor", subtitle = paste("LM: AIC =",round(AIC(s.lm.fennoscandia.full),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSELM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
+  labs(x = "Scaled Estimate", y = "Model with 9 predictors")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
 
 ```
 
 ```{r compare-effect-size-9}
-lm.effectsize.full <- readRDS("lm.effectsize.full.rds")
+lm.effectsize.9 <- readRDS("lm.effectsize.9.rds")
 sem.effectsize.9 <- readRDS("sem.effectsize.9.rds")
 
 n <- c(names(sem.effectsize.9),"Model")
-m <- cbind.data.frame(lm.effectsize.full,Model = "LM") %>% setNames(n)
+m <- cbind.data.frame(lm.effectsize.9,Model = "LM") %>% setNames(n)
 o <- cbind.data.frame(sem.effectsize.9,Model = "SELM")
   
 h.df <- rbind(m,o)
 h.df$Parameter <- factor(h.df$Parameter, levels = c("TNdep","TSdep","Forest","Arable","Bog","logRunoff","Temp","logPrecip","NDVI"))
 
-effectsize.plot <- ggplot(h.df, aes(group = Model))+
+effectsize.plot.9 <- ggplot(h.df, aes(group = Model))+
   geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.fennoscandia.full),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSELM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
+  labs(x = "Effect size in %", y = "")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
 
 ```
 
 ```{r compare-plots-9, fig.dim = c(10,5)}
-compare.9 <- cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
+compare.9 <- cowplot::plot_grid(plotlist = list(scaled.plot.9,effectsize.plot.9),ncol=2)
 save_plot(plot = compare.9, filename = "compare.lm.selm.9.png")
 print(compare.9)
 ```
 
-## Linear model on NSF, 6 predictors
-
-* Linear model based on 6 predictors
-
-```{r lm-fennoscandia, results = T}
-k.neigh.w <- readRDS("k.neigh.w.rds")
-
-fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bog+s.Arable+s.Forest+s.TNdep
-s.lm.fennoscandia <- lm(fm.s, data = fennoscandia, na.action = na.exclude)
-saveRDS(s.lm.fennoscandia,"s.lm.fennoscandia.rds")
-
-fm <- logTOC~NDVI+logRunoff+Bog+Arable+Forest+TNdep
-lm.fennoscandia <- lm(fm, data = fennoscandia, na.action = na.exclude)
-saveRDS(lm.fennoscandia,"lm.fennoscandia.rds")
-
-s.lm.r2 <- summary(s.lm.fennoscandia)$adj.r.squared
-s.moran.I.res.lm <- lm.morantest(s.lm.fennoscandia, k.neigh.w, alternative = "two.sided")
-
-lm.r2 <- summary(lm.fennoscandia)$adj.r.squared
-moran.I.res.lm <- lm.morantest(lm.fennoscandia, k.neigh.w, alternative = "two.sided")
-
-moran.limit.fennoscandia <- 1/(dim(fennoscandia)[1]-1)
-
-s.lm.coef <- summary(s.lm.fennoscandia)$coefficients %>% as.data.frame()
-s.lm.coef <- s.lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
-saveRDS(s.lm.coef, "s.lm.coef.rds")
-
-lm.coef <- summary(lm.fennoscandia)$coefficients %>% as.data.frame()
-lm.coef <- lm.coef[-1,] %>% rownames_to_column(var = "Parameter")
-
-lm.effectsize <- compute.effect.size(lm.coef)
-saveRDS(lm.effectsize, "lm.effectsize.rds")
-```
-
-* Posterior distribution of coefficients to check the results of the lm.
-
-```{r arm-sim-test-lm}
-sm.fennoscandia <- arm::sim(lm.fennoscandia,n.sims = 100)
-
-sm.coef <- sm.fennoscandia@coef[,-1]
-sm.effectsize <- data.frame(parameter = colnames(sm.coef), effect.size = NA, std.error = NA)
-
-n <- dim(sm.coef)[2]
-m <- colnames(sm.coef)
-
-for(i in 1:n){
-  if(grepl("log",m[i])==T){
-    sm.effectsize[i,2] <- mean(1.1^(sm.coef[,i]))
-    sm.effectsize[i,3] <- sd(1.1^(sm.coef[,i])*log(1.1)*sm.coef[,i])
-  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest")){
-    sm.effectsize[i,2] <- mean(exp(sm.coef[,i]*0.1))
-    sm.effectsize[i,3] <- sd(0.1*exp(sm.coef[,i]*0.1)*sm.coef[,i])
-  }else if(m[i] %in% c("TNdep","TSdep")){
-    sm.effectsize[i,2] <- mean(exp(sm.coef[,i]*250))
-    sm.effectsize[i,3] <- sd(250*exp(sm.coef[,i]*250)*sm.coef[,i])
-  }
-}
-
-```
-
-* Summary table
-
-```{r summary-table-lm}
-summary.table.lm <- cbind(dplyr::select(lm.coef,Parameter),s.lm.coef[,2:3],lm.coef[,2:3],lm.effectsize[,2:4],sm.effectsize[,2:3]) %>%
-                rbind(c("AIC",AIC(s.lm.fennoscandia),"",AIC(lm.fennoscandia),"","","","","","")) %>%
-                rbind(c("R2",s.lm.r2,"",lm.r2,"","","","","","")) %>%
-                rbind(c("Moran'I res",s.moran.I.res.lm$estimate[[1]],"",moran.I.res.lm$estimate[[1]],"","","","","",""))
-summary.table.lm[,-1] <- apply(summary.table.lm[,-1],2,as.numeric)
-
-saveRDS(summary.table.lm, "summary.table.lm.rds")
-```
-
-
-
-## Spatial error linear model on NSF with 6 predictors
-
-```{r sem-6-pred, eval = F}
-k.neigh.w <- readRDS("k.neigh.w.rds")
-norge.kmat <- readRDS("norge.kmat.Rdata")
-
-#lagrange <- lm.LMtests(lm.fennoscandia,k.neigh.w,test = c("LMerr","LMlag","RLMerr","RLMlag"))
-
-fm.s <- s.logTOC~s.NDVI+s.logRunoff+s.Bog+s.Arable+s.Forest+s.TNdep
-s.sem.fennoscandia <- errorsarlm(fm.s,fennoscandia,k.neigh.w)
-saveRDS(s.sem.fennoscandia,"s.sem.fennoscandia.Rdata")
-
-fm <- logTOC~NDVI+logRunoff+Bog+Arable+Forest+TNdep
-sem.fennoscandia <- errorsarlm(fm,fennoscandia,k.neigh.w)
-saveRDS(sem.fennoscandia,"sem.fennoscandia.Rdata")
-
-```
-
-```{r sem-results-6}
-s.sem.fennoscandia <- readRDS("s.sem.fennoscandia.Rdata")
-sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
-k.neigh.w <- readRDS("k.neigh.w.rds")
-
-s.sem.coef <- s.sem.fennoscandia$coefficients[-1] %>% as.data.frame() %>% 
-              setNames("Estimate")
-s.sem.coef <- s.sem.coef %>% rownames_to_column(var = "Parameter")
-s.sem.coef$std.error <- s.sem.fennoscandia$rest.se[-1]
-saveRDS(s.sem.coef, "s.sem.coef.rds")
-
-sem.coef <- sem.fennoscandia$coefficients[-1] %>% as.data.frame() %>% 
-              setNames("Estimate")
-sem.coef <- sem.coef %>% rownames_to_column(var = "Parameter")
-sem.coef$std.error <- sem.fennoscandia$rest.se[-1]
-
-
-sem.effectsize <- compute.effect.size(sem.coef)
-saveRDS(sem.effectsize, "sem.effectsize.rds")
-
-n <- length(sem.coef$Parameter)
-
-s.sem.AIC <- 2*(n-1)-2*s.sem.fennoscandia$LL
-sem.AIC <- 2*(n-1)-2*sem.fennoscandia$LL
-
-s.moran.I.res.sem <- moran.test(s.sem.fennoscandia$residuals, k.neigh.w, alternative = "two.sided")
-
-moran.I.res.sem <- moran.test(sem.fennoscandia$residuals, k.neigh.w, alternative = "two.sided")
-
-summary.table.sem <- cbind(dplyr::select(sem.coef,Parameter),s.sem.coef[,2:3],sem.coef[,2:3],sem.effectsize[,2:4]) %>%
-                rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
-                rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"", moran.I.res.sem$estimate[[1]], "","","",""))
-summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
-
-saveRDS(summary.table.sem, "summary.table.sem.rds")
-```
-
-
-
-## Comparative plots 6
-
-```{r compare-estimates}
-n <- c(names(s.sem.coef),"Model")
-m <- cbind.data.frame(s.lm.coef[,1:3],Model = "LM") %>% setNames(n)
-o <- cbind.data.frame(s.sem.coef,Model = "SELM")
-  
-scaled.df <- rbind(m,o)
-scaled.df$Parameter <- factor(scaled.df$Parameter, levels = c("s.TNdep","s.Forest","s.Arable","s.Bog","s.logRunoff","s.NDVI"))
-
-scaled.plot <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model, col = Model), position = "dodge", width = 0.5)+
-  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x = "Scaled Estimate", y = "Predictor", subtitle = paste("LM: AIC =",round(AIC(s.lm.fennoscandia),2),"; Moran's I = ",round(s.moran.I.res.lm$estimate[[1]],2),"\nSELM: AIC =",round(s.sem.AIC,2),"; Moran's I =",round(s.moran.I.res.sem$estimate[[1]],2)))+
-  theme_bw(base_size = 8)+theme(legend.position = "bottom")
-
-```
-
-```{r compare-effect-size-6}
-
-n <- c(names(sem.effectsize),"Model")
-m <- cbind.data.frame(lm.effectsize,Model = "LM") %>% setNames(n)
-o <- cbind.data.frame(sem.effectsize,Model = "SELM")
-  
-h.df <- rbind(m,o)
-h.df$Parameter <- factor(h.df$Parameter, levels = c("TNdep","Forest","Arable","Bog","logRunoff","NDVI"))
-
-effectsize.plot <- ggplot(h.df, aes(group = Model))+
-  geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
-  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "", subtitle = paste("LM: AIC =",round(AIC(lm.fennoscandia),2),"; Moran's I = ",round(moran.I.res.lm$estimate[[1]],2),"\nSELM: AIC =",round(sem.AIC,2),"; Moran's I =",round(moran.I.res.sem$estimate[[1]],2)))+
-  theme_bw(base_size = 8)+theme(legend.position = "bottom")
-
-```
-
-```{r compare-plots-1, fig.dim = c(10,5)}
-compare.1 <- cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
-save_plot(plot = compare.1, filename = "compare.lm.selm.png")
-print(compare.1)
-```
-
-# Spatial error linear models with 3 predictors
-
-## Spatial error linear model on Norwegian and Fennoscandian datasets with NDVI, Bog and logRunoff {#sem-simple}
-
-* Model Norway
-
-```{r kmat, eval = F}
-norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
-
-norge.kmat <- norge.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
-saveRDS(norge.kmat,"norge.kmat.rds")
-```
-
-```{r sem-simple-norway, eval = F}
-norge.kmat <- readRDS("norge.kmat.Rdata")
-
-s.fm <- s.logTOC~s.NDVI+s.logRunoff+s.Bog
-s.sem.norge.simple <- errorsarlm(s.fm,norge,norge.kmat)
-saveRDS(s.sem.norge.simple,"s.sem.norge.simple.Rdata")
-
-fm <- logTOC~NDVI+logRunoff+Bog
-sem.norge.simple <- errorsarlm(fm,norge,norge.kmat)
-saveRDS(sem.norge.simple,"sem.norge.simple.Rdata")
-
-```
-
-```{r sem-simple-results-norway}
-s.sem.norge.simple <- readRDS("s.sem.norge.simple.Rdata")
-sem.norge.simple <- readRDS("sem.norge.simple.Rdata")
-norge.kmat <- readRDS("norge.kmat.Rdata")
-
-
-s.sem.coef.norge <- s.sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
-              setNames("Estimate")
-s.sem.coef.norge <- s.sem.coef.norge %>% rownames_to_column(var = "Parameter")
-s.sem.coef.norge$std.error <- s.sem.norge.simple$rest.se[-1]
-
-sem.coef.norge <- sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
-              setNames("Estimate")
-sem.coef.norge <- sem.coef.norge %>% rownames_to_column(var = "Parameter")
-sem.coef.norge$std.error <- sem.norge.simple$rest.se[-1]
-
-saveRDS(sem.coef.norge, "sem.coef.norge.rds")
-
-sem.effectsize.norge <- compute.effect.size(sem.coef.norge)
-saveRDS(sem.effectsize.norge, "sem.effectsize.norge.rds")
-
-n <- length(sem.coef.norge$Parameter)
-
-s.sem.AIC.norge <- 2*(n-1)-2*s.sem.norge.simple$LL
-s.moran.I.res.sem.norge <- moran.test(s.sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
-
-sem.AIC.norge <- 2*(n-1)-2*sem.norge.simple$LL
-moran.I.res.sem.norge <- moran.test(sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
-
-summary.table.sem.norge <- cbind(dplyr::select(sem.coef.norge,Parameter),s.sem.coef.norge[,2:3],sem.coef.norge[,2:3],sem.effectsize.norge[,2:4]) %>%
-                rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
-                rbind(c("Moran'I res", s.moran.I.res.sem.norge$estimate[[1]],"",moran.I.res.sem.norge$estimate[[1]], "","","",""))
-summary.table.sem.norge[,-1] <- apply(summary.table.sem.norge[,-1],2,as.numeric)
-
-saveRDS(summary.table.sem.norge, "summary.table.sem.norge.rds")
-```
-
-* Model NSF
-
-```{r sem-simple-fennosandia, eval = F}
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
-
-s.fm <- s.logTOC~s.NDVI+s.logRunoff+s.Bog
-s.sem.fen.simple <- errorsarlm(s.fm,fennoscandia,k.neigh.w)
-saveRDS(s.sem.fen.simple,"s.sem.fen.simple.Rdata")
-
-fm <- logTOC~NDVI+logRunoff+Bog
-sem.fen.simple <- errorsarlm(fm,fennoscandia,k.neigh.w)
-saveRDS(sem.fen.simple,"sem.fen.simple.Rdata")
-
-```
-
-```{r sem-simple-results}
-s.sem.fen.simple <- readRDS("s.sem.fen.simple.Rdata")
-sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
-
-s.sem.coef.simple <- s.sem.fen.simple$coefficients[-1] %>% as.data.frame() %>% 
-              setNames("Estimate")
-s.sem.coef.simple <- s.sem.coef.simple %>% rownames_to_column(var = "Parameter")
-s.sem.coef.simple$std.error <- s.sem.fen.simple$rest.se[-1]
-
-sem.coef.simple <- sem.fen.simple$coefficients[-1] %>% as.data.frame() %>% 
-              setNames("Estimate")
-sem.coef.simple <- sem.coef.simple %>% rownames_to_column(var = "Parameter")
-sem.coef.simple$std.error <- sem.fen.simple$rest.se[-1]
-saveRDS(sem.coef.simple, "sem.coef.simple.rds")
-
-sem.effectsize.fen <- compute.effect.size(sem.coef.simple)
-saveRDS(sem.effectsize.fen, "sem.effectsize.fen.rds")
-
-
-n <- length(sem.coef.simple$Parameter)
-
-s.sem.AIC <- 2*(n-1)-2*s.sem.fen.simple$LL
-s.moran.I.res.sem <- moran.test(s.sem.fen.simple$residuals, k.neigh.w, alternative = "two.sided")
-
-sem.AIC <- 2*(n-1)-2*sem.fen.simple$LL
-moran.I.res.sem <- moran.test(sem.fen.simple$residuals, k.neigh.w, alternative = "two.sided")
-
-summary.table.simple.sem <- cbind(dplyr::select(sem.coef.simple,Parameter),s.sem.coef.simple[,2:3],sem.coef.simple[,2:3],sem.effectsize.fen[,2:4]) %>%
-                rbind(c("AIC",s.sem.AIC,"",sem.AIC,"","","","")) %>%
-                rbind(c("Moran'I res", s.moran.I.res.sem$estimate[[1]],"",moran.I.res.sem$estimate[[1]], "","","",""))
-summary.table.simple.sem[,-1] <- apply(summary.table.simple.sem[,-1],2,as.numeric)
-
-saveRDS(summary.table.simple.sem, "summary.table.simple.sem.rds")
-```
-
-* Comparative plots
-
-```{r compare-estimates-simple}
-n <- c(names(s.sem.coef.simple),"Model")
-m <- cbind.data.frame(s.sem.coef.norge, Model = "Norway")
-o <- cbind.data.frame(s.sem.coef.simple, Model = "Fennoscandia")
-  
-scaled.df <- rbind(m,o)
-
-scaled.plot <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
-  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x = "Scaled estimates",y = "Predictor", subtitle = paste("Fennoscandia: AIC =",round(s.sem.AIC,2),"; Moran's I = ",round(s.moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(s.sem.AIC.norge,2),"; Moran's I =",round(s.moran.I.res.sem.norge$estimate[[1]],2)))+
-  theme_bw(base_size = 8)+
-  theme(legend.position = "bottom")
-
-```
-
-```{r compare-effect-size-simple}
-
-n <- c(names(sem.effectsize.fen),"Model")
-m <- cbind.data.frame(sem.effectsize.norge,Model = "Norway")
-o <- cbind.data.frame(sem.effectsize.fen,Model = "Fennoscandia")
-  
-h.df <- rbind(m,o)
-
-effectsize.plot <- ggplot(h.df, aes(group = Model))+
-  geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
-  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "", subtitle = paste("Fennoscandia: AIC =",round(sem.AIC,2),"; Moran's I = ",round(moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(sem.AIC.norge,2),"; Moran's I =",round(moran.I.res.sem.norge$estimate[[1]],2)))+
-  theme_bw(base_size = 8)+theme(legend.position = "bottom")
-```
-
-```{r compare-plots-2, fig.dim = c(10,5)}
-compare.2 <- cowplot::plot_grid(plotlist = list(scaled.plot,effectsize.plot),ncol=2)
-save_plot(plot = compare.2, filename = "compare.nor.fen.png" )
-print(compare.2)
-```
-
-`r fig_nums(name = "compare-plots-2", caption = "Comparison of scaled estimates and effect sizes from the limited SELM  model based on the Norwegian (green) and Fennoscandian (orange) datasets.")`
-
-
-## Spatial error linear model on Norwegian and Fennoscandian datasets with Forest, Bog and logRunoff {#forest}
-
-* Model NSF
-
-```{r sem-with-forest, eval = F}
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
-norge.kmat <- readRDS("norge.kmat.Rdata")
-
-fm <- logTOC ~ Forest+logRunoff+Bog
-
-sem.forest.fen <- errorsarlm(fm, data = fennoscandia,k.neigh.w)
-
-sem.forest.norge <- errorsarlm(fm, data = norge, norge.kmat)
-
-saveRDS(sem.forest.fen, "sem.forest.fen.Rdata")
-saveRDS(sem.forest.norge, "sem.forest.norge.Rdata")
-
-```
-
-```{r sem-forest-results}
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
-
-sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
-sem.forest.norge <- readRDS("sem.forest.norge.Rdata")
-
-sem.coef.forest <- sem.forest.fen$coefficients[-1] %>% as.data.frame() %>% 
-              setNames("Estimate")
-sem.coef.forest <- sem.coef.forest %>% rownames_to_column(var = "Parameter")
-sem.coef.forest$std.error <- sem.forest.fen$rest.se[-1]
-saveRDS(sem.coef.forest,"sem.coef.forest.rds")
-
-sem.effectsize.forest <- compute.effect.size(sem.coef.forest)
-saveRDS(sem.effectsize.forest,"sem.effectsize.forest.rds")
-
-n <- length(sem.coef.forest$Parameter)
-
-sem.AIC <- 2*(n-1)-2*sem.forest.fen$LL
-moran.I.res.sem <- moran.test(sem.forest.fen$residuals, k.neigh.w, alternative = "two.sided")
-
-summary.table.sem.forest <- cbind(dplyr::select(sem.coef.forest,Parameter),sem.coef.forest[,2:3],sem.effectsize.forest[,2:4]) %>%
-                rbind(c("AIC",sem.AIC,"","","","")) %>%
-                rbind(c("Moran'I res", moran.I.res.sem$estimate[[1]], "","","",""))
-summary.table.sem.forest[,-1] <- apply(summary.table.sem.forest[,-1],2,as.numeric)
-saveRDS(summary.table.sem.forest,"summary.table.sem.forest.rds")
-``` 
-
-* Model Norway
-
-```{r sem-forest-norge}
-norge.kmat <- readRDS("norge.kmat.Rdata")
-
-sem.coef.norge.forest <- sem.forest.norge$coefficients[-1] %>% as.data.frame() %>% 
-              setNames("Estimate")
-sem.coef.norge.forest <- sem.coef.norge.forest %>% rownames_to_column(var = "Parameter")
-sem.coef.norge.forest$std.error <- sem.forest.norge$rest.se[-1]
-saveRDS(sem.coef.norge.forest, "sem.coef.norge.forest.rds")
-
-sem.effectsize.forest.norge <- compute.effect.size(sem.coef.norge.forest)
-saveRDS(sem.effectsize.forest.norge, "sem.effectsize.forest.norge.rds")
-
-n <- length(sem.coef.norge.forest$Parameter)
-sem.AIC.norge <- 2*(n-1)-2*sem.forest.norge$LL
-moran.I.res.sem.norge <- moran.test(sem.forest.norge$residuals, norge.kmat, alternative = "two.sided")
-
-summary.table.sem.forest.norge <- cbind(dplyr::select(sem.coef.norge.forest,Parameter),sem.coef.norge.forest[,2:3],sem.effectsize.forest.norge[,2:4]) %>%
-                rbind(c("AIC",sem.AIC.norge,"","","","")) %>%
-                rbind(c("Moran'I res", moran.I.res.sem.norge$estimate[[1]], "","","",""))
-summary.table.sem.forest.norge[,-1] <- apply(summary.table.sem.forest.norge[,-1],2,as.numeric)
-saveRDS(summary.table.sem.forest.norge, "summary.table.sem.forest.norge.rds")
-```
-
-* Comparative plots
-
-```{r compare-effect-size-simple-forest}
-
-n <- c(names(sem.effectsize.forest),"model")
-m <- cbind.data.frame(sem.effectsize.forest,model = "Fennoscandia") %>% setNames(n)
-o <- cbind.data.frame(sem.effectsize.forest.norge,model = "Norway")
-  
-h.df <- rbind(m,o)
-h.df$Parameter <- factor(h.df$Parameter, levels = c("Bog","logRunoff","Forest"))
-
-effectsize.plot <- ggplot(h.df, aes(group = model))+
-  geom_col(aes(x=Percent,y=Parameter, fill = model), position = "dodge", width = 0.5)+
-  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
-  labs(x = "Effect size in %", y = "Predictor", subtitle = paste("Fennoscandia: AIC =",round(sem.AIC,2),"; Moran's I = ",round(moran.I.res.sem$estimate[[1]],2),"\nNorway: AIC =",round(sem.AIC.norge,2),"; Moran's I =",round(moran.I.res.sem.norge$estimate[[1]],2)))+
-  theme_bw(base_size = 6)+theme(legend.position = "bottom")
-ggsave(plot = effectsize.plot,filename = "effectsize.forest.plot.png", dpi = "retina", width = 7, height = 8, units = "cm")
-print(effectsize.plot)
-```
-
-`r fig_nums("compare-effect-size-simple-forest", "Effect size for SELM model with forest as predictor instead of NDVI")`
-
-## Summary table LM and SELM Fennoscandia
+### Summary table 9 pred
 
 ```{r lm-table-results}
-summary.table.lm <- readRDS("summary.table.lm.rds")
-summary.table.sem <- readRDS("summary.table.sem.rds")
+summary.table.lm.9 <- readRDS("summary.table.lm.9.rds")
+summary.table.sem.9 <- readRDS("summary.table.sem.9.rds")
 
-n <- 6
+n <- 9
 
-knitr::kable(summary.table.lm,digits = 3) %>%
-  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3,"SIM" = 2),italic = T) %>%
+knitr::kable(summary.table.lm.9,digits = 3, caption = "LM with 9 predictors") %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
   column_spec(column = 8, bold = T) %>% 
   kable_styling(bootstrap_options = "bordered") %>%
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
 
-knitr::kable(summary.table.sem,digits = 4) %>%
+knitr::kable(summary.table.sem.9,digits = 3, caption = "SELM with 9 predictors") %>%
   add_header_above(c("Model"=1,"Scaled SELM" = 2, "SELM" = 2, "Effect size" = 3),italic = T) %>%
   kable_styling(bootstrap_options = "bordered") %>%
   column_spec(column = 8, bold = T) %>% 
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 ```
 
-## Summary tables simple model Norway
 
-```{r summary-table-norway}
-summary.table.sem.norge <- readRDS("summary.table.sem.norge.rds")
-n <- 3
+## Spatial error linear models with NDVI, Bog and logRunoff
 
-knitr::kable(summary.table.sem.norge,digits = 4) %>%
-  add_header_above(c("Model"=1,"Scaled SELM" = 2,"SELM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  column_spec(column = 8, bold = T) %>% 
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+## Spatial error linear model on Fennoscandian datasets with NDVI, Bog and logRunoff 
+
+```{r sem-runoff-fennosandia.3, eval = F}
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+fennoscandia <- readRDS("fennoscandia.rds")
+
+s.fm <- s.logTOC~s.NDVI+s.logRunoff+s.Bog
+s.sem.fen.3 <- errorsarlm(s.fm,fennoscandia,k.neigh.w)
+saveRDS(s.sem.fen.3,"s.sem.fen.3.rds")
+
+fm <- logTOC~NDVI+logRunoff+Bog
+sem.fen.3 <- errorsarlm(fm,fennoscandia,k.neigh.w)
+saveRDS(sem.fen.3,"sem.fen.3.rds")
+
 ```
 
-## Summary tables simple model Fennoscandia
+```{r sem-runoff-results}
+s.sem.fen.3 <- readRDS("s.sem.fen.3.rds")
+sem.fen.3 <- readRDS("sem.fen.3.rds")
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
 
-```{r summary-table-simple-fen}
-summary.table.simple.sem <- readRDS("summary.table.simple.sem.rds")
-n <- 3
+s.sem.coef.3 <- s.sem.fen.3$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+s.sem.coef.3 <- s.sem.coef.3 %>% rownames_to_column(var = "Parameter")
+s.sem.coef.3$std.error <- s.sem.fen.3$rest.se[-1]
+saveRDS(s.sem.coef.3, "s.sem.coef.3.rds")
 
-knitr::kable(summary.table.simple.sem,digits = 4) %>%
-  add_header_above(c("Model"=1,"Scaled SELM" = 2,"SELM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  column_spec(column = 8, bold = T) %>% 
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+sem.coef.3 <- sem.fen.3$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+sem.coef.3 <- sem.coef.3 %>% rownames_to_column(var = "Parameter")
+sem.coef.3$std.error <- sem.fen.3$rest.se[-1]
+
+sem.effectsize.fen.3 <- compute.effect.size(sem.coef.3)
+saveRDS(sem.effectsize.fen.3, "sem.effectsize.fen.3.rds")
+
+
+n <- length(sem.coef.3$Parameter)
+
+s.sem.AIC.3 <- 2*(n-1)-2*s.sem.fen.3$LL
+s.moran.I.res.sem.3 <- moran.test(s.sem.fen.3$residuals, k.neigh.w, alternative = "two.sided")
+
+sem.AIC.3 <- 2*(n-1)-2*sem.fen.3$LL
+moran.I.res.sem.3 <- moran.test(sem.fen.3$residuals, k.neigh.w, alternative = "two.sided")
+
+summary.table.simple.sem.3 <- cbind(dplyr::select(sem.coef.3,Parameter),s.sem.coef.3[,2:3],sem.coef.3[,2:3],sem.effectsize.fen.3[,2:4]) %>%
+                rbind(c("AIC",s.sem.AIC.3,"",sem.AIC.3,"","","","")) %>%
+                rbind(c("Moran'I res", s.moran.I.res.sem.3$estimate[[1]],"",moran.I.res.sem.3$estimate[[1]], "","","",""))
+summary.table.simple.sem.3[,-1] <- apply(summary.table.simple.sem.3[,-1],2,as.numeric)
+
+saveRDS(summary.table.simple.sem.3, "summary.table.simple.sem.3.rds")
 ```
+
 ## Residual plots
 
-```{r residual-plots}
-# lm models: s.lm.fennoscandia and lm.fennoscandia
-norge <- readRDS("norge.rds")
+```{r residuals-sem-runoff}
+s.sem.fennoscandia.3 <- readRDS("s.sem.fen.3.rds")
+sem.fennoscandia.3 <- readRDS("sem.fen.3.rds")
 
-s.lm.fennoscandia <- readRDS("s.lm.fennoscandia.rds")
-lm.fennoscandia <- readRDS("lm.fennoscandia.rds")
+f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.3$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Runoff and Bogs")
+f_plotspatial(data = fennoscandia,var = sem.fennoscandia.3$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Runoff and Bogs")
+```
 
-s.sem.fennoscandia <- readRDS("s.sem.fennoscandia.Rdata")
-sem.fennoscandia <- readRDS("sem.fennoscandia.Rdata")
+## Summary table
 
-sem.norge.simple <- readRDS("sem.norge.simple.Rdata")
-sem.fen.simple <- readRDS("sem.fen.simple.Rdata")
+```{r summary-table-fen-runoff}
+summary.table.simple.sem.3 <- readRDS("summary.table.simple.sem.3.rds")
+n <- 3
 
-sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
-sem.forest.norge <- readRDS("sem.forest.norge.Rdata")
+knitr::kable(summary.table.simple.sem.3,digits = 3, caption = "SELM with 3 predictors (NDVI, Bog, Runoff") %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2,"SELM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
 
-f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia$residuals, plottitle = "Residuals for scaled LM")
-f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia$residuals, plottitle = "Residuals for scaled SELM")
-f_plotspatial(data = fennoscandia,var = lm.fennoscandia$residuals, plottitle = "Residuals for LM")
-f_plotspatial(data = fennoscandia,var = sem.fennoscandia$residuals, plottitle = "Residuals for SELM")
-f_plotspatial(data = fennoscandia,var = sem.fen.simple$residuals, plottitle = "Residuals for SELM with ndvi, runoff et bogs for Fennoscandia")
-f_plotspatial(data = norge,var = sem.norge.simple$residuals, plottitle = "Residuals for SELM with ndvi, runoff et bogs for Norway")
-f_plotspatial(data = fennoscandia,var = sem.forest.fen$residuals, plottitle = "Residuals for SELM with forest")
-f_plotspatial(data = norge,var = sem.forest.norge$residuals, plottitle = "Residuals for SELM with forest for Norway")
+## Compare scaled estimate and effect sizes
+
+```{r compare-estimates-runoff}
+sem.coef.3 <- readRDS("s.sem.coef.3.rds")
+
+scaled.plot.3 <- ggplot(s.sem.coef.3)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "cadetblue3")+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), width = 0.5)+
+  labs(x = "Scaled estimates",y = "Predictor")+
+  theme_bw(base_size = 8)+
+  theme(legend.position = "bottom")
 
 ```
 
-`r knitr::knit_exit()`
+```{r compare-effect-size-runoff}
+sem.effectsize.fen.3 <- readRDS("sem.effectsize.fen.3.rds")
+
+effectsize.plot.3 <- ggplot(sem.effectsize.fen.3)+
+  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "coral3")+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "")+
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
+```
+
+```{r compare-plots-3, fig.dim = c(10,5)}
+compare.3 <- cowplot::plot_grid(plotlist = list(scaled.plot.3,effectsize.plot.3),ncol=2)
+save_plot(plot = compare.3, filename = "compare.lm.selm.3.png" )
+print(compare.3)
+```
+
+`r fig_nums(name = "compare-plots-3", caption = "Comparison of scaled estimates and effect sizes from the limited SELM  model based on the Norwegian (green) and Fennoscandian (orange) datasets.")`
+
+## Spatial error linear model with NDVI, Bog and logPrecip 
+
+## Spatial error linear model on Fennoscandian datasets with NDVI, Bog and logPrecip 
+
+```{r sem-precip-fennosandia, eval = F}
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+fennoscandia <- readRDS("fennoscandia.rds")
+
+s.fm <- s.logTOC~s.NDVI+s.logPrecip+s.Bog
+s.sem.fen.precip <- errorsarlm(s.fm,fennoscandia,k.neigh.w)
+saveRDS(s.sem.fen.precip,"s.sem.fen.precip.rds")
+
+fm <- logTOC~NDVI+logPrecip+Bog
+sem.fen.precip <- errorsarlm(fm,fennoscandia,k.neigh.w)
+saveRDS(sem.fen.precip,"sem.fen.precip.rds")
+
+```
+
+```{r sem-precip-results}
+s.sem.fen.precip <- readRDS("s.sem.fen.precip.rds")
+sem.fen.precip <- readRDS("sem.fen.precip.rds")
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+
+s.sem.coef.precip <- s.sem.fen.precip$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+s.sem.coef.precip <- s.sem.coef.precip %>% rownames_to_column(var = "Parameter")
+s.sem.coef.precip$std.error <- s.sem.fen.precip$rest.se[-1]
+saveRDS(s.sem.coef.precip, "s.sem.coef.precip.rds")
+
+sem.coef.precip <- sem.fen.precip$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+sem.coef.precip <- sem.coef.precip %>% rownames_to_column(var = "Parameter")
+sem.coef.precip$std.error <- sem.fen.precip$rest.se[-1]
+
+sem.effectsize.precip <- compute.effect.size(sem.coef.precip)
+saveRDS(sem.effectsize.precip, "sem.effectsize.precip.rds")
+
+
+n <- length(sem.coef.precip$Parameter)
+
+s.sem.AIC.precip <- 2*(n-1)-2*s.sem.fen.precip$LL
+s.moran.I.res.sem.precip <- moran.test(s.sem.fen.precip$residuals, k.neigh.w, alternative = "two.sided")
+
+sem.AIC.precip <- 2*(n-1)-2*sem.fen.precip$LL
+moran.I.res.sem.precip <- moran.test(sem.fen.precip$residuals, k.neigh.w, alternative = "two.sided")
+
+summary.table.simple.sem.precip <- cbind(dplyr::select(sem.coef.precip,Parameter),s.sem.coef.precip[,2:3],sem.coef.precip[,2:3],sem.effectsize.precip[,2:4]) %>%
+                rbind(c("AIC",s.sem.AIC.precip,"",sem.AIC.precip,"","","","")) %>%
+                rbind(c("Moran'I res", s.moran.I.res.sem.precip$estimate[[1]],"",moran.I.res.sem.precip$estimate[[1]], "","","",""))
+summary.table.simple.sem.precip[,-1] <- apply(summary.table.simple.sem.precip[,-1],2,as.numeric)
+
+saveRDS(summary.table.simple.sem.precip, "summary.table.simple.precip.rds")
+```
+
+## Residual plots
+
+```{r residuals-precip}
+s.sem.fen.precip <- readRDS("s.sem.fen.precip.rds")
+sem.fen.precip <- readRDS("sem.fen.precip.rds")
+
+f_plotspatial(data = fennoscandia,var = s.sem.fen.precip$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Precipitation, Bogs")
+f_plotspatial(data = fennoscandia,var = sem.fen.precip$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Precipitation, Bogs")
+```
+
+## Comparative scaled estimates and effect size
+
+```{r compare-estimates-precip}
+s.sem.coef.precip <- readRDS("s.sem.coef.precip.rds")
+
+scaled.plot.precip <- ggplot(s.sem.coef.precip)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "cadetblue3")+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), width = 0.5)+
+  labs(x = "Scaled estimates",y = "Predictor")+
+  theme_bw(base_size = 8)+
+  theme(legend.position = "bottom")
+
+```
+
+```{r compare-effect-size-precip}
+sem.effectsize.precip <- readRDS("sem.effectsize.precip.rds")
+
+effectsize.plot.precip <- ggplot(sem.effectsize.precip)+
+  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "coral3")+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "")+
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
+```
+
+```{r compare-plots-precip, fig.dim = c(10,5)}
+compare.precip <- cowplot::plot_grid(plotlist = list(scaled.plot.3,effectsize.plot.3),ncol=2)
+save_plot(plot = compare.precip, filename = "plot.sem.fen.precip.png" )
+print(compare.precip)
+```
+
+`r fig_nums(name = "compare-plots-precip", caption = "Comparison of scaled estimates and effect sizes from the limited SELM model with NDVI, log Precipitation and Bog as predictors.")`
+
+
+## Spatial error linear model with NDVI, TNdep and logPrecip
+
+## Spatial error linear model on Fennoscandian datasets with NDVI, TNdep and logPrecip
+
+```{r sem-simple-fennosandia-tndep, eval = F}
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+fennoscandia <- readRDS("fennoscandia.rds")
+
+s.fm <- s.logTOC~s.NDVI+s.logPrecip+s.TNdep
+s.sem.fen.tndep <- errorsarlm(s.fm,fennoscandia,k.neigh.w)
+saveRDS(s.sem.fen.tndep,"s.sem.fen.tndep.rds")
+
+fm <- logTOC~NDVI+logPrecip+TNdep
+sem.fen.tndep <- errorsarlm(fm,fennoscandia,k.neigh.w)
+saveRDS(sem.fen.tndep,"sem.fen.tndep.rds")
+```
+
+```{r sem-simple-results}
+s.sem.fen.tndep <- readRDS("s.sem.fen.tndep.rds")
+sem.fen.tndep <- readRDS("sem.fen.tndep.rds")
+k.neigh.w <- readRDS("k.neigh.w.Rdata")
+
+s.sem.coef.tndep <- s.sem.fen.tndep$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+s.sem.coef.tndep <- s.sem.coef.tndep %>% rownames_to_column(var = "Parameter")
+s.sem.coef.tndep$std.error <- s.sem.fen.tndep$rest.se[-1]
+saveRDS(s.sem.coef.tndep, "s.sem.coef.tndep.rds")
+
+sem.coef.tndep <- sem.fen.tndep$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+sem.coef.tndep <- sem.coef.tndep %>% rownames_to_column(var = "Parameter")
+sem.coef.tndep$std.error <- sem.fen.tndep$rest.se[-1]
+
+sem.effectsize.fen.tndep <- compute.effect.size(sem.coef.tndep)
+saveRDS(sem.effectsize.fen.tndep, "sem.effectsize.fen.tndep.rds")
+
+
+n <- length(sem.coef.tndep$Parameter)
+
+s.sem.AIC.tndep <- 2*(n-1)-2*s.sem.fen.tndep$LL
+s.moran.I.res.sem.tndep <- moran.test(s.sem.fen.tndep$residuals, k.neigh.w, alternative = "two.sided")
+
+sem.AIC.tndep <- 2*(n-1)-2*sem.fen.tndep$LL
+moran.I.res.sem.tndep <- moran.test(sem.fen.tndep$residuals, k.neigh.w, alternative = "two.sided")
+
+summary.table.sem.tndep <- cbind(dplyr::select(sem.coef.tndep,Parameter),s.sem.coef.tndep[,2:3],sem.coef.tndep[,2:3],sem.effectsize.fen.tndep[,2:4]) %>%
+                rbind(c("AIC",s.sem.AIC.tndep,"",sem.AIC.tndep,"","","","")) %>%
+                rbind(c("Moran'I res", s.moran.I.res.sem.tndep$estimate[[1]],"",moran.I.res.sem.tndep$estimate[[1]], "","","",""))
+summary.table.sem.tndep[,-1] <- apply(summary.table.sem.tndep[,-1],2,as.numeric)
+
+saveRDS(summary.table.sem.tndep, "summary.table.sem.tndep.rds")
+```
+
+## Residual plots
+
+```{r residuals-tndep}
+s.sem.fen.tndep <- readRDS("s.sem.fen.tndep.rds")
+sem.fen.tndep <- readRDS("sem.fen.tndep.rds")
+
+f_plotspatial(data = fennoscandia,var = s.sem.fen.tndep$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Precipitation, TNdep")
+f_plotspatial(data = fennoscandia,var = sem.fen.tndep$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Precipitation, TNdep")
+```
+
+## Summary table
+
+```{r summary-table-fen-tndep}
+summary.table.sem.tndep <- readRDS("summary.table.sem.tndep.rds")
+n <- 3
+
+knitr::kable(summary.table.sem.tndep,digits = 3, caption = "SELM with 3 predictors (NDVI, TNdep, Precipitation") %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2,"SELM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
+## Comparative plots
+
+```{r compare-estimates-tndep}
+s.sem.coef.tndep <- readRDS("s.sem.coef.tndep.rds")
+
+scaled.plot.tndep <- ggplot(s.sem.coef.tndep)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "cadetblue3")+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), width = 0.5)+
+  labs(x = "Scaled estimates",y = "Predictor")+
+  theme_bw(base_size = 8)+
+  theme(legend.position = "bottom")
+```
+
+```{r compare-effect-size-tndep}
+sem.effectsize.fen.tndep <- readRDS("sem.effectsize.fen.tndep.rds")
+
+effectsize.plot.tndep <- ggplot(sem.effectsize.fen.tndep)+
+  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "coral3")+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
+  labs(x = "Effect size in %", y = "")+
+  theme_bw(base_size = 8)+theme(legend.position = "bottom")
+```
+
+```{r compare-plots-tndep, fig.dim = c(10,5)}
+compare.tndep <- cowplot::plot_grid(plotlist = list(scaled.plot.tndep,effectsize.plot.tndep),ncol=2)
+save_plot(plot = compare.tndep, filename = "compare.fen.tndep.png" )
+print(compare.tndep)
+```
+
+`r fig_nums(name = "compare-plots-3", caption = "Comparison of scaled estimates and effect sizes from the limited SELM  model based on the Norwegian (green) and Fennoscandian (orange) datasets.")`
+
+```{r early-exit}
+knitr::knit_exit()
+```
 
 # Appendix: Geographically Weighted Regression
 
