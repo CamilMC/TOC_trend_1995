@@ -42,6 +42,7 @@ library(kableExtra)
 library(reshape2)
 library(grid)
 library(gridExtra)
+library(ggpubr)
 
 source("f_plotspatial.R")
 
@@ -875,6 +876,10 @@ wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 ssp126.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp126_2041-2060.tif", band = 12)
 ssp370.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp370_2041-2060.tif", band = 12)
+ssp126.cnrm.prec.crop <- raster::crop(ssp126.cnrm.prec,c(0,35,55,73))
+plot(ssp126.cnrm.prec.crop)
+ssp370.cnrm.prec.crop <- raster::crop(ssp370.cnrm.prec,c(0,35,55,73))
+plot(ssp370.cnrm.prec.crop)
 
 ssp126.prec.wr <- raster::extract(ssp126.cnrm.prec,select(wr.sf.95,c("gid","geometry")),fun=mean,df = T, sp = T, na.rm = T)
 names(ssp126.prec.wr) <- c("gid", "prec126")
@@ -889,13 +894,18 @@ saveRDS(ssp370.prec.wr,"WR/ssp370.prec.wr.rds")
 wr.sf <- readRDS("WR/wr.sf.rds")
 
 raster.ssp126.prec.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp126_2081-2100.tif", band = 12)
-raster.ssp370.prec.2100.mean <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp370_2081-2100.tif", band = 12)
+raster.ssp370.prec.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp370_2081-2100.tif", band = 12)
+ssp126.cnrm.prec.2100.crop <- raster::crop(raster.ssp126.prec.2100,c(0,35,55,73))
+plot(ssp126.cnrm.prec.2100.crop)
+ssp370.cnrm.prec.2100.crop <- raster::crop(raster.ssp370.prec.2100,c(0,35,55,73))
+plot(ssp370.cnrm.prec.2100.crop)
+
 
 ssp126.prec.2100 <- raster::extract(raster.ssp126.prec.2100,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm = T)
 names(ssp126.prec.2100) <- c("gid", "prec126.2100")
 saveRDS(ssp126.prec.2100,"WR/ssp126.prec.2100.rds")
 
-ssp370.prec.2100 <- raster::extract(raster.ssp370.prec.2100.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm = T)
+ssp370.prec.2100 <- raster::extract(raster.ssp370.prec.2100,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm = T)
 names(ssp370.prec.2100) <- c("gid", "prec370.2100")
 saveRDS(ssp370.prec.2100,"WR/ssp370.prec.2100.rds")
 ```
@@ -928,6 +938,13 @@ saveRDS(df.ssp126.2100, "WR/df.ssp126.2100.rds")
 # SSP 370 2100
 df.ssp370.2100 <- dplyr::select(wr.sf.95, c("gid","area","Alt","Slope","Latitude")) %>% merge(ssp370.temp.2100, by = "gid") %>% merge(ssp370.prec.2100, by = "gid") %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","geometry")) 
 saveRDS(df.ssp370.2100, "WR/df.ssp370.2100.rds")
+
+```
+
+```{r plot-future-prec}
+listgrob <- list("worldclim_future/ssp126.2050.prec.png", "worldclim_future/ssp370.2050.prec.png","worldclim_future/ssp126.2100.prec.png","worldclim_future/ssp370.2100.prec.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+grid.arrange(grobs = listgrob, ncol = 2)
+ggarrange(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("SSP126-2050","SSP370-2050","SSP126-2100","SSP370-2100"))
 
 ```
 
@@ -1107,25 +1124,30 @@ In the historical dataset in Worldclim, the runoff is given as a yearly average 
 
 In the CNRM-CM6 forecast we get the monthly forecast for runoff (in mm/s) and convert it in mm/y.
 
-```{r extract-future-runoff, eval = F}
+```{r extract-future-runoff-2050, eval = F}
 wr.sf <- readRDS("WR/wr.sf.rds")
 
 ssp126.runoff.wr <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp126_r1i1p1f2_gr_201501-210012.nc", bands = c(313:552))
 ssp126.runoff.wr.mean <- ssp126.runoff.wr %>% mean() 
+ssp126.runoff.wr.mean.crop <- raster::crop(ssp126.runoff.wr.mean,c(0,35,55,73))
+plot(ssp126.runoff.wr.mean.crop)
 
 ssp126.runoff <- raster::extract(ssp126.runoff.wr.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
 names(ssp126.runoff) <- c("gid","runoff")
 ssp126.runoff$Runoff <- ssp126.runoff$runoff *365*24*60*60
-saveRDS(ssp126.runoff,"WR/ssp126.runoff.rds")
+
+saveRDS(ssp126.runoff,"WR/ssp126.runoff.2050.rds")
 
 ssp370.runoff.wr <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp370_r1i1p1f2_gr_201501-210012.nc", bands = c(313:552))
 ssp370.runoff.wr.mean <- ssp370.runoff.wr %>% mean()
+ssp370.runoff.wr.mean.crop <- raster::crop(ssp370.runoff.wr.mean,c(0,35,55,73))
+plot(ssp370.runoff.wr.mean.crop)
 
 ssp370.runoff <- raster::extract(ssp370.runoff.wr.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
 names(ssp370.runoff) <- c("gid","runoff")
 ssp370.runoff$Runoff <- ssp370.runoff$runoff *365*24*60*60
 
-saveRDS(ssp370.runoff,"WR/ssp370.runoff.rds")
+saveRDS(ssp370.runoff,"WR/ssp370.runoff.2050.rds")
 ```
 
 ```{r extract-future-runoff-2100, eval = F}
@@ -1133,6 +1155,8 @@ wr.sf <- readRDS("WR/wr.sf.rds")
 
 raster.ssp126.runoff.2100 <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp126_r1i1p1f2_gr_201501-210012.nc", bands = c(805:1032))
 raster.ssp126.runoff.2100.mean <- raster.ssp126.runoff.2100 %>% mean() 
+raster.ssp126.runoff.2100.mean.crop <- raster::crop(raster.ssp126.runoff.2100.mean,c(0,35,55,73))
+plot(raster.ssp126.runoff.2100.mean.crop)
 
 ssp126.runoff.2100 <- raster::extract(raster.ssp126.runoff.2100.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
 names(ssp126.runoff.2100) <- c("gid","runoff")
@@ -1141,6 +1165,8 @@ saveRDS(ssp126.runoff.2100,"WR/ssp126.runoff.2100.rds")
 
 raster.ssp370.runoff.2100 <- raster::stack("CORDEX_future/mrros_Lmon_CNRM-CM6-1-HR_ssp370_r1i1p1f2_gr_201501-210012.nc", bands = c(805:1032))
 raster.ssp370.runoff.2100.mean <- raster.ssp370.runoff.2100 %>% mean()
+raster.ssp370.runoff.2100.mean.crop <- raster::crop(raster.ssp370.runoff.2100.mean,c(0,35,55,73))
+plot(raster.ssp370.runoff.2100.mean.crop)
 
 ssp370.runoff.2100 <- raster::extract(raster.ssp370.runoff.2100.mean,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T)
 names(ssp370.runoff.2100) <- c("gid","runoff")
@@ -1148,33 +1174,95 @@ ssp370.runoff.2100$Runoff <- ssp370.runoff.2100$runoff *365*24*60*60
 saveRDS(ssp370.runoff.2100,"WR/ssp370.runoff.2100.rds")
 ```
 
+```{r plot-future-runoff}
+listgrob <- list("CORDEX_future/runoff.ssp126.2050.png", "CORDEX_future/runoff.ssp370.2050.png","CORDEX_future/runoff.ssp126.2100.png","CORDEX_future/runoff.ssp370.2100.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+grid.arrange(grobs = listgrob, ncol = 2)
+ggarrange(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("SSP126-2050","SSP370-2050","SSP126-2100","SSP370-2100"))
+
+```
 
 
+### Future TNdep
+
+Future TNdep will largely depend on the public policies implemented under the scenarios SSP 1-2.6 and 3-7.0. 
+
+
+TNdep data are from 2000.
+
+Emission reduction between 2005 and 2020 [@EEA2021]:
+* NH3: -8%
+* NOx -42%
+
+
+Predictions for future emissions for NOx (summary for policymakers AR6 [@IPCC2019]):
+* SSP1-2.6: from 11 MtN2O/y to 9 MtN2O (18% decrease) in 2050, stable in 2100 (also 20% compared to 2015)
+* SSP3-7.0: from 11 MtN2o/y to 15 MtN2O (137% increase) in 2050, and 21 MtN2O (190% increase) in 2100
+
+Assumption for NH3: 
+* SSP1-2.6: Decrease according to targets (-20%)
+* SSP3-7.0: No decrease
+
+```{r evaluate future TNdep}
+ndep.wr <- readRDS("WR/ndep.wr.rds")
+ndep.sum <- ndep.wr@data %>% apply(2, sum)
+
+(ndep.sum["woxn"]+ndep.sum["doxn"])/ndep.sum["tndep"]
+(ndep.sum["wrdn"]+ndep.sum["drdn"])/ndep.sum["tndep"]
+
+# SSP126 2050
+ssp126.ndep.2050 <- data.frame(gid = ndep.wr$gid)
+ssp126.ndep.2050$oxn <- ndep.wr$woxn*0.55*0.8 + ndep.wr$doxn*0.55*0.8 # -45% for decrease between 2000 and 2020, -20% between 2020 and 2050
+ssp126.ndep.2050$rdn <- ndep.wr$wrdn*0.9*0.8 + ndep.wr$drdn*0.9*0.8 # -10% for decrease between 2000 and 2020, -20% between 2020 and 2050 
+ssp126.ndep.2050$TNdep <- ssp126.ndep.2050$oxn + ssp126.ndep.2050$rdn
+saveRDS(ssp126.ndep.2050,"WR/ssp126.ndep.2050.rds")
+
+# SSP126 2100
+ssp126.ndep.2100 <- data.frame(gid = ndep.wr$gid)
+ssp126.ndep.2100$oxn <- ndep.wr$woxn*0.55*0.8+ndep.wr$doxn*0.55*0.8 # -45% for decrease between 2000 and 2020, -20% between 2020 and 2100
+ssp126.ndep.2100$rdn <- ndep.wr$wrdn*0.9*0.8+ndep.wr$drdn*0.9*0.8  # -10% for decrease between 2000 and 2020, -20% between 2020 and 2100
+ssp126.ndep.2100$TNdep <- ssp126.ndep.2100$oxn + ssp126.ndep.2100$rdn
+saveRDS(ssp126.ndep.2100,"WR/ssp126.ndep.2100.rds")
+
+# SSP370 2050
+ssp370.ndep.2050 <- data.frame(gid = ndep.wr$gid)
+ssp370.ndep.2050$oxn <- ndep.wr$woxn*0.55*1.37+ndep.wr$doxn*0.55*1.37 # -45% for decrease between 2000 and 2020, 137% increase between 2020 and 2100
+ssp370.ndep.2050$rdn <- ndep.wr$wrdn*0.9+ndep.wr$drdn*0.9 # -10% for decrease between 2000 and 2020, no change between 2020 and 2100
+ssp370.ndep.2050$TNdep <- ssp370.ndep.2050$oxn + ssp370.ndep.2050$rdn
+saveRDS(ssp370.ndep.2050,"WR/ssp370.ndep.2050.rds")
+
+# SSP370 2100
+ssp370.ndep.2100 <- data.frame(gid = ndep.wr$gid)
+ssp370.ndep.2100$oxn <- ndep.wr$woxn*0.55*1.9+ndep.wr$doxn*0.55*1.9 # -45% for decrease between 2000 and 2020, 190% increase between 2020 and 2100
+ssp370.ndep.2100$rdn <- ndep.wr$wrdn*0.9+ndep.wr$drdn*0.9 # -10% for decrease between 2000 and 2020, no change between 2020 and 2100
+ssp370.ndep.2100$TNdep <- ssp370.ndep.2100$oxn + ssp370.ndep.2100$rdn
+saveRDS(ssp370.ndep.2100,"WR/ssp370.ndep.2100.rds")
+```
 
 ### Gather datasets and plot
 
-Predictions for future TNdep based on IPCC estimated emissions for NOx (summary for policymakers AR6):
-* SSP1-2.6: 1/4 decrease in 2050, stable in 2100
-* SSP3-7.0: x1.5 increase in 20150, x2 increase in 2100
 
 ```{r future-wr, eval = F}
 ndvi.ssp126 <- readRDS("WR/ndvi.ssp126.rds")
 ndvi.ssp370 <- readRDS("WR/ndvi.ssp370.rds") 
-ssp126.runoff <- readRDS("WR/ssp126.runoff.rds")
-ssp370.runoff <- readRDS("WR/ssp370.runoff.rds")
+ssp126.runoff.2050 <- readRDS("WR/ssp126.runoff.2050.rds")
+ssp370.runoff.2050 <- readRDS("WR/ssp370.runoff.2050.rds")
+ssp126.ndep.2050 <- readRDS("WR/ssp126.ndep.2050.rds")
+ssp370.ndep.2050 <- readRDS("WR/ssp370.ndep.2050.rds")
 
 ndvi.ssp126.2100 <- readRDS("WR/ndvi.ssp126.2100.rds")
 ndvi.ssp370.2100 <- readRDS("WR/ndvi.ssp370.2100.rds") 
 ssp126.runoff.2100 <- readRDS("WR/ssp126.runoff.2100.rds")
 ssp370.runoff.2100 <- readRDS("WR/ssp370.runoff.2100.rds")
+ssp126.ndep.2100 <- readRDS("WR/ssp126.ndep.2100.rds")
+ssp370.ndep.2100 <- readRDS("WR/ssp370.ndep.2100.rds")
 
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 # 2050 -----
 
-wr.sf.126.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff)), by = "gid")
+wr.sf.126.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff.2050)), by = "gid") %>% merge(ssp126.ndep.2050)
 
-wr.sf.370.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff)), by = "gid")
+wr.sf.370.2050 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff.2050)), by = "gid") %>% merge(ssp370.ndep.2050)
 
 na.lines.126 <- which(complete.cases(st_drop_geometry(wr.sf.126.2050))==F)
 na.lines.370 <- which(complete.cases(st_drop_geometry(wr.sf.370.2050))==F)
@@ -1184,26 +1272,21 @@ wr.sf.370.2050 <- wr.sf.370.2050[-na.lines.370,]
 
 wr.sf.126.2050$logRunoff <- wr.sf.126.2050$Runoff %>% log()
 wr.sf.370.2050$logRunoff <- wr.sf.370.2050$Runoff %>% log()
-wr.sf.126.2050$TNdep <- wr.sf.126.2050$TNdep95*3/4
-wr.sf.370.2050$TNdep <- wr.sf.370.2050$TNdep95*1.5
 
 saveRDS(wr.sf.126.2050, "WR/wr.sf.126.2050.rds")
 saveRDS(wr.sf.370.2050, "WR/wr.sf.370.2050.rds")
 
 # 2100 ----
 
-wr.sf.126.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff.2100)), by = "gid")
+wr.sf.126.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp126.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp126.runoff.2100)), by = "gid") %>% merge(ssp126.ndep.2100)
 
-wr.sf.370.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff.2100)), by = "gid")
+wr.sf.370.2100 <- dplyr::select(wr.sf.95, c("gid","Bog","Runoff","logRunoff","Temp","Precip","NDVI","Arable","TNdep")) %>% setNames(c("gid","Bog","Runoff95","logRunoff95","Temp95","Prec95","NDVI95","Arable","TNdep95","geometry")) %>% merge(st_drop_geometry(ndvi.ssp370.2100), by = "gid") %>% merge(st_drop_geometry(st_as_sf(ssp370.runoff.2100)), by = "gid") %>% merge(ssp370.ndep.2100)
 
 na.lines.126 <- which(complete.cases(st_drop_geometry(wr.sf.126.2100))==F)
 na.lines.370 <- which(complete.cases(st_drop_geometry(wr.sf.370.2100))==F)
 
 wr.sf.126.2100 <- wr.sf.126.2100[-na.lines.126,]
 wr.sf.370.2100 <- wr.sf.370.2100[-na.lines.370,]
-
-wr.sf.126.2100$TNdep <- wr.sf.126.2100$TNdep95*3/4
-wr.sf.370.2100$TNdep <- wr.sf.370.2100$TNdep95*2
 
 wr.sf.126.2100$logRunoff <- wr.sf.126.2100$Runoff %>% log()
 wr.sf.370.2100$logRunoff <- wr.sf.370.2100$Runoff %>% log()
@@ -1323,7 +1406,7 @@ grid.arrange(t0, t4, t5, ncol = 3)
 
 `r fig_nums("future-temp","Forecast of mean temperature intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in temperature compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
-```{r print-plot-forecast-precip, fig.dim = c(6,8)}
+```{r print-plot-forecast-precip, fig.dim = c(12,8)}
 listgrob <- list("WR/wr.map.Precip.png","WR/SSP126.2050.diffPrecip.png","WR/SSP126.2100.diffPrecip.png","white.png","WR/SSP370.2050.diffPrecip.png","WR/SSP370.2100.diffPrecip.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 
 grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
@@ -1331,7 +1414,7 @@ grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
 
 `r fig_nums("future-precipitation","Forecast of mean precipitation intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in precipitation compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
-```{r print-plot-forecast-ndvi, fig.dim = c(6,8)}
+```{r print-plot-forecast-ndvi, fig.dim = c(12,8)}
 listgrob <- list("WR/wr.map.NDVI.png","WR/SSP126.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","white.png","WR/SSP370.2050.diffNDVI.png","WR/SSP370.2100.diffNDVI.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 
 grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
@@ -1339,7 +1422,7 @@ grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
 
 `r fig_nums("future-ndvi","Forecast of mean NDVI for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in NDVI compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
-```{r print-plot-forecast-runoff, fig.dim = c(6,8)}
+```{r print-plot-forecast-runoff, fig.dim = c(12,8)}
 listgrob <- list("WR/wr.map.Runoff.png","WR/SSP126.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png","white.png","WR/SSP370.2050.diffRunoff.png","WR/SSP370.2100.diffRunoff.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 
 grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
@@ -1347,7 +1430,7 @@ grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
 
 `r fig_nums("future-runoff","Forecast of mean runoff intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in runoff compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
-```{r print-plot-forecast-tndep, fig.dim = c(6,8)}
+```{r print-plot-forecast-tndep, fig.dim = c(12,8)}
 listgrob <- list("WR/wr.map.TNdep.png","WR/SSP126.2050.diffTNdep.png","WR/SSP126.2100.diffTNdep.png","white.png","WR/SSP370.2050.diffTNdep.png","WR/SSP370.2100.diffTNdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 
 grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
@@ -1521,28 +1604,28 @@ legends <- c("Difference TOC (mg/L)","Difference log(TOC)", "exp(difference log(
 
 diffs <- c("diffTOC","diff.log", "exp.diff.log")
 
-for(i in c(1:length(list.sf))){
-  for(x in diffs[2:3]){
-  g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
-  scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],
-                       mid=palettes[2, grep(x,names(palettes))],
-                       high = palettes[1, grep(x,names(palettes))],
-                       midpoint = 0, aesthetics = c("fill","col"),
-                       name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""),
-                       limits = c(min.lim[[x]], max.lim[[x]]))+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-  
-  ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 12, height = 16, units = "cm")
-}
-}
+# for(i in c(1:length(list.sf))){
+#   for(x in diffs[2:3]){
+#   g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
+#   scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],
+#                        mid=palettes[2, grep(x,names(palettes))],
+#                        high = palettes[1, grep(x,names(palettes))],
+#                        midpoint = 0, aesthetics = c("fill","col"),
+#                        name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""),
+#                        limits = c(min.lim[[x]], max.lim[[x]]))+
+#   theme_minimal(base_size = 6)+
+#   theme(legend.position = "bottom")
+#   
+#   ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 12, height = 16, units = "cm")
+# }
+# }
 
-g <- ggplot(list.sf[["SSP126.2050"]])+
+g <- ggplot(list.sf[["SSP370.2100"]])+
     geom_sf(aes(fill=diff.log,col=diff.log))+
-    scale_fill_gradient2(low=palettes[3,1], mid= palettes[2,1], high = palettes[1,1],limits = c(-1,3), aesthetics = c("fill","col"),name="Difference log(TOC)\n SSP126 - 2050")+
+    scale_fill_gradient2(low=palettes[3,1], mid= palettes[2,1], high = palettes[1,1],limits = c(-1,3), aesthetics = c("fill","col"),name="Difference log(TOC)\n SSP370 - 2100")+
     theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 
-ggsave(plot = g, filename = "WR/SSP126.2050.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
+ggsave(plot = g, filename = "WR/SSP370.2100.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
 
 ```
 
@@ -1634,26 +1717,49 @@ toc.export.df$Year[m.2100] <- "2100"
 toc.export.df$Diff <- NA
 m.d <- grep("diff",toc.export.df$variable)
 
-toc.export.df$Diff[m.d] <- "D"
-toc.export.df$Diff[-m.d] <- "A"
+toc.export.df$Diff[m.d] <- "Difference"
+toc.export.df$Diff[-m.d] <- "Absolute"
+
+toc.export.sum <- toc.export.df %>% group_by(Model,Year,Diff) %>% summarise(TOC_Tg = sum(TOC_Tg))
+toc.export.sum$Nation <- "Total"
+toc.export.sum$variable <- NA
+
+toc.export.df <- rbind(toc.export.sum,toc.export.df)
+toc.export.df <- transform(toc.export.df, Nation = factor(Nation, levels = c("Norway","Sweden","Finland","Total")))
+
+knitr::kable(toc.export.df) %>% kable_styling()
+
 saveRDS(toc.export.df,"WR/toc.export.df.rds")
 
-ggplot(filter(toc.export.df, Diff == "D")) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
-  geom_path(aes(x=Year, y = TOC_Tg, col = Model, shape= Model, group = Model), size = 0.3) +
-  labs(x="Year", y= "TOC (Tg)")+
+ggplot(filter(toc.export.df, Diff == "Difference")) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
+  geom_path(aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.3) +
+  labs(x="Year", y= "TOC (Tg)", subtitle = "b.")+
   scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
-  facet_grid(rows=vars(Nation))+
+  facet_grid(cols=vars(Nation))+
   geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
-  theme_bw(base_size = 5)
-ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 8, height = 6, units = "cm")
+  theme_bw(base_size = 5)+
+  theme(legend.position = "bottom")
+ggsave(filename = "WR/TOC_export_diff.png", dpi = "retina", width = 6, height = 6, units = "cm")
 
-ggplot(filter(toc.export.df, Diff == "A")) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
-  geom_path(aes(x=Year, y = TOC_Tg, col = Model, shape= Model, group = Model), size = 0.3) +
+ggplot(filter(toc.export.df, Diff == "Absolute")) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
+  geom_path(aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.3) +
+  labs(x="Year", y= "TOC (Tg)", subtitle = "a.")+
+  scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
+  facet_grid(cols=vars(Nation))+
+  geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
+  theme_bw(base_size = 5)+
+  theme(legend.position = "none")
+ggsave(filename = "WR/TOC_export_abs.png", dpi = "retina", width = 6, height = 5, units = "cm")
+
+ggplot(toc.export.df) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
+  geom_path(aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.3) +
   labs(x="Year", y= "TOC (Tg)")+
   scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
-  facet_grid(rows=vars(Nation))+
+  facet_grid(cols=vars(Nation), rows = vars(Diff), scales = "free_y")+
   geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
-  theme_bw(base_size = 5)
-ggsave(filename = "WR/TOC_export_abs.png", dpi = "retina", width = 8, height = 6, units = "cm")
+  theme_bw(base_size = 8)+
+  theme(legend.position = "bottom")
+ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 15, height = 10, units = "cm")
+
 
 ```

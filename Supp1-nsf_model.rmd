@@ -8,6 +8,7 @@ output:
     toc_float: true
     number_sections: true
     code_folding: hide
+bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 ---
   
 ```{r setup, include=FALSE}
@@ -127,24 +128,22 @@ saveRDS(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.Rdata")
 
 ## TOC
 
-The TOC data was measured after the Northern Lake Survey 1995 @Henriksen1998. It was stored in the ecco_biwa database.
+The TOC data was measured after the Northern Lake Survey 1995 [@Henriksen1998]. It was stored in the ecco_biwa database (https://github.com/andersfi/BiWa_ECCO).
 
 ```{r toc, eval = F}
-
 toc.tbl <- tbl(con,sql("SELECT ebint,toc_mg_l,longitude,latitude,dist_closest_ebint,dist_2nd_closest_ebint FROM environmental.north_euro_lake_surv_1995"))
 toc.df <- as.data.frame(toc.tbl)
 saveRDS(toc.df,"toc.df.Rdata")
-
 ```
 
 
 ## NDVI
 
-NDVI values are extracted from the GIMMS NDVI3g dataset @TheNationalCenterForAtmosphericResearch2018, stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package @Destch2021 on Rstudio. 
+NDVI values are extracted from the GIMMS NDVI3g dataset [@TheNationalCenterForAtmosphericResearch2018], stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package [@Destch2021] on Rstudio. 
 
-Data is taken bi-monthly @Tucker2005. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximum NDVI value is taken for each pixel. Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package @Hijmans2018. 
+Data is taken bi-monthly [@Tucker2005]. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximum NDVI value is taken for each pixel. Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package [@Hijmans2018]. 
 
-The values stored in the ecocast dataset are composed of the ndvi value and a flag value indicating the goodness of the data @Detsch2021. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula "floor(ndvi3g/10)/1000" @Detsch2021, and then the mean of the 3 summer values (june, july and august) was computed for each catchment. 
+The values stored in the ecocast dataset are composed of the NDVI value and a flag value indicating the goodness of the data [@Detsch2021]. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula $floor(ndvi3g/10)/1000$ [@Detsch2021], and then the mean of the 3 summer values (June, July and August) was computed for each catchment. 
 
 
 ```{r summer-ndvi, eval = F}
@@ -191,6 +190,11 @@ map.ndvi <- ggplot() + geom_tile(data = ndvi.plot.spdf, aes(x = x, y = y, fill =
   theme(legend.position = "bottom")
 ggsave(plot = map.ndvi, filename = "NDVI/map.ndvi.nsf.png", dpi = "retina", units = "cm")
 ```
+```{r insert-map-ndvi}
+knitr::include_graphics("NDVI/map.ndvi.nsf.png")
+```
+
+fig_nums(map_ndvi, "Map of summer NVDI in Norway, Sweden and Finland in 1994")
 
 ## CORDEX: runoff data
 
@@ -198,7 +202,7 @@ The runoff data was downloaded from the CORDEX database @CORDEXvERC. The data is
 
 The names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
 
-THe mean of the 30 years between 1960 and 1990 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf).
+THe mean of the 30 years between 1970 and 2000 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf).
 
 ```{r runoff, eval = F}
 #runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
@@ -238,7 +242,7 @@ ggplot(st_as_sf(runoff.fennoscandia))+geom_sf(aes(fill=layer,col=layer))
 
 ```
 
-## Temperature,precipitation and slope
+## Temperature, precipitation and slope
 
 Temperature and precipitation are downloaded from the database Worldclim. Temperature is the mean annual temperature from 1970 to 2000 in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset : https://www.worldclim.org/data/worldclim21.html 
 
@@ -343,13 +347,13 @@ saveRDS(bare,"bare.rds")
 
 ## Nitrogen and sulfur deposition
 
-The nitrogen and sulfur deposition data were extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). 
+The nitrogen and sulfur deposition data were extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). The data from 2000 was used as it is the first model available.
 
 N-deposition (NOx and NH3) is the sum of: 
-+ Dry deposition of oxidized nitrogen per m2 grid DDEP_OXN_m2Grid
-+ Wet deposition of oxidized nitrogen WDEP_OXN
-+ Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid
-+ Wet deposition of reduced nitrogen WDEP_RDN
+* Dry deposition of oxidized nitrogen per m2 grid DDEP_OXN_m2Grid, in mg/m2
+* Wet deposition of oxidized nitrogen WDEP_OXN, in mg/m2 
+* Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid, in mg/m2
+* Wet deposition of reduced nitrogen WDEP_RDN, in mg/m2
 
 ```{r extract Ndep, eval = F}
 library(ncdf4)
@@ -549,43 +553,80 @@ The TOC concentration and the predictor variables were plotted by catchment.
 ```{r map-cat-variable, eval = F}
 fennoscandia.33 <- readRDS("fennoscandia.33.rds")
 m <- c("TOC","NDVI","Runoff","Precip","Temp","Bog","Arable","Forest","TNdep","TSdep")
-u <- c("a) TOC concentration, mgC/L", "b) NDVI on scale 0 to 1", "c) Mean Runoff, mm/y","d) Mean annual precipitation,\n mm/y","e) Mean annual temperature,\n °C","f) Proportion of bogs","g) Proportion of\narable land","h) Proportion of forest","i) Total nitrogen\ndeposition, ug/m2", "j) Total sulphur\ndeposition, ug/m2")
-couleurs <- c("YlOrRd","Greens","Blues","Blues","RdYlBu","YlOrBr","RdYlGn","RdYlGn","PuRd","PuRd")
-dir <- c(T,T,T,T,F,T,T,T,T,T)
+u <- c("TOC concentration,\nmgC/L", "a) NDVI on scale 0 to 1", "b) Mean Runoff, mm/y","c) Mean annual\nprecipitation, mm/y","d) Mean annual\n temperature, °C","e) Proportion of bogs","f) Proportion of\narable land","g) Proportion of forest","h) Total nitrogen\ndeposition, mg/m2", "i) Total sulphur\ndeposition, mg/m2")
+couleurs <- c("RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu")
+dir <- c(T,F,T,T,F,F,F,F,F,F)
+marg <- 0
+nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(crs(fennoscandia.33))
+swe <- st_read("Country_shapefile/sweden.shp") %>% st_transform(crs(fennoscandia.33))
+fin <- st_read("Country_shapefile/finland.shp") %>% st_transform(crs(fennoscandia.33))
 
-for(i in m[7]){
+for(i in m[2:10]){
   
  mysf <- fennoscandia.33
  mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
  display.brewer.pal(name = couleurs[which(m == i)], n = 9)
  midcol <- median(mysf[[i]])
 
- if(dir[which(m == i)] == T){
- map <- ggplot(mysf)+geom_sf(aes(fill = .data[[i]], col = .data[[i]]))+
-                     scale_fill_gradient2(low = mypal[1], mid = mypal[5], high = mypal[9],
-                                          midpoint = midcol,
-                                          aesthetics = c("colour","fill"), 
-                                          name = paste(u[grep(i,m)],"\n(",i,")",sep=""))+
-    theme_minimal(base_size = 6)+
-    theme(legend.position = "bottom")
+ if(dir[which(m == i)] == F){
+ map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
+   geom_sf(data = swe, fill = "white", size = 0.2)+
+   geom_sf(data = fin, fill = "white", size = 0.2)+
+   geom_sf(data = mysf, aes(fill = .data[[i]], col = .data[[i]]))+
+   scale_fill_gradientn(colours = rev(mypal),name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
+    theme_minimal(base_size = 8)+
+    theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
     
   filename_i <- paste("map",i,"png",sep = ".")
-  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 6, height = 8, units = "cm")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
   
- } else if(dir[which(m == i)] == F){
-   map <- ggplot(mysf)+geom_sf(aes(fill = .data[[i]], col = .data[[i]]))+
-                     scale_fill_gradient2(low = mypal[9], mid = mypal[5], high = mypal[1],
-                                          midpoint = midcol,
-                                          aesthetics = c("colour","fill"), 
-                                          name = paste(u[grep(i,m)],"\n(",i,")",sep=""))+
-    theme_minimal(base_size = 6)+
-    theme(legend.position = "bottom")
+ } else if(dir[which(m == i)] == T){
+   map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
+     geom_sf(data = swe, fill = "white", size = 0.2)+
+     geom_sf(data = fin, fill = "white", size = 0.2)+
+     geom_sf(data = mysf, aes(fill = .data[[i]], col = .data[[i]]))+
+    scale_fill_gradientn(colours = mypal,name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
+                    theme_minimal(base_size = 8)+
+    theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
     
   filename_i <- paste("map",i,"png",sep = ".")
-  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 6, height = 8, units = "cm")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
    
  }
 }
+
+label_tb <- read.table(text = 
+  " Label Long Lat
+    Norway 7 65
+    Sweden 10 55
+    Finland 25 59", header = T) 
+label_sf <- label_tb %>% st_as_sf(coords = c("Long", "Lat"), crs = "+proj=longlat +datum=WGS84") %>% st_transform(crs(fennoscandia.33))
+
+for(i in m[1]){
+  
+ mysf <- fennoscandia.33
+ mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
+ display.brewer.pal(name = couleurs[which(m == i)], n = 9)
+ midcol <- quantile(mysf[[i]], 0.99)
+
+ map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
+  geom_sf_label(data = label_sf, aes(label = Label), label.size = 0.2, label.padding = unit(0.1,"lines"), size = 3)+
+  geom_sf(data = swe, fill = "white", size = 0.2)+
+  geom_sf(data = fin, fill = "white", size = 0.2)+
+  geom_sf(data = filter(mysf, TOC < 20), aes(fill = .data[[i]], col = .data[[i]]))+
+  geom_sf(data = filter(mysf, TOC > 20), fill = "sienna4", col = "sienna4")+
+  scale_fill_gradientn(colours = rev(mypal),name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
+   labs(x="",y="")+
+   theme_minimal(base_size = 9)+
+    theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
+    
+  filename_i <- paste("map",i,"png",sep = ".")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
+  
+}
+
+white.fen <- ggplot()+theme_void()+theme(plot.margin = unit(c(0,marg,0,marg), units = "cm"))
+ggsave(plot = white.fen, filename = "white.fen.png", dpi = "retina", width = 10, height = 12, units = "cm")
 ```
 
 ```{r include-maps, hold = T}
@@ -657,7 +698,7 @@ moran.limit.fennoscandia.5 <- 1/(dim(fennoscandia)[1]-1)
 
 s.lm.coef.5 <- summary(s.lm.fennoscandia.5)$coefficients %>% as.data.frame()
 s.lm.coef.5 <- s.lm.coef.5[-1,] %>% rownames_to_column(var = "Parameter")
-saveRDS(s.lm.coef.5, "s.lm.coef.rds")
+saveRDS(s.lm.coef.5, "s.lm.coef.5.rds")
 
 lm.coef.5 <- summary(lm.fennoscandia.5)$coefficients %>% as.data.frame()
 lm.coef.5 <- lm.coef.5[-1,] %>% rownames_to_column(var = "Parameter")

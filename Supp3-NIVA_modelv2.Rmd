@@ -25,6 +25,7 @@ library(png)
 library(sf)
 library(spatialreg)
 library(RColorBrewer)
+memory.limit(size = 160000)
 ```
 
 # 1000-lakes survey dataset
@@ -62,21 +63,36 @@ ggsave(plot = g, filename = "NIVA_test/check_point.png",dpi = "retina", width = 
 knitr::include_graphics("NIVA_test/check_point.png")
 ```
 
+```{r match-fennoscandia-lakes}
+fennoscandia.33 <- readRDS("fennoscandia.33.rds")
+
+niva.sf <- st_as_sf(niva,coords=c("longitude","latitude"))
+st_crs(niva.sf) <- "+proj=longlat +datum=WGS84 +no_defs"
+niva.sf <- niva.sf %>% st_transform(crs(fennoscandia.33))
+
+niva.match <- st_join(niva.sf, dplyr::select(fennoscandia.33,c("ebint","nation","TOC","geom")), join =st_within)
+niva.poly <- merge( dplyr::select(fennoscandia.33,c("ebint","geom")),st_drop_geometry(niva.match), by.x = "ebint", by.y = "ebint", all.x = F)
+
+saveRDS(niva.poly,"NIVA_test/niva.poly.rds")
+
+ggplot()+geom_sf(data = niva.poly, aes(fill = "TOC"))
+```
+ 
 ## NDVI 
 
 The NDVI was extracted for the year 2015 from the GIMMS dataset, as data from this database was not available for later dates. Other databases like Copernicus could have provided this data, but GIMMS was used for the original model and we assumed that the changes in mean NDVI are minimal in 3 years (as NDVI is taken for y-1). For details about the extraction of NDVI on the catchment, see Supplementary 1.
 
 ```{r download-NDVI-raster-2015, eval = F}
 # http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
-
+library(gimms)
 ndvi.2015 <- downloadGimms(x= 2015,y=2015,dsn = "NDVI")
  
 ndvi.max.2015 <- monthlyComposite(ndvi.2015,monthlyIndices(ndvi.2015))
-saveRDS(ndvi.max.2015,"ndvi.max.2015.rds")
+saveRDS(ndvi.max.2015,"NIVA_test/ndvi.max.2015.rds")
 ```
 
 ```{r NDVI, eval = F}
-ndvi.max.2015 <- readRDS("ndvi.max.2015.rds")
+ndvi.max.2015 <- readRDS("NIVA_test/ndvi.max.2015.rds")
 
 # Makes the raster smaller, ensuring faster processing of the data
 summer.scandinavia.2015 <- raster::crop(ndvi.max.2015,c(0,35,55,73))
@@ -86,7 +102,7 @@ summer.scan <- reclassify(summer.scandinavia.2015, cbind(-Inf, 0, NA), right=FAL
 
 summer.mean.2015 <- raster::stack(summer.scan[[6]],summer.scan[[7]],summer.scan[[8]]) %>% mean()
 
-summer.ndvi.2015 <- raster::extract(summer.mean.2015,lake.poly, fun = mean, df = T, sp = T, na.rm = T)
+summer.ndvi.2015 <- raster::extract(summer.mean.2015,niva.poly, fun = mean, df = T, sp = T, na.rm = T)
 names(summer.ndvi.2015) <- c("station_id","ndvi")
 summer.ndvi.2015$NDVI <- floor(summer.ndvi.2015$ndvi/10)/1000
 
@@ -94,9 +110,136 @@ saveRDS(summer.ndvi.2015, "NIVA_test/100lakes.summer.ndvi.2015.rds")
 write.csv(summer.ndvi.2015,"NIVA_test/100lakes.summer.ndvi.2015.csv")
 ```
 
+### Runoff
+
+```{r runoff-niva, eval = F}
+
+runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
+runoff.nc <- nc_open(runoff.raster)
+
+runoff.stack <- raster::stack(runoff.raster, bands = c(1441:1812))
+runoff.mean <- runoff.stack %>% mean() 
+
+wr.sf <- readRDS("WR/wr.sf.rds")
+runoff.wr95 <- raster::extract(runoff.mean, wr.sf, fun = mean, df = T, sp = T, na.rm = T)
+names(runoff.wr95) <- c("gid","area","runoff")
+saveRDS(runoff.wr95,"WR/runoff.wr95.rds")
+
+ggplot(st_as_sf(runoff.wr95))+geom_sf(aes(fill=runoff,col=runoff))
+
+```
+
+### Corine Land Cover
+
+The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/clc2018. We used the 2018 version, the lst available. 
+
+The land cover data was downloaded as a raster (.tiff file)
+
+<!-- , which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were: -->
+
+Arable land:
+* 12: non-irrigated arable land
+* 16: fruit trees and berries plantations
+* 18: pastures
+* 19: annual crops associated with permanent crops
+* 20: Complex cultivation patterns
+
+Bogs:
+* 36: peat bogs
+* 35: inland marshes, excluded because all zeros in the studied area.
+
+Forest:
+* 23: Broad-leaved forest
+* 24: Coniferous forest
+* 25: Mixed forest
+
+Bare:
+31: Bare rocks
+32: Sparsely vegetated areas
+33: Burnt areas
+
+```{r extract-land-cover, eval = F}
+niva.poly <- readRDS("NIVA_test/niva.poly.rds")
+corine.2018 <- raster::raster("NIVA_test/CLC/U2018_CLC2018_V2020_20u1.tif")
+plot(corine.2018)
+
+clc.niva <- raster::extract(corine.2018,niva.poly)
+saveRDS(clc.niva,"NIVA_test/CLC/clc.niva.rds")
+```
+```{r corine-tab-prop, eval = F}
+clc.niva <- readRDS("NIVA_test/CLC/clc.niva.rds")
+clc.tab <- sapply(clc.niva, function(x) tabulate(x,45))
+clc.tab.area <- clc.tab*prod(res(corine.2018))
+catchment.area <- colSums(clc.tab.area)
+clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
+names(clc.tab.prop) <- catchment.poly.corine$ebint
+saveRDS(clc.tab.prop,"NIVA_test/CLC/clc.tab.prop.niva.rds")
+```
+
+```{r corine-select-categories, eval = F}
+clc.tab.prop <- readRDS("NIVA_test/CLC/clc.tab.prop.niva.rds") %>% as.data.frame()
+
+bogs <- clc.tab.prop[36,] %>% t() %>% as.data.frame() %>% setNames("bogs") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(bogs,"NIVA_test/CLC/bogs.niva.rds")
+arable <- colSums(clc.tab.prop[c(12,16,18,19,20),]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(arable,"NIVA_test/CLC/arable.niva.rds")
+forest <- colSums(clc.tab.prop[c(23,24,25),]) %>% as.data.frame() %>% setNames("forest") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(forest,"NIVA_test/CLC/forest.niva.rds")
+bare <- colSums(clc.tab.prop[c(31,32,33),]) %>% as.data.frame() %>% setNames("bare") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(bare,"NIVA_test/CLC/bare.niva.rds")
+
+```
+
+### TNdep
+
+The nitrogen and sulfur deposition data were extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). The data from 2019 was used.
+
+N-deposition (NOx and NH3) is the sum of: 
+* Dry deposition of oxidized nitrogen per m2 grid DDEP_OXN_m2Grid, in mg/m2
+* Wet deposition of oxidized nitrogen WDEP_OXN, in mg/m2 
+* Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid, in mg/m2
+* Wet deposition of reduced nitrogen WDEP_RDN, in mg/m2
+
+```{r extract Ndep, eval = F}
+library(ncdf4)
+EMEP_file <- "NIVA_test/Ndep/EMEP01_rv4.42_year.2019met_2019emis.nc"
+
+niva.poly <- readRDS("catchment.poly.Rdata")
+
+woxn <- raster(EMEP_file, varname = "WDEP_OXN") 
+doxn <- raster(EMEP_file, varname = "DDEP_OXN_m2Grid")
+wrdn <- raster(EMEP_file, varname = "WDEP_RDN")
+drdn <- raster(EMEP_file, varname = "DDEP_RDN_m2Grid")
+
+woxn_df <- extract(woxn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean) 
+names(woxn_df) <- c("ebint","woxn")
+doxn_df <- extract(doxn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(doxn_df) <- c("ebint","doxn")
+wrdn_df <- extract(wrdn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(wrdn_df) <- c("ebint","wrdn")
+drdn_df <- extract(drdn,catchment.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(drdn_df) <- c("ebint","drdn")
+
+ndep.df <- merge(woxn_df,doxn_df, by = "ebint") %>% merge(wrdn_df, by = "ebint") %>% merge(drdn_df, by = "ebint")
+ndep.df$tndep <- rowSums(ndep.df@data[,c(2:5)])
+
+saveRDS(ndep.df,"NIVA_test/Ndep/ndep.df.niva.rds")
+```
+
+
+
 ## Gather dataset
 
 The dataset from NIVA and the NDVI values were merged and the variables were given names matching the Fennoscandian dataset. The projection of the polygons was converted to the projection used in the present project (EU33).
+
+```{r merge-data}
+ndep.df.niva <- readRDS("NIVA_test/Ndep/ndep.df.niva.")
+bogs.niva <- readRDS("NIVA_test/CLC/bogs.niva.rds")
+arable.niva <- readRDS("NIVA_test/CLC/arable.niva.rds")
+ndvi.niva <- readRDS("NIVA_test/100lakes.summer.ndvi.2015.rds")
+niva.poly <- readRDS("NIVA_test/niva.poly.rds")
+
+``` 
 
 ```{r niva-merged, eval = F}
 
@@ -144,7 +287,7 @@ ggplot()+ geom_sf(data = nor, fill = "white")+
   theme_minimal()
 ```
 
-# TOC prediction for NIVA dataset
+# TOC prediction for NIVA dataset 
 
 In order to predict the TOC in 2019 using the SELM, a neighbour matrix with the NIVA-lakes is first computed. 
 
