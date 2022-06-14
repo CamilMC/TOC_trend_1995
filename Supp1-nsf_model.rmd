@@ -22,9 +22,9 @@ library(sf)
 library(dplyr)
 library(gimms)
 library(raster)
-
 library(ncdf4)
 library(rgdal)
+library(spdep)
 
 library(stringr)
 library(ggplot2)
@@ -119,7 +119,7 @@ saveRDS(catchment.poly.1000,"catchment.poly.1000.Rdata")
 
 The catchment polygons were reprojected in WGS84 to match the satellite data that will be extracted later, and in EPSG:3035 (European projection) to match the CORINE land cover data. 
 
-```{r catchment-plot, eval = F}
+```{r catchment-transform, eval = F}
 catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
 saveRDS(catchment.poly,"catchment.poly.Rdata")
 catchment.poly.corine <- st_transform(catchment.poly.1000, CRS("EPSG:3035"))
@@ -149,29 +149,33 @@ The values stored in the ecocast dataset are composed of the NDVI value and a fl
 ```{r summer-ndvi, eval = F}
 
 # Download Gimms NDVI
-# http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
 
 ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
 ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
 saveRDS(ndvi.max,"ndvi.max.rds")
 
-# NDVI extraction
+# Load data
 
 ndvi.max <- readRDS("ndvi.max.rds")
 catchment.poly <- readRDS("catchment.poly.Rdata")
 
+# Computes summer mean
 summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
 
+# Crops raster to Scandinavia
 summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
 
+# Re-introduces NA
 summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
 saveRDS(summer.scan, "summer.scan.rds")
 
+# Extract NDVI for each catchment
 summer.ndvi <- raster::extract(summer.mean,catchment.poly, fun = mean, df = T, sp = T)
 names(summer.ndvi) <- c("ebint","ndvi")
 summer.ndvi$ndvi.value <- floor(summer.ndvi$ndvi/10)/1000
 summer.ndvi$flag.value <- summer.ndvi$ndvi - floor(summer.ndvi$ndvi/10)*10 + 1 
 
+# Saves NDVI file
 saveRDS(summer.ndvi, "summer.ndvi.Rdata")
 write.csv(summer.ndvi,"summer.ndvi.csv")
 ```
@@ -190,13 +194,14 @@ map.ndvi <- ggplot() + geom_tile(data = ndvi.plot.spdf, aes(x = x, y = y, fill =
   theme(legend.position = "bottom")
 ggsave(plot = map.ndvi, filename = "NDVI/map.ndvi.nsf.png", dpi = "retina", units = "cm")
 ```
+
 ```{r insert-map-ndvi}
 knitr::include_graphics("NDVI/map.ndvi.nsf.png")
 ```
 
 fig_nums(map_ndvi, "Map of summer NVDI in Norway, Sweden and Finland in 1994")
 
-## CORDEX: runoff data
+## Runoff
 
 The runoff data was downloaded from the CORDEX database @CORDEXvERC. The data is available at https://esg-dn1.nsc.liu.se/projects/esgf-liu/.
 
@@ -205,41 +210,16 @@ The names of the variables in the CORDEX project follow the CF Metadata conventi
 THe mean of the 30 years between 1970 and 2000 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf).
 
 ```{r runoff, eval = F}
-#runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
-#runoff.df <- runoff.tbl %>% as.data.frame()
-
 runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
 runoff.nc <- nc_open(runoff.raster)
 
-runoff.stack <- raster::stack(runoff.raster, bands = c(1441:1812))
+runoff.stack <- raster::stack(runoff.raster, bands = c(1441:1812)) # Correspond to January 1970 to December 2000
 runoff.mean <- runoff.stack %>% mean() 
 
 catchment.poly <- readRDS("catchment.poly.Rdata")
 runoff.fennoscandia <- raster::extract(runoff.mean, catchment.poly, fun = mean, df = T, sp = T, na.rm = T)
 names(runoff.fennoscandia) <- c("ebint","runoff")
 saveRDS(runoff.fennoscandia,"CORDEX/runoff.fennoscandia.rds")
-
-ggplot(st_as_sf(runoff.fennoscandia))+geom_sf(aes(fill=layer,col=layer))
-
-```
-
-```{r runoff-2015, eval = F}
-#runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
-#runoff.df <- runoff.tbl %>% as.data.frame()
-
-runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
-runoff.nc <- nc_open(runoff.raster)
-
-runoff.stack <- raster::stack(runoff.raster, bands = c(1501:1980)) # from 1975 to 2015, not included
-runoff.mean <- runoff.stack %>% mean() 
-
-catchment.poly <- readRDS("catchment.poly.Rdata")
-runoff.fennoscandia.2015 <- raster::extract(runoff.mean, catchment.poly, fun = mean, df = T, sp = T, na.rm = T)
-names(runoff.fennoscandia.2015) <- c("ebint","Runoff")
-saveRDS(runoff.fennoscandia.2015,"CORDEX/runoff.fennoscandia.2015.rds")
-
-ggplot(st_as_sf(runoff.fennoscandia))+geom_sf(aes(fill=layer,col=layer))
-
 ```
 
 ## Temperature, precipitation and slope
@@ -247,14 +227,13 @@ ggplot(st_as_sf(runoff.fennoscandia))+geom_sf(aes(fill=layer,col=layer))
 Temperature and precipitation are downloaded from the database Worldclim. Temperature is the mean annual temperature from 1970 to 2000 in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset : https://www.worldclim.org/data/worldclim21.html 
 
 ```{r temp-prec, eval = F}
-#monthly mean temperature for 1970-2000
 bio.fennoscandia <- raster::getData(name = "worldclim", var = "bio", res = 2.5)
+
 annual.temp <- raster::extract(bio.fennoscandia[[1]], catchment.poly, fun = mean, df = T, sp = T)
 saveRDS(annual.temp,"annual.temp.Rdata")
 
 annual.prec <- raster::extract(bio.fennoscandia$bio12, catchment.poly, fun = mean, df = T, sp = T)
 saveRDS(annual.prec,"annual.prec.Rdata")
-boxplot(annual.prec$bio12)
 ```
 
 The altitude data was accessed through the "getData" function, and comes from the NASA digital elevation model (SRTM 90 m). The slope was then computed using the "terrain" function from the raster package.  
@@ -277,9 +256,7 @@ slope.fin <- terrain(alt.fin, unit = "degrees")
 slope.list <- list(slope.nor,slope.swe,slope.fin)
 slope <- do.call(raster::merge,slope.list)
 
-plot(slope)
-slope.nona <- reclassify(slope,cbind(NA,100), right = NA)
-plot(slope.nona)
+slope.nona <- reclassify(slope,cbind(NA,100), right = NA) #reintroduces NA
 
 slope.fennoscandia <- raster::extract(slope,catchment.poly, sp = T, df = T, fun = mean)
 saveRDS(slope.df, "slope.df.Rdata")
@@ -288,6 +265,12 @@ saveRDS(slope.df, "slope.df.Rdata")
 ## Land cover
 
 The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/lcc-2000-2006. The previous version (1995-2000) excludes Norway so the 2000 version was preferred. 
+
+```{r CLC-map, fig.dim=c(6,8)}
+knitr::include_graphics("Corine_Land_Cover/Map_clc.png") 
+```
+
+fig_nums(map_clc, "Map of Land Cover in Norway, Sweden and Finland in 2000")
 
 The land cover data was downloaded as a raster (.tiff file), which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were:
 
@@ -314,13 +297,13 @@ Bare:
 
 ```{r extract-land-cover, eval = F}
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
-plot(corine)
-library(rgdal)
-corine_spdf <- readOGR(dsn= paste0(getwd(),"/Corine_Land_Cover/corine-land-cover.shp"))
-
 clc.remote <- raster::extract(corine,catchment.poly.corine)
+
 saveRDS(clc.remote,"clc.remote.Rdata")
 ```
+
+The proportion of each land-cover catergory was computed for each catchment. 
+
 ```{r corine-tab-prop, eval = F}
 readRDS("clc.remote.Rdata")
 clc.tab <- sapply(clc.remote, function(x) tabulate(x,45))
@@ -330,6 +313,8 @@ clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
 names(clc.tab.prop) <- catchment.poly.corine$ebint
 saveRDS(clc.tab.prop,"clc.tab.prop.Rdata")
 ```
+
+Then, a dataframe for the category of interest (bogs, arable land, forest, bare land) was created and saved.
 
 ```{r corine-select-categories, eval = F}
 clc.tab.prop <- readRDS("clc.tab.prop.Rdata") %>% as.data.frame()
@@ -342,7 +327,6 @@ forest <- colSums(clc.tab.prop[c(23,24,25),]) %>% as.data.frame() %>% setNames("
 saveRDS(forest,"forest.rds")
 bare <- colSums(clc.tab.prop[c(31,32,33),]) %>% as.data.frame() %>% setNames("bare") %>% tibble::rownames_to_column(var = "ebint")
 saveRDS(bare,"bare.rds")
-
 ```
 
 ## Nitrogen and sulfur deposition
@@ -355,8 +339,7 @@ N-deposition (NOx and NH3) is the sum of:
 * Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid, in mg/m2
 * Wet deposition of reduced nitrogen WDEP_RDN, in mg/m2
 
-```{r extract Ndep, eval = F}
-library(ncdf4)
+```{r extract-Ndep, eval = F}
 EMEP_file <- "EMEP/EMEP01_rv4.42_year.2000met_2000emis_rep2021.nc"
 catchment_poly <- readRDS("catchment.poly.Rdata")
 
@@ -380,7 +363,9 @@ ndep.df$tndep <- rowSums(ndep.df@data[,c(2:5)])
 saveRDS(ndep.df,"ndep.df.Rdata")
 ```
 
-The S-deposition is composed of the sum of wet and dry deposition of SOx. 
+The S-deposition is composed of the sum of:
+* Dry deposition of oxidized sulphur per m2 grid DDEP_SOX_m2Grid, in mg/m2
+* Wet deposition of oxidized sulphur WDEP_SOX, in mg/m2
 
 ```{r extract-Sdep, eval = F}
 library(ncdf4)
@@ -403,14 +388,6 @@ saveRDS(sdep.df,"sdep.df.rds")
 ```
 
 
-## Comparison NDVI and forest cover
-
-```{r rawndvi, fig.dim=c(6,8)}
-listgrob <- list("NDVI/map.ndvi.png", "Corine_Land_Cover/Map_clc.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-grid.arrange(grobs = listgrob, ncol = 2)
-```
-
-`r fig_nums("rawndvi", "Map of a) average summer NDVI (June, July and August 1995) in Fennoscandia and b) CORINE Land Cover (2000) in Norway, Sweden and Finland")`
 ## Gathering and cleaning the data
 
 The data was gathered and merged into a single dataframe, based on the catchment identifyer ("ebint").
@@ -468,9 +445,7 @@ fennoscandia_raw$uncertain <- NULL
 saveRDS(fennoscandia_raw,"fennoscandia_raw.rds")
 ```
 
-### Data cleaning
-
-### Histogram
+### Distribution of variables
 
 The distribution of the variables were checked with histograms.
 
@@ -526,17 +501,20 @@ fennoscandia$oxn <- fennoscandia$doxn+fennoscandia$woxn
 fennoscandia$s.rdn <- scale(fennoscandia$rdn)
 fennoscandia$s.oxn <- scale(fennoscandia$oxn)
 
-fennoscandia.spdf <- SpatialPointsDataFrame(fennoscandia[,c("longitude","latitude")],fennoscandia)
-
+# removes old ndvi column
 fennoscandia$ndvi <- NULL
 
-
 saveRDS(fennoscandia, "fennoscandia.rds")
-saveRDS(fennoscandia.spdf,"fennoscandia.spdf.rds")
+
+# create fennoscandia SpatialPointsDataFrame
+fennoscandia.spdf <- SpatialPointsDataFrame(fennoscandia[,c("longitude","latitude")], fennoscandia)
+saveRDS(fennoscandia.spdf, "fennoscandia.spdf.rds")
 
 norge <- filter(fennoscandia,nation == "Norway")
 saveRDS(norge, "norge.rds")
 ```
+
+The coordinate system of the dataset was converted to UTM33.
 
 ```{r convert-CRS, eval = F}
 catchment.poly <- readRDS("catchment.poly.Rdata")
@@ -635,13 +613,17 @@ knitr::include_graphics(c("map.TOC.png","map.NDVI.png","map.Runoff.png","map.Pre
 
 # Spatial autocorrelation & VIF
 
-The spatial autocorrelation of the response and predictor variables were computed using Moran's I (see Supplementary 4). The neighbor matrix was computed first. 
+The spatial autocorrelation of the response and predictor variables were computed using Moran's I (see Supplementary 4). 
+
+The neighbor matrix is computed first. 
 
 ```{r neighbour-matrix,  eval = F}
-library(spdep)
+fennoscandia.spdf <- readRDS("fennoscandia.spdf.rds")
 k.neigh.w <- knearneigh(fennoscandia.spdf, k = 100) %>% knn2nb() %>% nb2listw()
 saveRDS(k.neigh.w,"k.neigh.w.rds")
 ```
+
+The spatial autocorrelation is computed for the response and predictor variables. 
 
 ```{r spatial-autocorrelation, eval = T}
 k.neigh.w <- readRDS("k.neigh.w.rds")
@@ -667,7 +649,7 @@ for (i in 1:length(moran.list)){
 saveRDS(moran.df,"moran.df.rds")
 ```
 
-```{r vif-table}
+```{r moran-table}
 moran.df <- readRDS("moran.df.rds")
 moran.df %>% arrange(desc(moran.I)) %>% kable %>% kable_styling(bootstrap_options = "bordered", position = "center")
 ```
@@ -675,6 +657,8 @@ moran.df %>% arrange(desc(moran.I)) %>% kable %>% kable_styling(bootstrap_option
 # Comparison LM and SELM, 5 selected predictors (NDVI, Runoff, Bog, Arable, TNdep)
 
 ## Linear model on NSF, 5 selected predictors 
+
+A linear model was fitted with the 5 selected predictors, both for scaled and unscaled variables.
 
 ```{r lm-fennoscandia-5, results = T}
 k.neigh.w <- readRDS("k.neigh.w.rds")
@@ -707,7 +691,7 @@ lm.effectsize.5 <- compute.effect.size(lm.coef.5)
 saveRDS(lm.effectsize.5, "lm.effectsize.5.rds")
 ```
 
-### Posterior distribution of coefficients to check the results of the LM (using SIM).
+We checked the distribution of the coefficients, a posteriori, using SIM. 
 
 ```{r arm-sim-test-lm-5}
 sm.fennoscandia.5 <- arm::sim(lm.fennoscandia.5,n.sims = 100)
@@ -733,7 +717,7 @@ for(i in 1:n){
 
 ```
 
-### Summary table LM 
+The results are summarized below.
 
 ```{r summary-table-lm-5}
 summary.table.lm.5 <- cbind(dplyr::select(lm.coef.5,Parameter),s.lm.coef.5[,2:3],lm.coef.5[,2:3],lm.effectsize.5[,2:4],sm.effectsize.5[,2:3]) %>%
@@ -745,15 +729,24 @@ summary.table.lm.5[,-1] <- apply(summary.table.lm.5[,-1],2,as.numeric)
 saveRDS(summary.table.lm.5, "summary.table.lm.5.rds")
 ```
 
-### Residual plots
+```{r print-table-lm-5}
+summary.table.lm.5 <- readRDS("summary.table.lm.5.rds") %>% knitr::kable()
+```
+
+`r `tab_nums("summary-lm-5","Results for the linear model with 5 selected predictors on Norway, Sweden and Finland")`
+
+The residuals are plotted below.
 
 ```{r residuals-lm5}
 s.lm.fennoscandia.5 <- readRDS("s.lm.fennoscandia.5.rds")
 lm.fennoscandia.5 <- readRDS("lm.fennoscandia.5.rds")
 
-f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.5$residuals, plottitle = "Residuals for scaled LM")
-f_plotspatial(data = fennoscandia,var = lm.fennoscandia.5$residuals, plottitle = "Residuals for unscaled LM")
+f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.5$residuals, plottitle = "a) Residuals for scaled LM")
+f_plotspatial(data = fennoscandia,var = lm.fennoscandia.5$residuals, plottitle = "b) Residuals for unscaled LM")
 ```
+
+`r `fig_nums("residuals-lm-5","Residuals for linear model, a) with scaled variables, b) with unscaled variables")`
+
 
 ## Spatial error linear model on NSF, 5 selected predictors (NDVI, Runoff, Bog, Arable, TNdep)
 

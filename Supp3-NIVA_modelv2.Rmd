@@ -110,26 +110,26 @@ saveRDS(summer.ndvi.2015, "NIVA_test/100lakes.summer.ndvi.2015.rds")
 write.csv(summer.ndvi.2015,"NIVA_test/100lakes.summer.ndvi.2015.csv")
 ```
 
-### Runoff
+## Runoff
 
 ```{r runoff-niva, eval = F}
 
 runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
 runoff.nc <- nc_open(runoff.raster)
 
-runoff.stack <- raster::stack(runoff.raster, bands = c(1441:1812))
+runoff.stack <- raster::stack(runoff.raster, bands = c(1621:1980)) # runoff from 1985 to 2015
 runoff.mean <- runoff.stack %>% mean() 
 
-wr.sf <- readRDS("WR/wr.sf.rds")
-runoff.wr95 <- raster::extract(runoff.mean, wr.sf, fun = mean, df = T, sp = T, na.rm = T)
-names(runoff.wr95) <- c("gid","area","runoff")
-saveRDS(runoff.wr95,"WR/runoff.wr95.rds")
+niva.poly <- readRDS("WR/niva.poly.rds")
+runoff.niva <- raster::extract(runoff.mean, niva.poly, fun = mean, df = T, sp = T, na.rm = T)
+names(runoff.niva) <- c("gid","area","runoff")
+saveRDS(runoff.niva,"WR/runoff.niva.rds")
 
 ggplot(st_as_sf(runoff.wr95))+geom_sf(aes(fill=runoff,col=runoff))
 
 ```
 
-### Corine Land Cover
+## Corine Land Cover
 
 The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/clc2018. We used the 2018 version, the lst available. 
 
@@ -161,11 +161,23 @@ Bare:
 ```{r extract-land-cover, eval = F}
 niva.poly <- readRDS("NIVA_test/niva.poly.rds")
 corine.2018 <- raster::raster("NIVA_test/CLC/U2018_CLC2018_V2020_20u1.tif")
-plot(corine.2018)
+niva.corine <- niva.poly %>% st_transform(crs(corine.2018))
+niva.list <- split(niva.corine,seq(nrow(niva.corine)))
 
-clc.niva <- raster::extract(corine.2018,niva.poly)
+extract_corine <- function(x){
+  clc <- extract(corine.2018,x)
+  saveRDS(clc,file = paste("NIVA_test/CLC/clc",x$ebint,"rds",sep="."))
+}
+
+niva.poly$ebint[1:65]
+
+lapply(niva.list[c(120:991)],extract_corine) 
+
+
+
 saveRDS(clc.niva,"NIVA_test/CLC/clc.niva.rds")
 ```
+
 ```{r corine-tab-prop, eval = F}
 clc.niva <- readRDS("NIVA_test/CLC/clc.niva.rds")
 clc.tab <- sapply(clc.niva, function(x) tabulate(x,45))
@@ -233,11 +245,15 @@ saveRDS(ndep.df,"NIVA_test/Ndep/ndep.df.niva.rds")
 The dataset from NIVA and the NDVI values were merged and the variables were given names matching the Fennoscandian dataset. The projection of the polygons was converted to the projection used in the present project (EU33).
 
 ```{r merge-data}
-ndep.df.niva <- readRDS("NIVA_test/Ndep/ndep.df.niva.")
+ndvi.niva <- readRDS("NIVA_test/100lakes.summer.ndvi.2015.rds")
+runoff.niva <- readRDS("NIVA_test/runoff.niva.rds")
 bogs.niva <- readRDS("NIVA_test/CLC/bogs.niva.rds")
 arable.niva <- readRDS("NIVA_test/CLC/arable.niva.rds")
-ndvi.niva <- readRDS("NIVA_test/100lakes.summer.ndvi.2015.rds")
+ndep.df.niva <- readRDS("NIVA_test/Ndep/ndep.df.niva.")
+
 niva.poly <- readRDS("NIVA_test/niva.poly.rds")
+
+niva.total <- niva.poly %>% merge()
 
 ``` 
 
