@@ -730,7 +730,15 @@ saveRDS(summary.table.lm.5, "summary.table.lm.5.rds")
 ```
 
 ```{r print-table-lm-5}
-summary.table.lm.5 <- readRDS("summary.table.lm.5.rds") %>% knitr::kable()
+summary.table.lm.5 <- readRDS("summary.table.lm.5.rds")
+
+n <- 5
+
+knitr::kable(summary.table.lm.5,digits = 3, caption = "LM with 5 selected predictors") %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3,"SIM" = 2),italic = T) %>%
+  column_spec(column = 8, bold = T) %>% 
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
 ```
 
 `r `tab_nums("summary-lm-5","Results for the linear model with 5 selected predictors on Norway, Sweden and Finland")`
@@ -750,6 +758,8 @@ f_plotspatial(data = fennoscandia,var = lm.fennoscandia.5$residuals, plottitle =
 
 ## Spatial error linear model on NSF, 5 selected predictors (NDVI, Runoff, Bog, Arable, TNdep)
 
+A Spatial Error Linear Model was fitted on for the catchments in Norway, Sweden and Finland, both on scaled and unscaled variables.
+
 ```{r sem-5-pred, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.rds")
 norge.kmat <- readRDS("norge.kmat.Rdata")
@@ -764,6 +774,8 @@ fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
 sem.fennoscandia.5 <- errorsarlm(fm,fennoscandia,k.neigh.w)
 saveRDS(sem.fennoscandia.5,"sem.fennoscandia.5.rds")
 ```
+
+The results of the model are displayed below.
 
 ```{r sem-results-5}
 s.sem.fennoscandia.5 <- readRDS("s.sem.fennoscandia.5.rds")
@@ -802,29 +814,10 @@ summary.table.sem.5[,-1] <- apply(summary.table.sem.5[,-1],2,as.numeric)
 saveRDS(summary.table.sem.5, "summary.table.sem.5.rds")
 ```
 
-### Residual plots
-
-```{r residuals-sem5}
-s.sem.fennoscandia.5 <- readRDS("s.sem.fennoscandia.5.rds")
-sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.rds")
-
-f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.5$residuals, plottitle = "Residuals for scaled SEM")
-f_plotspatial(data = fennoscandia,var = sem.fennoscandia.5$residuals, plottitle = "Residuals for unscaled SELM")
-```
-
-## Summary table LM and SELM Fennoscandia
-
-```{r summary-table-5}
-summary.table.lm.5 <- readRDS("summary.table.lm.5.rds")
-summary.table.sem.5 <- readRDS("summary.table.sem.5.rds")
+```{r print-table-sem-5}
+summary.table.se.5 <- readRDS("summary.table.sem.5.rds")
 
 n <- 5
-
-knitr::kable(summary.table.lm.5,digits = 3, caption = "LM with 5 selected predictors") %>%
-  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3,"SIM" = 2),italic = T) %>%
-  column_spec(column = 8, bold = T) %>% 
-  kable_styling(bootstrap_options = "bordered") %>%
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
 
 knitr::kable(summary.table.sem.5,digits = 3, caption = "SELM with 5 selected predictors") %>%
   add_header_above(c("Model"=1,"Scaled SELM" = 2, "SELM" = 2, "Effect size" = 3),italic = T) %>%
@@ -832,6 +825,18 @@ knitr::kable(summary.table.sem.5,digits = 3, caption = "SELM with 5 selected pre
   column_spec(column = 8, bold = T) %>% 
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 ```
+
+The residuals for scaled and unscaled models are presented in `r fig_num("sem-residuals",display = "c")`
+
+```{r residuals-sem5}
+s.sem.fennoscandia.5 <- readRDS("s.sem.fennoscandia.5.rds")
+sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.rds")
+
+f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.5$residuals, plottitle = "a) Residuals for scaled SELM")
+f_plotspatial(data = fennoscandia,var = sem.fennoscandia.5$residuals, plottitle = "b)Residuals for unscaled SELM")
+```
+
+`r fig_num("sem-residuals","Map of residuals for a) scaled and b) unscaled SELM")`
 
 ## Comparative plots 5
 
@@ -872,15 +877,16 @@ save_plot(plot = compare.5, filename = "compare.lm.selm.5.png")
 print(compare.5)
 ```
 
+`r fig_num("compare-plot-5","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with NDVI, logRunoff, Bog, Arable and TNdep as predictors")`
+
 # Other models
 
-##Comparison of linear model and spatial error model, 9 predictors
+## Comparison of linear model and spatial error model, 9 predictors
 
-Two statistical models were applied on our dataset (see Supplementary 4). The linear model does not take into account the geographical correlation between the variables, so a Spatial Error Model (or spatial error linear model, SELM) was tested too. 
-
-Both models were fitted with all 9 predictors (including predictors correlated to each other or having a high Variance Inflation Factor) and then a selection of variables. 
+The linear model and the spatial error linear model were fitted with all 9 predictors (including predictors correlated to each other or having a high Variance Inflation Factor). 
 
 ### Linear model on NSF, 9 predictors
+
 
 ```{r lm-fennoscandia-9, results = T}
 k.neigh.w <- readRDS("k.neigh.w.rds")
@@ -923,6 +929,30 @@ summary.table.lm.9[,-1] <- apply(summary.table.lm.9[,-1],2,as.numeric)
 
 saveRDS(summary.table.lm.9, "summary.table.lm.9.rds")
 ```
+
+`r tab_num("table-lm-9","Summary table for linear model with 9 predictors")`
+
+```{r print-lm-9}
+summary.table.lm.9 <- readRDS("summary.table.lm.9.rds")
+
+n <- 9
+
+knitr::kable(summary.table.lm.9,digits = 3, caption = "LM with 9 predictors") %>%
+  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
+  column_spec(column = 8, bold = T) %>% 
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
+```
+
+```{r residuals-lm-9}
+s.lm.fennoscandia.9 <- readRDS("s.lm.fennoscandia.9.rds")
+lm.fennoscandia.9 <- readRDS("lm.fennoscandia.9.rds")
+
+f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.9$residuals, plottitle = "Residuals for scaled LM, with all predictors")
+f_plotspatial(data = fennoscandia,var = lm.fennoscandia.9$residuals, plottitle = "Residuals for unscaled LM, with all predictors")
+```
+
+`r fig_num("lm-residuals-9","Map of residuals for a) scaled and b) unscaled LM with 9 predictors")`
 
 ### Spatial error linear model on NSF, 9 predictors
 
@@ -976,6 +1006,30 @@ summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
 saveRDS(summary.table.sem, "summary.table.sem.9.rds")
 ```
 
+`r tab_num("table-sem-9","Summary table for spatial error linear model with 9 predictors")`
+
+```{r sem-table-results}
+summary.table.sem.9 <- readRDS("summary.table.sem.9.rds")
+
+n <- 9
+
+knitr::kable(summary.table.sem.9,digits = 3, caption = "SELM with 9 predictors") %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2, "SELM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
+```{r residuals-sem-9}
+s.sem.fen.9 <- readRDS("s.sem.fen.9.rds")
+sem.fen.9 <- readRDS("sem.fen.9.rds")
+
+f_plotspatial(data = fennoscandia,var = s.sem.fen.9$residuals, plottitle = "a) Residuals for scaled SEM, with all predictors")
+f_plotspatial(data = fennoscandia,var = sem.fen.9$residuals, plottitle = "b) Residuals for unscaled SELM, with all predictors")
+```
+
+`r fig_num("residuals-sem-9","Map of residuals for a) scaled and b) unscaled SELM with 9 predictors")`
+
 ### Comparative plots 9
 
 ```{r compare-estimates-lm-9}
@@ -1021,27 +1075,7 @@ save_plot(plot = compare.9, filename = "compare.lm.selm.9.png")
 print(compare.9)
 ```
 
-### Summary table 9 pred
-
-```{r lm-table-results}
-summary.table.lm.9 <- readRDS("summary.table.lm.9.rds")
-summary.table.sem.9 <- readRDS("summary.table.sem.9.rds")
-
-n <- 9
-
-knitr::kable(summary.table.lm.9,digits = 3, caption = "LM with 9 predictors") %>%
-  add_header_above(c("Model"=1,"Scaled LM" = 2, "LM" = 2, "Effect size" = 3),italic = T) %>%
-  column_spec(column = 8, bold = T) %>% 
-  kable_styling(bootstrap_options = "bordered") %>%
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
-
-knitr::kable(summary.table.sem.9,digits = 3, caption = "SELM with 9 predictors") %>%
-  add_header_above(c("Model"=1,"Scaled SELM" = 2, "SELM" = 2, "Effect size" = 3),italic = T) %>%
-  kable_styling(bootstrap_options = "bordered") %>%
-  column_spec(column = 8, bold = T) %>% 
-  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
-```
-
+`r fig_num("compare-plot-9","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with 9 predictors")`
 
 ## Spatial error linear models with NDVI, Bog and logRunoff
 
@@ -1097,17 +1131,7 @@ summary.table.simple.sem.3[,-1] <- apply(summary.table.simple.sem.3[,-1],2,as.nu
 saveRDS(summary.table.simple.sem.3, "summary.table.simple.sem.3.rds")
 ```
 
-## Residual plots
-
-```{r residuals-sem-runoff}
-s.sem.fennoscandia.3 <- readRDS("s.sem.fen.3.rds")
-sem.fennoscandia.3 <- readRDS("sem.fen.3.rds")
-
-f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.3$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Runoff and Bogs")
-f_plotspatial(data = fennoscandia,var = sem.fennoscandia.3$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Runoff and Bogs")
-```
-
-## Summary table
+`r tab_num("table-sem-3","Summary table for SELM model with 3 predictors")`
 
 ```{r summary-table-fen-runoff}
 summary.table.simple.sem.3 <- readRDS("summary.table.simple.sem.3.rds")
@@ -1120,7 +1144,15 @@ knitr::kable(summary.table.simple.sem.3,digits = 3, caption = "SELM with 3 predi
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 ```
 
-## Compare scaled estimate and effect sizes
+```{r residuals-sem-runoff}
+s.sem.fennoscandia.3 <- readRDS("s.sem.fen.3.rds")
+sem.fennoscandia.3 <- readRDS("sem.fen.3.rds")
+
+f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.3$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Runoff and Bogs")
+f_plotspatial(data = fennoscandia,var = sem.fennoscandia.3$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Runoff and Bogs")
+```
+
+`r fig_num("sem-residuals-3","Map of residuals for a) scaled and b) unscaled SELM with 3 predictors")`
 
 ```{r compare-estimates-runoff}
 sem.coef.3 <- readRDS("s.sem.coef.3.rds")
@@ -1149,9 +1181,7 @@ save_plot(plot = compare.3, filename = "compare.lm.selm.3.png" )
 print(compare.3)
 ```
 
-`r fig_nums(name = "compare-plots-3", caption = "Comparison of scaled estimates and effect sizes from the limited SELM  model based on the Norwegian (green) and Fennoscandian (orange) datasets.")`
-
-## Spatial error linear model with NDVI, Bog and logPrecip 
+`r fig_nums(name = "compare-plots-3", caption = "Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with 9 predictors")`
 
 ## Spatial error linear model on Fennoscandian datasets with NDVI, Bog and logPrecip 
 
@@ -1205,17 +1235,28 @@ summary.table.simple.sem.precip[,-1] <- apply(summary.table.simple.sem.precip[,-
 saveRDS(summary.table.simple.sem.precip, "summary.table.simple.precip.rds")
 ```
 
-## Residual plots
+```{r summary-table-fen-precip}
+summary.table.simple.precip <- readRDS("summary.table.simple.precip.rds")
+
+n <- 3
+
+knitr::kable(summary.table.simple.precip,digits = 3, caption = "SELM with 3 predictors (NDVI, Bog, logPrecip") %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2,"SELM" = 2, "Effect size" = 3),italic = T) %>%
+  kable_styling(bootstrap_options = "bordered") %>%
+  column_spec(column = 8, bold = T) %>% 
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+```
+
 
 ```{r residuals-precip}
 s.sem.fen.precip <- readRDS("s.sem.fen.precip.rds")
 sem.fen.precip <- readRDS("sem.fen.precip.rds")
 
-f_plotspatial(data = fennoscandia,var = s.sem.fen.precip$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Precipitation, Bogs")
-f_plotspatial(data = fennoscandia,var = sem.fen.precip$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Precipitation, Bogs")
+f_plotspatial(data = fennoscandia,var = s.sem.fen.precip$residuals, plottitle = "Residuals for scaled SEM, with NDVI, logPrecip, Bogs")
+f_plotspatial(data = fennoscandia,var = sem.fen.precip$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Precip, Bogs")
 ```
 
-## Comparative scaled estimates and effect size
+`r fig_nums(name = "residuals-precip", caption = "Map of residuals for SELM model with NDVI, log Precipitation and Bog as predictors, on a) scaled and b) unscaled variables")`
 
 ```{r compare-estimates-precip}
 s.sem.coef.precip <- readRDS("s.sem.coef.precip.rds")
@@ -1247,7 +1288,6 @@ print(compare.precip)
 `r fig_nums(name = "compare-plots-precip", caption = "Comparison of scaled estimates and effect sizes from the limited SELM model with NDVI, log Precipitation and Bog as predictors.")`
 
 
-## Spatial error linear model with NDVI, TNdep and logPrecip
 
 ## Spatial error linear model on Fennoscandian datasets with NDVI, TNdep and logPrecip
 
@@ -1300,17 +1340,7 @@ summary.table.sem.tndep[,-1] <- apply(summary.table.sem.tndep[,-1],2,as.numeric)
 saveRDS(summary.table.sem.tndep, "summary.table.sem.tndep.rds")
 ```
 
-## Residual plots
-
-```{r residuals-tndep}
-s.sem.fen.tndep <- readRDS("s.sem.fen.tndep.rds")
-sem.fen.tndep <- readRDS("sem.fen.tndep.rds")
-
-f_plotspatial(data = fennoscandia,var = s.sem.fen.tndep$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Precipitation, TNdep")
-f_plotspatial(data = fennoscandia,var = sem.fen.tndep$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Precipitation, TNdep")
-```
-
-## Summary table
+`r tab_num("table-sem-precip","Summary table for SELM model with 3 predictors: NDVI, TNdep and logPrecip")`
 
 ```{r summary-table-fen-tndep}
 summary.table.sem.tndep <- readRDS("summary.table.sem.tndep.rds")
@@ -1323,7 +1353,15 @@ knitr::kable(summary.table.sem.tndep,digits = 3, caption = "SELM with 3 predicto
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 ```
 
-## Comparative plots
+```{r residuals-tndep}
+s.sem.fen.tndep <- readRDS("s.sem.fen.tndep.rds")
+sem.fen.tndep <- readRDS("sem.fen.tndep.rds")
+
+f_plotspatial(data = fennoscandia,var = s.sem.fen.tndep$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Precipitation, TNdep")
+f_plotspatial(data = fennoscandia,var = sem.fen.tndep$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Precipitation, TNdep")
+```
+
+`r fig_nums(name = "residuals-precip", caption = "Map of residuals for SELM model with NDVI, TNdep and log Precipitation as predictors, on a) scaled and b) unscaled variables")`
 
 ```{r compare-estimates-tndep}
 s.sem.coef.tndep <- readRDS("s.sem.coef.tndep.rds")
@@ -1351,7 +1389,7 @@ save_plot(plot = compare.tndep, filename = "compare.fen.tndep.png" )
 print(compare.tndep)
 ```
 
-`r fig_nums(name = "compare-plots-3", caption = "Comparison of scaled estimates and effect sizes from the limited SELM  model based on the Norwegian (green) and Fennoscandian (orange) datasets.")`
+`r fig_nums(name = "compare-plots-tndep", caption = "Comparison of scaled estimates and effect sizes from the SELM model with NDVI, TNdep and log Precipitation as predictors.")`
 
 ```{r early-exit}
 knitr::knit_exit()

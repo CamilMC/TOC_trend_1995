@@ -24,6 +24,7 @@ library(gridExtra)
 library(png)
 library(sf)
 library(spatialreg)
+library(ncdf4)
 library(RColorBrewer)
 memory.limit(size = 160000)
 ```
@@ -59,23 +60,38 @@ ggsave(plot = g, filename = "NIVA_test/check_point.png",dpi = "retina", width = 
 
 ```
 
-```{r comparare-datasets-plot}
+```{r comparare-datasets-plot, eval = F}
 knitr::include_graphics("NIVA_test/check_point.png")
 ```
 
-```{r match-fennoscandia-lakes}
-fennoscandia.33 <- readRDS("fennoscandia.33.rds")
+```{r match-fennoscandia-lakes, eval = F}
+fennoscandia.33 <- readRDS("fennoscandia.33.rds") %>% dplyr::select(c("ebint","nation","TOC","longitude","latitude","geom"))
+niva <- read_xlsx("NIVA_test/niva_selection.xlsx") %>% dplyr::select(c("station_id","longitude","latitude","toc_2019","toc_1995"))
+
 
 niva.sf <- st_as_sf(niva,coords=c("longitude","latitude"))
 st_crs(niva.sf) <- "+proj=longlat +datum=WGS84 +no_defs"
 niva.sf <- niva.sf %>% st_transform(crs(fennoscandia.33))
 
-niva.match <- st_join(niva.sf, dplyr::select(fennoscandia.33,c("ebint","nation","TOC","geom")), join =st_within)
-niva.poly <- merge( dplyr::select(fennoscandia.33,c("ebint","geom")),st_drop_geometry(niva.match), by.x = "ebint", by.y = "ebint", all.x = F)
+fennoscandia.point <- fennoscandia.33 %>% st_drop_geometry() %>% st_as_sf(coords = c("longitude","latitude"), remove = F)
+st_crs(fennoscandia.point) <- "+proj=longlat +datum=WGS84 +no_defs"
+fennoscandia.sf <- st_transform(fennoscandia.point,crs(fennoscandia.33))
+niva.near <- st_join(niva.sf, fennoscandia.sf, join = st_nearest_feature)
+
+niva.poly <- merge(dplyr::select(fennoscandia.33,c("ebint","geom")), st_drop_geometry(niva.near), by = "ebint")
+
 
 saveRDS(niva.poly,"NIVA_test/niva.poly.rds")
 
-ggplot()+geom_sf(data = niva.poly, aes(fill = "TOC"))
+```
+
+```{r plot-niva}
+ggplot()+geom_sf(data = niva.poly, aes(fill = toc_2019, col = toc_2019))+scale_color_distiller(type = "div", palette = "RdYlBu",name = "TOC sampled 2019 (mg/L)", aesthetics = c("colour","fill"))+theme_minimal(base_size = 8)
+
+```
+
+```{r compare-toc}
+ggplot(niva.poly)+geom_point(aes(x=TOC,y=toc_2019))
 ```
  
 ## NDVI 
@@ -93,19 +109,23 @@ saveRDS(ndvi.max.2015,"NIVA_test/ndvi.max.2015.rds")
 
 ```{r NDVI, eval = F}
 ndvi.max.2015 <- readRDS("NIVA_test/ndvi.max.2015.rds")
+niva.poly <- readRDS("NIVA_test/niva.poly.rds")
 
 # Makes the raster smaller, ensuring faster processing of the data
 summer.scandinavia.2015 <- raster::crop(ndvi.max.2015,c(0,35,55,73))
 
-
+# Re-introduces NA
 summer.scan <- reclassify(summer.scandinavia.2015, cbind(-Inf, 0, NA), right=FALSE)
 
+# Stack bands for summer
 summer.mean.2015 <- raster::stack(summer.scan[[6]],summer.scan[[7]],summer.scan[[8]]) %>% mean()
 
+# extract data
 summer.ndvi.2015 <- raster::extract(summer.mean.2015,niva.poly, fun = mean, df = T, sp = T, na.rm = T)
 names(summer.ndvi.2015) <- c("station_id","ndvi")
-summer.ndvi.2015$NDVI <- floor(summer.ndvi.2015$ndvi/10)/1000
+summer.ndvi.2015$NDVI <- floor(summer.ndvi.2015$NDVI/10)/1000
 
+# save df
 saveRDS(summer.ndvi.2015, "NIVA_test/100lakes.summer.ndvi.2015.rds")
 write.csv(summer.ndvi.2015,"NIVA_test/100lakes.summer.ndvi.2015.csv")
 ```
@@ -113,19 +133,18 @@ write.csv(summer.ndvi.2015,"NIVA_test/100lakes.summer.ndvi.2015.csv")
 ## Runoff
 
 ```{r runoff-niva, eval = F}
-
+niva.poly <- readRDS("NIVA_test/niva.poly.rds") %>% dplyr::select(c("ebint","geometry"))
 runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
 runoff.nc <- nc_open(runoff.raster)
 
 runoff.stack <- raster::stack(runoff.raster, bands = c(1621:1980)) # runoff from 1985 to 2015
 runoff.mean <- runoff.stack %>% mean() 
 
-niva.poly <- readRDS("WR/niva.poly.rds")
 runoff.niva <- raster::extract(runoff.mean, niva.poly, fun = mean, df = T, sp = T, na.rm = T)
-names(runoff.niva) <- c("gid","area","runoff")
+names(runoff.niva) <- c("ebint","Runoff")
 saveRDS(runoff.niva,"WR/runoff.niva.rds")
 
-ggplot(st_as_sf(runoff.wr95))+geom_sf(aes(fill=runoff,col=runoff))
+ggplot(st_as_sf(runoff.niva))+geom_sf(aes(fill=Runoff,col=Runoff))
 
 ```
 
@@ -159,7 +178,7 @@ Bare:
 33: Burnt areas
 
 ```{r extract-land-cover, eval = F}
-niva.poly <- readRDS("NIVA_test/niva.poly.rds")
+niva.poly <- readRDS("NIVA_test/niva.poly.rds") %>% dplyr::select(c("ebint","geometry"))
 corine.2018 <- raster::raster("NIVA_test/CLC/U2018_CLC2018_V2020_20u1.tif")
 niva.corine <- niva.poly %>% st_transform(crs(corine.2018))
 niva.list <- split(niva.corine,seq(nrow(niva.corine)))
@@ -169,18 +188,19 @@ extract_corine <- function(x){
   saveRDS(clc,file = paste("NIVA_test/CLC/clc",x$ebint,"rds",sep="."))
 }
 
-niva.poly$ebint[1:65]
+lapply(niva.list,extract_corine) 
 
-lapply(niva.list[c(120:991)],extract_corine) 
+clc.test <- readRDS("NIVA_test/CLC/clc.16711649.rds")
+clc.files <- list.files(path = "NIVA_test/CLC/", pattern = "clc.*.rds", full.names = T)
 
+list.clc <- lapply(clc.files,readRDS)
 
-
-saveRDS(clc.niva,"NIVA_test/CLC/clc.niva.rds")
+saveRDS(list.clc,"NIVA_test/CLC/list.clc.niva.rds")
 ```
 
 ```{r corine-tab-prop, eval = F}
-clc.niva <- readRDS("NIVA_test/CLC/clc.niva.rds")
-clc.tab <- sapply(clc.niva, function(x) tabulate(x,45))
+list.clc.niva <- readRDS("NIVA_test/CLC/list.clc.niva.rds")
+clc.tab <- lapply(list.clc.niva, function(x) tabulate(x,45))
 clc.tab.area <- clc.tab*prod(res(corine.2018))
 catchment.area <- colSums(clc.tab.area)
 clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
@@ -253,29 +273,9 @@ ndep.df.niva <- readRDS("NIVA_test/Ndep/ndep.df.niva.")
 
 niva.poly <- readRDS("NIVA_test/niva.poly.rds")
 
-niva.total <- niva.poly %>% merge()
+niva.data <- niva.poly %>% merge(ndvi.niva, by = "ebint") %>% merge(runoff.niva, by = "ebint") %>% merge(bogs.niva, by = "ebint") %>% merge(arable.niva, by = "ebint") %>% merge(ndep.df.niva, by = "ebint")
 
-``` 
-
-```{r niva-merged, eval = F}
-
-summer.ndvi.2015 <- readRDS("NIVA_test/100lakes.summer.ndvi.2015.rds")
-niva.ndvi <- sp::merge(summer.ndvi.2015, select(st_drop_geometry(lake.point), c("statn_d", "sttn_cd", "longitd", "latitud")), by.x = "station_id", by.y = "statn_d", all = T)
-
-niva_data <- niva.ndvi %>% merge(select(niva, c("station_id","station_code", "agriculture","forest","peat","nilu_ndep_2012_2016","nilu_sdep_2012_2016", "rr_2m_19","era_prec_2019","era_temp_2019", "toc_2019")), by.y = "station_code", by.x = "sttn_cd") %>% st_as_sf()
-niva_data$Runoff <- niva_data$rr_2m_19 %>% as.numeric()
-niva_data$logRunoff <- log(niva_data$Runoff)
-niva_data$Bog <- niva_data$peat/100
-niva_data$Forest <- niva_data$forest/100
-niva_data$Arable <- niva_data$agriculture/100
-niva_data$TNdep <- niva_data$nilu_ndep_2012_2016 * 10
-niva_data$TSdep <- niva_data$nilu_sdep_2012_2016 * 100
-niva_data$Precip <- niva_data$era_prec_2019
-niva_data$logPrecip <- niva_data$Precip %>% log()
-niva_data$Temp <- niva_data$era_temp_2019
-
-saveRDS(niva_data,"NIVA_test/niva_data.rds")
-niva_data <- readRDS("NIVA_test/niva_data.rds")
+niva.data$logRunoff <- log(niva.data$Runoff)
 
 niva_final <- niva_data[-which(is.na(niva_data$logRunoff) == T),]
 niva_final <- niva_final[-which(is.na(niva_final$NDVI) == T), ]
@@ -284,20 +284,19 @@ niva_final <- niva_final[-which(is.na(niva_final$NDVI) == T), ]
 niva_final <- niva_final[-which(is.na(niva_final$TNdep) == T), ]
 # niva_final <- niva_final[-which(is.na(niva_final$TSdep) == T), ]
 
-wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
-niva_final <- st_as_sf(niva_final) %>% st_transform(crs(wr.sf.95))
- 
-saveRDS(niva_final, "NIVA_test/niva_final.rds")
-```
+saveRDS(niva.data,"NIVA_test/niva.data.rds")
+
+``` 
+
 ```{r plot-toc-niva}
-niva_final <- readRDS("NIVA_test/niva_final.rds")
+niva.data <- readRDS("NIVA_test/niva.data.rds")
 nor <- st_read("Country_shapefile/norway.shp") 
 
-which(is.na(niva_final$toc_2019 == T))
+which(is.na(niva.data$toc_2019 == T))
 
 
 ggplot()+ geom_sf(data = nor, fill = "white")+
-  geom_sf(data = st_as_sf(niva_final), aes(fill = toc_2019, col = toc_2019))+
+  geom_sf(data = st_as_sf(niva.data), aes(fill = toc_2019, col = toc_2019))+
   scale_color_distiller(palette = 8, aesthetics = c("fill","col"), direction = 1)+
   labs(x ="", y = "")+
   theme_minimal()
