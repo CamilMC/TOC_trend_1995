@@ -18,3 +18,9 @@ Test the SELM model fitted in Supplementary 1 on data collected in 2019 during t
 Supplementary 3 : Modelling TOC concentration and forecast in coastal drainage basins
 Data preparation for predictions in coastal drainage basins. Forecasts for 2050 and 2100, prediction of TOC export to the sea.
 (section "Forecast with SSP1-2.6 and SSP3-7.0) in main article)
+
+Supplementary 4 : Models and effect sizes
+Description of the models and equations used to fit linear model and spatial error linear model. Description of effect sizes
+
+Supplementary 5 : SELM with proportion of Forest as predictor
+Spatial error model fitted with proportion of forest as a predictor. Forecast of the TOC concentration in coastal drainage basins in 2100, after implementation of the planned forest policies in Norway, Sweden and Finland. 
