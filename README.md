@@ -7,8 +7,7 @@ This website supports the supplementary information for the article "Spatial pre
 
 ## Supplementary information
 
-Supplementary 1 : Data preparation
-<a href="/Supp1-nsf_model.html" title="Supp 1">Supp 1</a>
+[Supplementary 1 : Data preparation]("/Supp1-nsf_model.html")
 Contains the code used to extact and gather the data, to plot it, and to build spatial models 
 (section "Modelling of TOC concentration on the Northern European Lake Survey dataset" in main article)
 
