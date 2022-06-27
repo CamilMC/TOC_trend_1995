@@ -7,10 +7,7 @@ This website supports the supplementary information for the article "Spatial pre
 
 ## Supplementary information
 
-<a href=“Supp1_nsf_model.html” onclick=“window.open(‘Supp1_nsf_model.html’, ‘_self’);”>
-
- Supplementary 1 : Data preparation
-</a>
+<a href=“Supp1_nsf_model.html” onclick=“window.open(‘Supp1_nsf_model.html’, ‘_self’);”>Supplementary 1 : Data preparation</a>
 
 Contains the code used to extact and gather the data, to plot it, and to build spatial models 
 (section "Modelling of TOC concentration on the Northern European Lake Survey dataset" in main article)
@@ -25,7 +22,7 @@ Supplementary 3 : Modelling TOC concentration and forecast in coastal drainage b
 Data preparation for predictions in coastal drainage basins. Forecasts for 2050 and 2100, prediction of TOC export to the sea.
 (section "Forecast with SSP1-2.6 and SSP3-7.0) in main article)
 
-[Supplementary 4 : Models and effect sizes]("/Supp4-effectsizes
+[Supplementary 4 : Models and effect sizes]("/Supp4-effectsizes.html")
 
 Description of the models and equations used to fit linear model and spatial error linear model. Description of effect sizes
 
