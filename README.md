@@ -7,7 +7,7 @@ This website supports the supplementary information for the article "Spatial pre
 
 ## Supplementary information
 
-<a href=“/blob/main/Supp1_nsf_model.html”> Supplementary 1 </a>
+<a href=“https://camilmc.github.io/TOC_trend_1995/Supp1_nsf_model.html”> Supplementary 1 </a>
 
 Contains the code used to extact and gather the data, to plot it, and to build spatial models 
 (section "Modelling of TOC concentration on the Northern European Lake Survey dataset" in main article)
