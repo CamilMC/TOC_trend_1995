@@ -11,6 +11,8 @@ output:
 bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 ---
   
+[Back to main menu]("https://camilmcr.github.io/TOC_trend_1995)  
+  
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T)
 options(knitr.kable.NA="", knitr.table.format = "html")
@@ -1074,7 +1076,7 @@ print(compare.9)
 ## Spatial error linear model on Fennoscandian datasets with NDVI, Bog and logRunoff 
 
 ```{r sem-runoff-fennosandia.3, eval = F}
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.rds")
 fennoscandia <- readRDS("fennoscandia.rds")
 
 s.fm <- s.logTOC~s.NDVI+s.logRunoff+s.Bog
@@ -1090,7 +1092,7 @@ saveRDS(sem.fen.3,"sem.fen.3.rds")
 ```{r sem-runoff-results}
 s.sem.fen.3 <- readRDS("s.sem.fen.3.rds")
 sem.fen.3 <- readRDS("sem.fen.3.rds")
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.rds")
 
 s.sem.coef.3 <- s.sem.fen.3$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
@@ -1139,6 +1141,7 @@ knitr::kable(summary.table.simple.sem.3,digits = 3, caption = "SELM with 3 predi
 ```{r residuals-sem-runoff}
 s.sem.fennoscandia.3 <- readRDS("s.sem.fen.3.rds")
 sem.fennoscandia.3 <- readRDS("sem.fen.3.rds")
+fennoscandia <- readRDS("fennoscandia.rds")
 
 f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.3$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Runoff and Bogs")
 f_plotspatial(data = fennoscandia,var = sem.fennoscandia.3$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Runoff and Bogs")
@@ -1178,7 +1181,7 @@ print(compare.3)
 ## Spatial error linear model on Fennoscandian datasets with NDVI, Bog and logPrecip 
 
 ```{r sem-precip-fennosandia, eval = F}
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.rds")
 fennoscandia <- readRDS("fennoscandia.rds")
 
 s.fm <- s.logTOC~s.NDVI+s.logPrecip+s.Bog
@@ -1194,7 +1197,7 @@ saveRDS(sem.fen.precip,"sem.fen.precip.rds")
 ```{r sem-precip-results}
 s.sem.fen.precip <- readRDS("s.sem.fen.precip.rds")
 sem.fen.precip <- readRDS("sem.fen.precip.rds")
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.rds")
 
 s.sem.coef.precip <- s.sem.fen.precip$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")
@@ -1284,7 +1287,7 @@ print(compare.precip)
 ## Spatial error linear model on Fennoscandian datasets with NDVI, TNdep and logPrecip
 
 ```{r sem-simple-fennosandia-tndep, eval = F}
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.rds")
 fennoscandia <- readRDS("fennoscandia.rds")
 
 s.fm <- s.logTOC~s.NDVI+s.logPrecip+s.TNdep
@@ -1299,7 +1302,7 @@ saveRDS(sem.fen.tndep,"sem.fen.tndep.rds")
 ```{r sem-simple-results}
 s.sem.fen.tndep <- readRDS("s.sem.fen.tndep.rds")
 sem.fen.tndep <- readRDS("sem.fen.tndep.rds")
-k.neigh.w <- readRDS("k.neigh.w.Rdata")
+k.neigh.w <- readRDS("k.neigh.w.rds")
 
 s.sem.coef.tndep <- s.sem.fen.tndep$coefficients[-1] %>% as.data.frame() %>% 
               setNames("Estimate")

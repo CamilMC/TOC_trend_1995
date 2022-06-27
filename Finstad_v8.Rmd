@@ -34,6 +34,8 @@ always_allow_html: true
 bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 ---
 
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = F, message = F, warning = F, error = F)
 options(knitr.kable.NA="", kableExtra.auto_format = F)
@@ -310,5 +312,8 @@ The forecast of TOC changes in the next century shows that the current browning 
 
 The forecast the TOC concentration in sea watershed also allowed to realise a raw estimation of expected coastal darkening in the next century, indicating a decrease of TOC export in the SSP1-2.6 scenario and a relatively strong increase in the SSP 3-7.0 scenario.  
 
+# Supplementaries
+
+Supplementary material is available on the [Github page of the project]("https://camilmcr.github.io/TOC_trend_1995)
 
 # References
