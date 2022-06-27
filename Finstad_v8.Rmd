@@ -127,7 +127,7 @@ Nine explanatory parameters i.e., NDVI, Runoff, Precip, Temp, Bogs, Arable, Fore
 listgrob <- list("map.ndvi.png","map.Runoff.png","map.Precip.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 #grid.arrange(grobs = listgrob, ncol = 3)
 all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T)
-save_plot("predictor.maps.png",all.map, ncol = 3, nrow = 3, base_height = 4, base_width = 3)
+save_plot("predictor.maps.png",all.map, ncol = 3, nrow = 3, base_height = 8, base_width = 6)
 print(all.map)
 ```
 
@@ -175,12 +175,14 @@ moran.vif.df %>% arrange(desc(moran.I)) %>%
     label = NA,
     escape = F,
     col.names = c("Predictor","Moran's I","VIF","Correlation coefficient with logTOC")) %>%    
-  kable_styling(bootstrap_options = "bordered", position = "center") %>% save_kable("moran.vif.table.png", self_contained = T)
+  kable_styling(bootstrap_options = "bordered", position = "center", full_width = F) %>% save_kable(file = "moran.vif.table.png", density = 500, bs_theme = "cosmo")
 ```
 
 ```{r moran-fig}
 list.grob <- c("map.TOC.png", "moran.vif.table.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-grid.arrange(list.grob, nrow = 1)
+moran.map <- plot_grid(plotlist = list.grob, nrow= 1, ncol = 2)
+save_plot(filename = "moran.table.map.png", moran.map, nrow = 1, ncol = 2, base_height = 8, base_width = 6)
+print(moran.map)
 ```
 
 Several of the predictor variables were correlated together. TNdep, TSdep and Temp were closely correlated. TNdep and TSdep are extremely highly correlated (r =  `r round(cor(fennoscandia$TNdep,fennoscandia$TSdep),2)`). The correlation coefficient between TNdep and Temp is `r round(cor(fennoscandia$Temp,fennoscandia$TNdep),2)` and the correlation coefficient between TSdep and Temp is `r round(cor(fennoscandia$Temp,fennoscandia$TSdep),2)`. TSdep also has the highest VIF (VIF = `r round(lm.vif["TSdep",],2)`), followed by TNdep (VIF = `r round(lm.vif["TNdep",],2)`). Temp, TNdep and TSdep have a very high Moran's I too (all around 0.9) showing a very strong spatial pattern. This can be explained because both N and S deposition are higher in the warmer southern regions of Fennoscandia. TSdep has been highlighted by several studies as the main predictor of TOC concentration [@Monteith2007]. Considering that the level of atmospheric deposition of sulfur came back to pre-industrial level and is unlikely to evolve significantly, we chose to keep TNdep as a predictor for atmospheric deposition in this study.  
@@ -234,15 +236,16 @@ The SELM model had a lowest AIC (Aikaike Information Criteria) than the LM model
 The data provided by NIVA was used to perform a real-life test of the space-for-time model. The model fitted on the 2019 data was used to predict the TOC concentration value in the 1000 lakes sampled by NIVA, and the result were compared with the actual observation. The computation is presented in Supplementary 3. 
 
 ```{r niva-test-results, fig.dim = c(16,10)}
-listgrob <- list("NIVA_test/niva-test-result.png","NIVA_test/diff.niva.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+listgrob <- list("NIVA_test/comparison_1995_2019.png","NIVA_test/niva-test-result.png","NIVA_test/diff.niva.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 #grid.arrange(grobs = listgrob, ncol = 2)
-niva <- plot_grid(plotlist = listgrob, ncol= 2, nrow = 1, align = "v", greedy = T)
-save_plot("niva.test.png",niva, ncol = 2, nrow = 1, base_height = 4, base_width = 3)
+niva <- plot_grid(plotlist = listgrob[c(1:2)], ncol= 2, nrow = 1, align = "v", greedy = T)
+save_plot("niva.test.png",niva, ncol = 2, nrow = 1, base_height = 6, base_width = 8)
 print(niva)
-
 ```
 
-`r fig_nums(name = "niva-test-result",caption = "Real-data test of the SELM model, a) predicted vs sampled log(TOC); b) map of the difference between observed and fitted log(TOC)", display = "f")`
+`r knitr::include_graphics("NIVA_test/diff.niva.png")`
+
+`r fig_nums(name = "niva-test-result",caption = "Real-data test of the SELM model, a) TOC concentration in 1995 and in 2019, b) predicted vs sampled log(TOC); c) map of the difference between observed and fitted log(TOC)", display = "f")`
 
 The results show that the SELM model fitted with the 5 selected predictors gives good results, with a the correlation between observed and fitted log(TOC) of 0.84. However, the model tends to under-estimate the average TOC concentration in sea watersheds with high initial TOC concentration, in particular in the south-eastern part of Norway, and over-estimate the TOC concentration in sea watersheds with a low initial TOC concentration. The space-for-time approach uses a set of explanatory values taken at a snap-shot moment in time, but in a large variety of regions, to model future changes. The relationships between the explanatory parameters and the response TOC at any single site is a result of biogeochemical processes that have developed in the soils since the last glacial epoch (i.e., 15 – 20 000 years). E.g., the long-term processes of generating the pool of soil organic matter. Hence, sea watersheds in the middle of the Norwegian mountains are predicted to have a high TOC concentration compared to what they actually have: this is likely due to an increased NDVI in these regions, not yet followed by the soil formation that a similar  NDVI value in 1995 would imply. Similarly, the lakes in South East Norway were the most affected by S-deposition and the 1995 dataset was still dependent on this variable. In 2019, TNdep (proxy for TSdep) is not such a strong predictor anymore. In 2019, high TNdep does not necessarily mean high TSdep (hence low TOC concentration) anymore: therefore the lakes in the south east are underfitted. They now have more TOC than what they would have had with a higher TNdep/TSdep in the past.
 
@@ -254,12 +257,21 @@ Future average TOC concentration were computed for `r dim(wr.sf.95)[1]` sea wate
 
 Sea watersheds gather several lakes and catchments, and there is no experimental data for their respective average TOC concentration of their various water bodies. Therefore, the first step was to compute the TOC concentration in 1995 using the Spatial Error Linear Model fitted in the above section. In a second step, the forecast of the predictor variables (NDVI with Temperature and Precipitation, Runoff, and future TNdep) were extracted from CMIP6 climate models. Finally, the average TOC concentration was computed for two distinct scenario: SSP1-2.6 (global warming limited to less than 2°C), and SSP 3-7.0 (global warming up to 4°C); and for two time periods: 2041-2060 and 2081-2100 (abbreviated as "2050" and "2100". Average temperature in septentrional regions are more strongly affected by global warming than regions at lower latitudes: in Finnmark, temperatures under the SSP3-7.0 could reach up to 7,5°C. The details of predictor extraction and model fitting are presented in Supplementary 2. 
 
+```{r ndvi-model-results, fig.dim = c(16,10)}
+listgrob <- list("WR/wr.ndvi.model.results.png","WR/wr.poly.ndvi.residuals.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+ndvi <- plot_grid(plotlist = listgrob, ncol= 2, nrow = 1, align = "v", greedy = T)
+save_plot("ndvi.model.png",ndvi, ncol = 2, nrow = 1, base_height = 8, base_width = 6)
+print(ndvi)
+```
+
+
+`r fig_nums(name = "niva-test-result",caption = "Real-data test of the SELM model, a) TOC concentration in 1995 and in 2019, b) predicted vs sampled log(TOC); c) map of the difference between observed and fitted log(TOC)", display = "f")`
+
 The results of the TOC forecast in sea watershed in shown on `r fig_nums("ssp-toc",display = "c")`. Here, we focus on the difference between log(TOC) fitted for the different climate scenarios, and the log(TOC) fitted for 1995. We assume that the over- or under-estimation of TOC concentration, highlighted by the test on 2019-data, is partially compensated by this double-fit. Moreover, the TOC is forecasted as an average over a 20-years period, which is likely to limit the "snap-shot" effect by taking into account a certain adaptation time of the system, even though it does not account for centennial processes. 
 
 
 ```{r ssp-toc, fig.dim= c(12,16)}
 listgrob <- list("WR/SSP126.2050.diff.log.png", "WR/SSP126.2100.diff.log.png","WR/SSP370.2050.diff.log.png","WR/SSP370.2100.diff.log.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-grid.arrange(grobs = listgrob, ncol = 2)
 ssp <- plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 save_plot("ssp.toc.png",ssp, ncol = 2, nrow = 2, base_height = 4, base_width = 3)
 print(ssp)
@@ -276,7 +288,7 @@ The SSP3-7.0 scenario shows increases in TOC concentration everywhere, mainly in
 
 Measures of the Secchi depth in the Baltic Sea have shown that the water steadily became less transparent since the beginning of the 20th century. It has been suggested that the increases of TOC concentration in surface freshwater led to an increase of the export of TOC to the coastal water, with subsequent eutrophication phenomena [@Fleming-Lehtinen2012;@Opdal (unpublished)]. 
 
-Modelling future TOC concentration in sea watersheds makes it possible to estimate as well the future export of TOC towards the Baltic sea and the Norwegian coast. Most sea watersheds in Sweden and Finland drain into to the Baltic Sea (see Supplementary 2), while Norwegian sea watershed drain in Skagerrak, in the North sea, in the Norwegian Sea and in the Barent sea in the North [@Saetre2007]. All contribute to the Norwegian Coastal Current water masses.  The estimated exported TOC was computed as:
+Modelling future TOC concentration in sea watersheds makes it possible to estimate as well the future export of TOC towards the Baltic sea and the Norwegian coast. Most coastal drainage basins in Sweden and Finland drain into to the Baltic Sea (see Supplementary 2), while Norwegian sea watershed drain in Skagerrak, in the North sea, in the Norwegian Sea and in the Barent sea in the North [@Saetre2007]. All contribute to the Norwegian Coastal Current water masses.  The estimated exported TOC was computed as:
 
 $$ TOC_exp = [TOC] (mg.L^{-1}) \times Runoff (mm/y, or L.m^{-2}.y^{-1}) \times Watershed area (m^2)$$
 

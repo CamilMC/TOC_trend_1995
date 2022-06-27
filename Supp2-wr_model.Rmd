@@ -1,7 +1,7 @@
 ---
-title: "TOC model extended"
+title: "Supplementary 3: Modelling TOC concentration and forecast in coastal drainage basins"
 author: "Camille M. Crapart"
-date: "5 1 2022"
+date: "24 06 2022"
 output: 
   bookdown::html_document2:
    toc: true
@@ -32,6 +32,7 @@ library(rgdal)
 library(stringr)
 library(ggplot2)
 library(RColorBrewer)
+library(colorspace)
 library(cowplot)
 library(png)
 
@@ -52,9 +53,10 @@ library(captioner)
 fig_nums <- captioner() 
 table_nums <- captioner(prefix = "Table")
 ```
-# Water regions data
+# Coastal drainage basins data
 
 ## Connections to database
+The coastal drainage basins polygons were computed with a seamless digital elevation model for Fennoscandia [@ninanor]. The model resulted in more than 200 000 coastal drainage basins, most of them being extremely small polygons covering the coastal regions. In order to simplify the model and reduce the amount of data, we keep only the 0,001 % of the coastal drainage basins that are the biggest. They account to more than 93% of the total surface covered by the initial amount of polygons.  
 
 ```{r download-water-regions, eval = F}
 con <- dbConnect(RPostgreSQL::PostgreSQL(),user = "camille.crapart", password = "camille",host = "vm-srv-wallace.vm.ntnu.no", dbname = "nofa")
@@ -85,15 +87,19 @@ map.wr <- ggplot(wr.sf) + geom_sf(aes(fill=gid,col=gid))
 ggsave(plot = map.wr, filename = "WR/wr.sf.png",dpi = "retina", width = 10, height = 15, units = "cm")
 
 saveRDS(wr.sf,"WR/wr.sf.rds")
+st_write(wr.sf, "wr.sf.shp")
 ```
-
-
-The water regions polygons were computed with a seamless digital elevation model for Fennoscandia @ninanor. The model resulted in more than 200 000 water regions, most of them being extremely small polygons covering the coastal regions. In order to simplify the model and reduce the amount of data, we keep only the 0,001 % of the water regions that are the biggest. They account to more than 93% of the total surface covered by the initial amount of polygons.  
 
 ## NDVI
 
+NDVI values are extracted from the GIMMS NDVI3g dataset [@TheNationalCenterForAtmosphericResearch2018], stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package [@Destch2021] on Rstudio. 
+
+Data is taken bi-monthly [@Tucker2005]. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximum NDVI value is taken for each pixel. Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package [@Hijmans2018]. 
+
+The values stored in the ecocast dataset are composed of the NDVI value and a flag value indicating the goodness of the data [@Detsch2021]. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula $floor(ndvi3g/10)/1000$ [@Detsch2021], and then the mean of the 3 summer values (June, July and August) was computed for each catchment. 
+
 ```{r extract-ndvi-wr, eval = F}
-ndvi.max <- readRDS("ndvi.max.Rdata")
+ndvi.max <- readRDS("ndvi.max.rds")
 wr.sf <- readRDS("WR/wr.sf.rds")
 
 summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
@@ -106,101 +112,24 @@ ndvi.wr$area <- NA
 ndvi.wr$ndvi <- (floor(ndvi.wr$layer)/10)/1000
 saveRDS(ndvi.wr, "WR/ndvi.wr.rds")
 
-ggplot(ndvi.wr)+geom_sf(aes(fill=ndvi,col=ndvi))
 ```
 
-```{r summer-ndvi-waterregions-old, eval = F}
-# http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
-water.regions <- readRDS("water.regions.Rdata")
-
-ndvi.1994 <- downloadGimms(x= 1994,y=1994,dsn = "NDVI")
-ndvi.max <- monthlyComposite(ndvi.1994,monthlyIndices(ndvi.1994))
-saveRDS(ndvi.max,"ndvi.max.Rdata")
-ndvi.max <- readRDS("ndvi.max.Rdata")
-summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
-summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
-summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
-summer.scan.ndvi <- (floor(summer.scan)/10)/1000
-writeRaster(summer.mean,"ndvi1994.tif")
-
-png("NDVI/ndvi.fen.png", width = 30, height = 30, units = "cm", res = 300)
-plot(summer.scan.ndvi, axes = F, box = F, main = "NDVI 1995",)
-dev.off()
-
-for(x in 0:287){
-  start.x <- (x-1)*1000+1
-  end.x <- x*1000
-  ndvi <- raster::extract(summer.scan,water.regions[start.x:end.x,], fun = mean, df = T, sp = T)
-  name.x <- paste("WR/NDVI/summer.ndvi.wr",x,"Rdata",sep = ".")
-saveRDS(ndvi,name.x)
-}
-
-start.x <- (288-1)*1000+1
-summer.ndvi.wr.288 <- raster::extract(summer.scan,water.regions[start.x:287886,], fun = mean, df = T, sp = T)
-saveRDS(summer.ndvi.wr.288,"summer.ndvi.wr.288.Rdata")
-
-summer.ndvi.wr.165 <- raster::extract(summer.scan,water.regions[164100:165000,], fun = mean, df = T, sp = T)
-saveRDS(summer.ndvi.wr.165,"WR/NDVI/summer.ndvi.wr.165.Rdata")
-
-list.ndvi.files <- list.files("WR/NDVI", full.names = T)
-list.ndvi <- lapply(list.ndvi.files[-165],readRDS)
-
-summer.ndvi.wr <- summer.ndvi.wr.165@data
-for(x in 1:length(list.ndvi)){
-  df <- list.ndvi[[x]]@data
-  summer.ndvi.wr <<- rbind(summer.ndvi.wr, df)
-  
-}
-names(summer.ndvi.wr) <- c("gid","ndvi")
-summer.ndvi.wr$ndvi.value <- (floor(summer.ndvi.wr$ndvi)/10)/1000
-summer.ndvi.wr$flag.value <- summer.ndvi.wr$ndvi - (floor(summer.ndvi.wr$ndvi)/10*10+1) 
-
-saveRDS(summer.ndvi.wr, "summer.ndvi.wr.Rdata")
+```{r map-ndvi, fig.dim = c(6,8)}
+knitr::include_graphics("WR/wr.map.NDVI.png")
 ```
 
-```{r check-values-nvi, eval = F}
-summer.ndvi.wr <- readRDS("summer.ndvi.wr.Rdata")
-water.regions <- readRDS("water.regions.Rdata")
+`r fig_nums("map-ndvi", "Summer NDVI in 1994 in coastal drainage basins")`
 
-missing.ndvi <- summer.ndvi.wr$gid[which(is.na(summer.ndvi.wr$ndvi.value)==T)]
-missing.lines <- which(water.regions$gid %in% missing.ndvi)
-
-ndvi.max <- readRDS("ndvi.max.Rdata")
-summer.mean <- raster::stack(ndvi.max[[6]],ndvi.max[[7]],ndvi.max[[8]]) %>% mean()
-summer.scandinavia <- raster::crop(summer.mean,c(0,35,55,73))
-summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
-plot(summer.scan)
-ndvi <- raster::extract(summer.scan,water.regions[missing.lines,], fun = mean, df = T, sp = T, na.rm = T,buffer=10,small = T)
-saveRDS(ndvi,"missing.ndvi.Rdata")
-
-ndvi.sf <- st_as_sf(ndvi)
-summer.scan.df <-as.data.frame(summer.scan,xy=T) 
-ggplot()+geom_sf(data=ndvi.sf,aes(fill=layer))
-
-missing.ndvi.df <- ndvi@data
-names(missing.ndvi.df) <- c("gid","ndvi")
-missing.ndvi.df$ndvi.value <- (floor(missing.ndvi.df$ndvi)/10)/1000
-missing.ndvi.df$flag.value <- missing.ndvi.df$ndvi - (floor(missing.ndvi.df$ndvi)/10*10+1) 
-
-saveRDS(missing.ndvi.df, "missing.ndvi.df.Rdata")
-```
-```{r join-ndvi, eval = F}
-missing.ndvi <- readRDS("missing.ndvi.Rdata")
-summer.ndvi.total <- rbind(filter(summer.ndvi.wr,!is.na(ndvi)),missing.ndvi.df)
-saveRDS(summer.ndvi.total,"summer.ndvi.total.Rdata")
-
-summer.ndvi.sf <- merge(water.regions,summer.ndvi.total,by.x = "gid", by.y = "gid")
-saveRDS(summer.ndvi.sf,"summer.ndvi.sf.Rdata")
-ggplot()+geom_sf(data=summer.ndvi.sf,aes(fill=ndvi.value))
-```
-```{r plot-ndvi, eval = F}
-summer.ndvi.sf <- readRDS("WR/summer.ndvi.sf.Rdata")
-ggplot()+geom_sf(data=summer.ndvi.sf,aes(fill=ndvi.value))
-```
 
 ## Runoff
-```{r runoff-wr, eval = F}
 
+The runoff data was downloaded from the CORDEX database @CORDEXvERC. The data is available at https://esg-dn1.nsc.liu.se/projects/esgf-liu/.
+
+The names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
+
+THe mean of the 30 years between 1970 and 2000 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf). This time period matches the temperature and precipitation data provided by WorldClim. 
+
+```{r runoff-wr, eval = F}
 runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
 runoff.nc <- nc_open(runoff.raster)
 
@@ -211,350 +140,104 @@ wr.sf <- readRDS("WR/wr.sf.rds")
 runoff.wr95 <- raster::extract(runoff.mean, wr.sf, fun = mean, df = T, sp = T, na.rm = T)
 names(runoff.wr95) <- c("gid","area","runoff")
 saveRDS(runoff.wr95,"WR/runoff.wr95.rds")
-
-ggplot(st_as_sf(runoff.wr95))+geom_sf(aes(fill=runoff,col=runoff))
-
 ```
 
-```{r runoff-wr-old, eval = F}
-#runoff.tbl <- tbl(con,sql("SELECT ebint,mrros FROM public.cordex_prelim"))
-#runoff.df <- runoff.tbl %>% as.data.frame()
+```{r map-runoff, fig.dim = c(6,8)}
+knitr::include_graphics("WR/wr.map.Runoff.png")
+``` 
 
-water.regions <- readRDS("water.regions.Rdata")
-
-runoff.file.60s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_196101-197012.nc"
-runoff.file.70s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_197101-198012.nc"
-runoff.file.80s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_198101-199012.nc"
-#runoff.file.80s <- "CORDEX/mrros_EUR-11_NCC-NorESM1-M_historical_r1i1p1_DMI-HIRHAM5_v3_mon_19101-199012.nc"
-
-
-# get coordinates
-runoff.nc <- nc_open(runoff.file.60s)
-runoff.info <- GDALinfo(runoff.nc)
-attr.runoff <- attr(runoff.info,"mdata")
-
-rot.info <- attr.runoff[grep("^rotated",attr(runoff.info,"mdata"))]
-coord <- sapply(rot.info, FUN = function(x) {
-  unlist(str_split(x, pattern = "="))[2]})
-coord.num<- round(as.numeric(coord[2:3]),2)
-
-y <- coord.num[1]
-x <- coord.num[2]
-
-target.crs <- paste0("+proj=ob_tran +o_proj=longlat +o_lon_p=" , 
-                     x, " +o_lat_p=", y, 
-                     " +lon_0=180 +to_meter=0.0174532925199433")
-
-# 60s
-runoff.60.stack <- stack(runoff.file.60s, varname = "mrros")
-runoff.60.mean  <- mean(runoff.60.stack)
-
-projection(runoff.60.mean) <- CRS("EPSG:4326")
-runoff.60.rotated <- projectRaster(runoff.60.mean,crs = target.crs)
-runoff.60.wgs84 <- runoff.60.rotated
-projection(runoff.60.wgs84) <- CRS("EPSG:4326")
-
-for(x in 1:287){
-  start.x <- (x-1)*1000+1
-  end.x <- x*1000
-  runoff.60s <- raster::extract(runoff.60.wgs84,water.regions[start.x:end.x,], fun = mean, na.rm = T, df = T, exact = F, sp = T)
-  runoff.60.df <- runoff.60s@data
-  names(runoff.60.df) <- c("ebint","runoff.60s")
-  name.x <- paste("WR/runoff/runoff.60",x,"Rdata",sep = ".")
-  saveRDS(runoff.60.df,name.x)
-}
-
-start.x <- (288-1)*1000+1
-runoff.60.288 <- raster::extract(runoff.60.wgs84,water.regions[start.x:287886,], fun = mean, df = T, sp = T)
-saveRDS(runoff.60.288,"WR/runoff/runoff.60.288.Rdata")
-
-
-
-# 70s
-runoff.70.stack <- stack(runoff.file.70s, varname = "mrros")
-runoff.70.mean  <- mean(runoff.70.stack)
-
-projection(runoff.70.mean) <- CRS("EPSG:4326")
-runoff.70.rotated <- projectRaster(runoff.70.mean,crs = target.crs)
-runoff.70.wgs84 <- runoff.70.rotated
-projection(runoff.70.wgs84) <- CRS("EPSG:4326")
-
-for(x in 99:287){
-	start.x <- (x-1)*1000+1
-	end.x <- x*1000
-	runoff.70s <- raster::extract(runoff.70.wgs84,water.regions[start.x:end.x,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
-	runoff.70.df <- runoff.70s@data
-	names(runoff.70.df) <- c("ebint","runoff.70")
-	name.x <- paste("WR/runoff/runoff.70",x,"Rdata",sep = ".")
-	saveRDS(runoff.70.df,name.x)
-}
-
-start.x <- (288-1)*1000+1
-runoff.70.288 <- raster::extract(runoff.70.wgs84,water.regions[start.x:287886,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
-saveRDS(runoff.70.288,"WR/runoff/runoff.70.288.Rdata")
-
-
-
-# 80s
-runoff.80.stack <- stack(runoff.file.80s, varname = "mrros")
-runoff.80.mean  <- mean(runoff.80.stack)
-
-projection(runoff.80.mean) <- CRS("EPSG:4326")
-runoff.80.rotated <- projectRaster(runoff.80.mean,crs = target.crs)
-runoff.80.wgs84 <- runoff.80.rotated
-projection(runoff.80.wgs84) <- CRS("EPSG:4326")
-
-
-for(x in 1:287){
-	start.x <- (x-1)*1000+1
-	end.x <- x*1000
-	runoff.80s <- raster::extract(runoff.80.wgs84,water.regions[start.x:end.x,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
-	runoff.80.df <- runoff.80s@data
-	names(runoff.80.df) <- c("ebint","runoff.80")
-	name.x <- paste("WR/runoff/runoff.80",x,"Rdata",sep = ".")
-	saveRDS(runoff.80.df,name.x)
-}
-
-start.x <- (288-1)*1000+1
-runoff.80.288 <- raster::extract(runoff.80.wgs84,water.regions[start.x:287886,],fun = mean, na.rM = T, df = T, exact = F, sp = T)
-saveRDS(runoff.80.288,"WR/runoff/runoff.80.288.Rdata")
-
-```
-
-
-```{r gather-runoff-wr-old, eval = F}
-list.files.runoff.60 <- list.files("WR/runoff",pattern = "runoff.60",full.names = T)
-
-df.runoff.60 <- readRDS(list.files.runoff.60[210])@data %>% setNames(c("ebint","runoff.60s"))
-for(x in list.files.runoff.60[-210]){
-  df <- readRDS(x)
-  df.runoff.60 <<- rbind(df.runoff.60,df)
-}
-
-list.files.runoff.70 <- list.files("WR/runoff",pattern = "runoff.70",full.names = T)
-
-df.runoff.70 <- readRDS(list.files.runoff.70[210])@data %>% setNames(c("ebint","runoff.70"))
-for(x in list.files.runoff.70[-210]){
-  df <- readRDS(x)
-  df.runoff.70 <<- rbind(df.runoff.70,df)
-}
-
-list.files.runoff.80 <- list.files("WR/runoff",pattern = "runoff.80",full.names = T)
-
-df.runoff.80 <- readRDS(list.files.runoff.80[1])
-for(x in list.files.runoff.80[-1]){
-  df <- readRDS(x)
-  df.runoff.80 <<- rbind(df.runoff.80,df)
-}
-
-runoff.df.wr <- merge(df.runoff.60,df.runoff.70, by = "ebint") %>% merge(df.runoff.80, by = "ebint")
-runoff.df.wr$mean.runoff <- rowMeans(runoff.df.wr[,2:4])
-saveRDS(runoff.df.wr, "runoff.df.wr.Rdata")
-
-
-runoff.sf <- merge(water.regions,runoff.df.wr,by.x = "gid", by.y = "ebint")
-saveRDS(runoff.sf,"runoff.sf.Rdata")
-```
-
+`r fig_nums("map-runoff","Runoff in 1995 in coastal drainage basins (mm/y)")`
 
 ## Land Cover
 
-```{r wr-bogs-forest, eval = F}
-library(rgdal)
-water.regions <- readRDS("water.regions.Rdata")
-wr.corine <- st_transform(water.regions,CRS("EPSG:3035"))
-saveRDS(wr.corine,"wr.corine.Rdata")
-wr.corine <- readRDS("wr.corine.Rdata")
+The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/clc2018. We used the 2018 version, the lst available. 
+
+The land cover data was downloaded as a raster (.tiff file), which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were:
+
+Arable land:
+
+* 12: non-irrigated arable land
+* 16: fruit trees and berries plantations
+* 18: pastures
+* 19: annual crops associated with permanent crops
+* 20: Complex cultivation patterns
+
+Bogs:
+
+* 36: peat bogs
+* 35: inland marshes, excluded because all zeros in the studied area.
+
+Forest:
+
+* 23: Broad-leaved forest
+* 24: Coniferous forest
+* 25: Mixed forest
+
+Bare:
+
+* 31: Bare rocks
+* 32: Sparsely vegetated areas
+* 33: Burnt areas
+
+```{r clc-wr, eval = F}
+wr.sf <- readRDS("WR/wr.sf.rds")
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
+wr.corine <- st_transform(wr.sf, crs(corine))
 
-for(x in 2615:2880){
-  start.x <- (x-1)*100+1
-  end.x <- x*100
-  clc <- raster::extract(corine,wr.corine[start.x:end.x,])
-  name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
-  saveRDS(clc,name.x)
-clc.tab <- sapply(clc, function(x) tabulate(x,45))
-clc.tab.area <- clc.tab*prod(res(corine))
-catchment.area <- colSums(clc.tab.area)
-clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-names(clc.tab.prop) <- wr.corine[start.x:end.x,]$gid
-saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
+extract_corine <- function(x){
+  clc <- extract(corine,x)
+  saveRDS(clc,file = paste("WR/clc/clc",x$gid,"rds",sep="."))
 }
 
-start.x <- 287801
-end.x <- 287886
-clc <- raster::extract(corine,wr.corine[start.x:end.x,])
-name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
-saveRDS(clc,name.x)
-clc.tab <- sapply(clc, function(x) tabulate(x,45))
-clc.tab.area <- clc.tab*prod(res(corine))
-catchment.area <- colSums(clc.tab.area)
-clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-names(clc.tab.prop) <- wr.corine[start.x:end.x,]$gid
-saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
+wr.list <- split(wr.corine,seq(nrow(wr.corine)))
 
-miss <- c(74, 91,133, 138, 161, 304, 668, 1354, 1391, 1592, 1634, 1825, 2000, 2014, 2040, 2048, 2078, 2327, 2503, 2542, 2614)
+lapply(wr.list,extract_corine) 
 
-library(R.utils)
+#clc.test <- readRDS("WR/clc/clc.16711649.rds")
 
-for(x in miss){
-  start.x <- (x-1)*100+1
-  end.x <- x*100
-  wr.x <- wr.corine[start.x:end.x,]
-  for (y in 1:100){
-  tryCatch(expr = {
-    withTimeout(expr = {
-    clc <- raster::extract(corine,wr.x[y,])
-    name.x <- paste("WR/clc/clc.wr",x,y,"Rdata",sep = ".")
-    saveRDS(clc,name.x)
-    clc.tab <- sapply(clc, function(x) tabulate(x,45))
-    clc.tab.area <- clc.tab*prod(res(corine))
-    catchment.area <- colSums(clc.tab.area)
-    clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-    names(clc.tab.prop) <- wr.x[y,]$gid
-    saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,y,"Rdata",sep="."))
-  }, 
-  substitute = F, timeout = 15*60, onTimeout = "error")
-  },
-  
-  finally = TimeoutException(next)
-  )
-  }
-}
+clc.files <- list.files(path = "WR/clc/", pattern = "clc.*.rds", full.names = T)
 
-big <- c(91.18,91.19,133.51,138.89,161.61,304.92,668.15,1391.8,1592.6,1634.63,1825.60,2000.90,2040.26,2048.29,2078.63,2503.89,2542.2,2614.78)
+list.clc <- sapply(clc.files,readRDS)
+list.clc.wr <- sapply(list.clc, as.integer)
 
+names.list <- str_extract(clc.files,"\\d+")
+names(list.clc.wr) <- names.list
 
-x <- big[18]
-start.x <- (trunc(x)-1)*100+(x-floor(x))*100
-clc <- raster::extract(corine,wr.corine[start.x,])
-name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
-saveRDS(clc,name.x)
-clc.tab <- sapply(clc, function(x) tabulate(x,45))
-clc.tab.area <- clc.tab*prod(res(corine))
-catchment.area <- colSums(clc.tab.area)
-clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-names(clc.tab.prop) <- wr.corine[start.x,]$gid
-saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
-
-```
-```{r missing again, eval = F}
-wr.corine <- readRDS("wr.corine.Rdata")
-
-
-#missing by 100: 48,1727
-for(x in c(1727)){
-  start.x <- (x-1)*100+1
-  end.x <- x*100
-  wr.x <- wr.corine[start.x:end.x,]
-  for (y in 1:100){
-  tryCatch(expr = {
-    withTimeout(expr = {
-    clc <- raster::extract(corine,wr.x[y,])
-    name.x <- paste("WR/clc/clc.wr",x,y,"Rdata",sep = ".")
-    saveRDS(clc,name.x)
-    clc.tab <- sapply(clc, function(x) tabulate(x,45))
-    clc.tab.area <- clc.tab*prod(res(corine))
-    catchment.area <- colSums(clc.tab.area)
-    clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-    names(clc.tab.prop) <- wr.x[y,]$gid
-    saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,y,"Rdata",sep="."))
-  }, 
-  substitute = F, timeout = 15*60, onTimeout = "error")
-  },
-  
-  finally = TimeoutException(next)
-  )
-  }
-}
-
-missing.bis <- c(48.46,74.78,1391.9,1727.37,1825.60,2000.90,2014.83,2327.36)
-
-x <- missing.bis[8]
-start.x <- (trunc(x)-1)*100+(x-floor(x))*100
-clc <- raster::extract(corine,wr.corine[start.x,])
-name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
-saveRDS(clc,name.x)
-clc.tab <- sapply(clc, function(x) tabulate(x,45))
-clc.tab.area <- clc.tab*prod(res(corine))
-catchment.area <- colSums(clc.tab.area)
-clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-names(clc.tab.prop) <- wr.corine[start.x,]$gid
-saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
-
-# missing again: 74.78, 1825.60, 2000.90, + a hundred missing Only run 74.78
-x <- 74.78
-start.x <- (trunc(x)-1)*100+(x-floor(x))*100
-clc <- raster::extract(corine,wr.corine[start.x,])
-name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
-saveRDS(clc,name.x)
-clc.tab <- sapply(clc, function(x) tabulate(x,45))
-clc.tab.area <- clc.tab*prod(res(corine))
-catchment.area <- colSums(clc.tab.area)
-clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-names(clc.tab.prop) <- wr.corine[start.x,]$gid
-saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
-
-last.missing <- setdiff(wr.corine$gid,clc.wr.sf$gid) 
-
-for(x in last.missing){
-  line <- which(wr.corine$gid == x) 
-  clc <- raster::extract(corine,wr.corine[line,])
-  name.x <- paste("WR/clc/clc.wr",x,"Rdata",sep = ".")
-  saveRDS(clc,name.x)
-clc.tab <- sapply(clc, function(x) tabulate(x,45))
-clc.tab.area <- clc.tab*prod(res(corine))
-catchment.area <- colSums(clc.tab.area)
-clc.tab.prop <- sweep(clc.tab.area,2,catchment.area, FUN = "/")
-names(clc.tab.prop) <- wr.corine[line,]$gid
-saveRDS(clc.tab.prop,paste("WR/clc/clc.tab.prop",x,"Rdata",sep="."))
-}
-
+saveRDS(list.clc.wr,"WR/clc/list.clc.wr.rds")
 ```
 
-```{r gather-clc-wr, eval = F}
-list.clc.tabs <- list.files("WR/clc",pattern = "clc.tab.prop", full.names = T)
-list.clc <- lapply(list.clc.tabs,readRDS)
-
-clc.wr <- list.clc[[1]] %>% t() %>% as.data.frame()
-clc.wr$gid <- attr(list.clc[[1]],"names")[1:100]
-for(x in 2:length(list.clc)){
-  m <- list.clc[[x]] 
-  df <- m %>% t() %>% as.data.frame() 
-  df$gid <- attr(m,"names")[1:dim(df)[1]]
-  clc.wr <<- rbind(clc.wr, df)
-  }
-
-saveRDS(clc.wr,"WR/clc/clc.wr.Rdata")
-
-
+```{r corine-tab-prop, eval = F}
+list.clc.wr <- readRDS("WR/clc/list.clc.wr.rds")
+clc.tab.wr <- sapply(list.clc.wr, function(x) tabulate(x,45)) %>% t()
+clc.tab.area.wr <- clc.tab.wr*prod(res(corine))
+catchment.area <- rowSums(clc.tab.area.wr)
+clc.tab.prop.wr <- sweep(clc.tab.area.wr,1,catchment.area, FUN = "/")
+saveRDS(clc.tab.prop.wr,"WR/clc/clc.tab.prop.wr.rds")
 ```
-```{r get-forest-bogs, eval = F}
-clc.wr <- readRDS("WR/clc/clc.wr.Rdata")
-clc.wr.bogs <- select(clc.wr, c("gid","V36")) %>% setNames(c("gid","bogs"))
-clc.wr.forest <- select(clc.wr,c("V23","V24","V25")) %>% rowSums() %>% as.data.frame() %>% setNames("forest")
-clc.wr.arable <- select(clc.wr,c("V12","V16","V18","V19","V20")) %>% rowSums() %>% as.data.frame() %>% setNames("arable")
 
-clc.wr.glacier <- select(clc.wr,c("V34")) %>% rowSums() %>% as.data.frame() %>% setNames("glacier")
-clc.wr.bare <- select(clc.wr,c("V31","V32","V33")) %>% rowSums() %>% as.data.frame() %>% setNames("bare")
+```{r corine-select-categories, eval = F}
+clc.tab.prop.wr <- readRDS("WR/clc/clc.tab.prop.wr.rds") %>% as.data.frame()
 
-clc.wr.sum <- cbind(clc.wr.bogs, clc.wr.forest,clc.wr.arable,clc.wr.glacier, clc.wr.bare)
-saveRDS(clc.wr.sum,"WR/clc/clc.wr.sum.Rdata")
-
+bogs <- clc.tab.prop.wr[,36] %>% as.data.frame() %>% setNames("bogs") %>% tibble::rownames_to_column(var = "gid")
+saveRDS(bogs,"WR/clc/bogs.wr.rds")
+arable <- rowSums(clc.tab.prop.wr[,c(12,16,18,19,20)]) %>% as.data.frame() %>% setNames("arable") %>% tibble::rownames_to_column(var = "gid")
+saveRDS(arable,"WR/clc/arable.wr.rds")
+forest <- rowSums(clc.tab.prop.wr[,c(23,24,25)]) %>% as.data.frame() %>% setNames("forest") %>% tibble::rownames_to_column(var = "gid")
+saveRDS(forest,"WR/clc/forest.wr.rds")
+bare <- rowSums(clc.tab.prop.wr[,c(31,32,33)]) %>% as.data.frame() %>% setNames("bare") %>% tibble::rownames_to_column(var = "gid")
+saveRDS(bare,"WR/clc/bare.wr.rds")
 ```
-```{r plot-forest-clc, eval = F}
-clc.wr.sf <- readRDS("WR/clc.wr.sf.Rdata")
-wr.forest <- ggplot()+geom_sf(data=clc.wr.sf,aes(fill=forest, col = forest))+
-  scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
-                       name = "Forest proportion")+
-  theme_minimal(base_size = 6)+
-  theme(legend.position = "bottom")
-ggsave(plot = wr.forest, filename = "WR/wr.forest.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+```{r map-clc, fig.dim = c(12,8)}
+list.grob <- c("WR/wr.map.Bog.png", "WR/wr.map.Arable.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+plot_grid(plotlist = list.grob, nrow = 1, ncol = 2, labels = c("a)","b)"), label_size = 10)
 ```
+
+`r fig_nums("map_clc","Proportion of a) bogs and b) arable land in 2000 in coastal drainage basins (%)")`
 
 ## Temperature and precipitation
 
-Temperature in historical worldclim is in °C * 10 (to reduce file size). Precipitation are average monthly precipitation in mm. Here we use the mean monthly precipitation and temperature for the period 1970-2000. 
+Temperature in historical Worldclim is in °C * 10 (to reduce file size). Precipitation are average monthly precipitation in mm. Here we use the mean monthly precipitation and temperature for the period 1970-2000. 
 
 ```{r model-ndvi-past, eval = F}
 wr.sf <- readRDS("WR/wr.sf.rds")
@@ -574,11 +257,25 @@ saveRDS(prec.wr,"WR/prec.wr.rds")
 
 tp <- cbind(wr.sf[,1],temp.wr[,3]) %>% cbind(prec.wr[,3])
 saveRDS(tp,"WR/tp.rds")
-
 ```
 
+```{r map-temp-prec, fig.dim = c(12,8)}
+list.grob <- c("WR/wr.map.Temp.png", "WR/wr.map.Precip.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+plot_grid(plotlist = list.grob, nrow= 1, ncol = 2, labels = c("a)", "b)"), label_size = 10)
+```
+
+`r fig_nums("map-temp-precip", "Map of a) average temperature (°C) and b) average precipitation (mm/y) in 1995 in coastal drainage basins ")`
 
 ## TNdep
+
+The nitrogen deposition data was extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). The data from 2000 was used as it is the first model available.
+
+N-deposition (NOx and NH3) is the sum of: 
+
+* Dry deposition of oxidized nitrogen per m2 grid DDEP_OXN_m2Grid, in mg/m2
+* Wet deposition of oxidized nitrogen WDEP_OXN, in mg/m2 
+* Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid, in mg/m2
+* Wet deposition of reduced nitrogen WDEP_RDN, in mg/m2
 
 ```{r extract Ndep, eval = F}
 library(ncdf4)
@@ -612,8 +309,16 @@ ndep.wr$tndep <- rowSums(ndep.wr@data[,c(3:6)])
 saveRDS(ndep.wr,"WR/ndep.wr.rds")
 ```
 
+```{r map-tndep, fig.dim = c(6,8)}
+knitr::include_graphics("WR/wr.map.TNdep.png")
+```
+
+`r fig_nums("map-tndep","Total nitrogen deposition in 1995 in coastal drainage basins (mg/m2)")`
 
 ## Elevation
+
+The altitude data was accessed through the "getData" function, and comes from the NASA digital elevation model (SRTM 90 m). The slope was then computed using the "terrain" function from the raster package.  
+
 ```{r altitude-wr, eval = F}
 wr.sf <- readRDS("WR/wr.sf.rds")
 alt.nor <- raster::getData("alt",country = "NOR", mask = T)
@@ -639,14 +344,22 @@ slope.wr <- raster::extract(slope,wr.sf, sp = T, df = T, fun = mean, na.rm = T)
 names(slope.wr) <- c("gid","area","slope")
 saveRDS(slope.wr, "WR/slope.wr.rds")
 ```
+
 ## Gathers wr dataset
+
+The data was gathered and merged into a single dataframe, based on the catchment identifyer ("gid").
 
 ```{r gather-dataset, eval = F}
 ndvi.wr <- readRDS("WR/ndvi.wr.rds")
 ndvi.wr$area <- NULL
 runoff.wr95 <- readRDS("WR/runoff.wr95.rds")
 runoff.wr95$area <- NULL
-clc.wr.sum <- readRDS("WR/clc/clc.wr.sum.Rdata")
+
+bogs.wr <- readRDS("WR/clc/bogs.wr.rds")
+arable.wr <- readRDS("WR/clc/arable.wr.rds")
+
+#clc.wr.sum <- readRDS("WR/clc/clc.wr.sum.Rdata")
+
 alt.wr <- readRDS("WR/alt.wr.rds")
 slope.wr <- readRDS("WR/slope.wr.rds")
 slope.wr$area <- NULL
@@ -654,14 +367,12 @@ tp <- readRDS("WR/tp.rds")
 ndep.wr <- readRDS("WR/ndep.wr.rds")
 wr.sf <- readRDS("WR/wr.sf.rds")
 
-all.wr.sf <- merge(wr.sf,runoff.wr95,by = "gid") %>% merge(ndvi.wr,by="gid") %>% merge(clc.wr.sum,by = "gid") %>% merge(st_drop_geometry(tp),by = "gid") %>% merge(alt.wr, by = "gid") %>% merge(slope.wr, by = "gid") %>% merge(ndep.wr, by = "gid")
+all.wr.sf <- merge(wr.sf,runoff.wr95,by = "gid") %>% merge(ndvi.wr,by="gid") %>% merge(bogs.wr,by = "gid") %>% merge(arable.wr, by = "gid") %>% merge(st_drop_geometry(tp),by = "gid") %>% merge(alt.wr, by = "gid") %>% merge(slope.wr, by = "gid") %>% merge(ndep.wr, by = "gid")
 
 saveRDS(all.wr.sf, "WR/all.wr.sf.rds")
-
 ```
 
-## WR dataframe
-
+The data was then cleaned and the centroid of each coastal drainage basin was computed.
 
 ```{r gather-df, eval = F}
 
@@ -671,14 +382,6 @@ wr.sf.95 <- all.wr.sf %>% dplyr::filter(ndvi != 0) %>% filter(runoff > 0) %>% fi
 wr.sf.95 <- wr.sf.95[!duplicated(wr.sf.95$gid),]
 wr.sf.95$Runoff <- wr.sf.95$runoff *365*24*60*60 # from kg/m2/s to kg/m2/year or mm/y
 wr.sf.95$logRunoff <- log(wr.sf.95$Runoff)
-
-
-#map.wr95 <- ggplot()+geom_sf(data = wr.sf.95, aes(fill = ndvi, col = ndvi))+
-#  scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
-#                       name = "NDVI 1995")+
-#  theme_minimal(base_size = 6)+
-#  theme(legend.position = "bottom")
-#ggsave(plot = map.wr95, filename = "WR/wr95.png",dpi = "retina", width = 10, height = 15, units = "cm")
 
 sfc_point_to_matrix = function(x) {
   matrix(
@@ -740,7 +443,6 @@ wr.sf.95$area <- as.numeric(wr.sf.95$area)
 saveRDS(wr.sf.95, "WR/wr.sf.95.rds")
 ```
 
-
 ```{r plot-wr-variable, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 m <- c("NDVI","Runoff","Precip","Temp","Bog","Forest","Arable","TNdep")
@@ -748,7 +450,7 @@ u <- c("NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean annual precipitation,\n
 couleurs <- c("Greens","Blues","Blues","RdYlBu","YlOrBr","RdYlGn","RdYlGn","PuRd")
 dir <- c(T,T,T,F,T,T,T,T)
 
-for(i in m[8]){
+for(i in m){
   
  mysf <- wr.sf.95
  mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
@@ -792,6 +494,8 @@ We model the mean TOC concentration in all the water region in 1995 based on the
 
 ## Neighbour matrix
 
+The neighbor matrix of the coastal drainage basins polygons were computed using their centroids. 
+
 ```{r wr-km, eval = F}
 wr.centroid <- st_centroid(wr.sf.95, of_largest_polygon = T)
 
@@ -803,8 +507,11 @@ saveRDS(wr.kmat,"WR/wr.kmat.rds")
 
 ## Model TOC
 
+The TOC concentration in coastal drainage basins was modeled using the Spatial Error Linear Model  with 5 predictors:
+
 ```{r sem-model-toc-wr-95, eval = F}
 library(spatialreg)
+
 sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
@@ -813,8 +520,6 @@ wr.pred <- predict(sem.fennoscandia.5,wr.sf.95,wr.kmat, pred.type = "TS",legacy.
 
 sem.pred.wr <- cbind(wr.sf.95,wr.pred$fit)
 sem.pred.wr$TOC95 <- exp(sem.pred.wr$wr.pred.fit)
-
-saveRDS(sem.pred.wr,"WR/sem.pred.wr.rds")
 
 map.fit <- ggplot()+geom_sf(data = st_as_sf(sem.pred.wr), aes(fill = TOC95, col = TOC95))+
   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, 
@@ -830,8 +535,15 @@ map.log <- ggplot()+geom_sf(data = sem.pred.wr, aes(fill = wr.pred.fit, col = wr
   theme(legend.position = "bottom")
   
 ggsave(plot = map.log, filename = "WR/wr.log.toc.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
+saveRDS(sem.pred.wr,"WR/sem.pred.wr.rds")
 ```
 
+```{r map-fit-toc-95}
+knitr::include_graphics("WR/wr.log.toc.png")
+```
+
+`r fig_nums(name = "fit-toc-95", caption = "Map of log(TOC) in coastal drainage basins for 1995")`
 
 # Forecast
 
@@ -841,11 +553,25 @@ ggsave(plot = map.log, filename = "WR/wr.log.toc.png",dpi = "retina", width = 6,
 
 #### Extract future temperature and precipitation 
 
+The forecast of the temperature and precipitation in the periods 2041-2060 and 2081-2100, for SSP 1-2.6 and SSP 3-7.0, were extracted based on the Future Worldclim dataset.
+
 ```{r extract-future-temp, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 ssp126.cnrm.temp <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp126_2041-2060.tif", band = 1)
 ssp370.cnrm.temp <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp370_2041-2060.tif", band = 1)
+
+ssp126.cnrm.temp.2050.crop <- raster::crop(ssp126.cnrm.temp,c(0,35,55,73))
+
+png("worldclim_future/ssp126.temp.2050.png")
+plot(ssp126.cnrm.temp.2050.crop)
+dev.off()
+
+ssp370.cnrm.temp.2050.crop <- raster::crop(ssp370.cnrm.temp,c(0,35,55,73))
+
+png("worldclim_future/ssp370.temp.2050.png")
+plot(ssp370.cnrm.temp.2050.crop)
+dev.off()
 
 ssp126.temp.wr <- raster::extract(ssp126.cnrm.temp,select(wr.sf.95,c("gid","geometry")),fun=mean,df = T, sp = T, na.rm =T)
 names(ssp126.temp.wr) <- c("gid", "temp126")
@@ -862,6 +588,18 @@ wr.sf <- readRDS("WR/wr.sf.rds")
 raster.ssp126.temp.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp126_2081-2100.tif", band = 1)
 raster.ssp370.temp.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp370_2081-2100.tif", band = 1)
 
+ssp126.cnrm.temp.2100.crop <- raster::crop(raster.ssp126.temp.2100,c(0,35,55,73))
+
+png("worldclim_future/ssp126.temp.2100.png")
+plot(ssp126.cnrm.temp.2100.crop)
+dev.off()
+
+ssp370.cnrm.temp.2100.crop <- raster::crop(raster.ssp370.temp.2100,c(0,35,55,73))
+
+png("worldclim_future/ssp370.temp.2100.png")
+plot(ssp370.cnrm.temp.2100.crop)
+dev.off()
+
 ssp126.temp.2100 <- raster::extract(raster.ssp126.temp.2100,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm =T)
 names(ssp126.temp.2100) <- c("gid", "temp126.2100")
 saveRDS(ssp126.temp.2100,"WR/ssp126.temp.2100.rds")
@@ -871,15 +609,29 @@ names(ssp370.temp.2100) <- c("gid", "temp370.2100")
 saveRDS(ssp370.temp.2100,"WR/ssp370.temp.2100.rds")
 ```
 
+```{r plot-future-temp}
+listgrob <- list("worldclim_future/ssp126.temp.2050.png", "worldclim_future/ssp370.temp.2050.png","worldclim_future/ssp126.temp.2100.png","worldclim_future/ssp370.temp.2100.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+
+plot_grid(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("a) SSP126-2050","b) SSP370-2050","c) SSP126-2100","d) SSP370-2100"), label_size = 10)
+```
+
+`r fig_nums(name = "future-temp", caption = "Map of forecasted temperature (ºC) for 2050 and 2100, under SSP 1-2.6 and SSP 3-7.0")`
+
 ```{r extract-future-prec, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 ssp126.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp126_2041-2060.tif", band = 12)
 ssp370.cnrm.prec <- raster::raster("worldclim_future/wc2.1_2.5m_bioc_CNRM-CM6-1_ssp370_2041-2060.tif", band = 12)
+
 ssp126.cnrm.prec.crop <- raster::crop(ssp126.cnrm.prec,c(0,35,55,73))
+png("worldclim_future/ssp126.2050.prec.png")
 plot(ssp126.cnrm.prec.crop)
+dev.off()
+
 ssp370.cnrm.prec.crop <- raster::crop(ssp370.cnrm.prec,c(0,35,55,73))
+png("worldclim_future/ssp370.2050.prec.png")
 plot(ssp370.cnrm.prec.crop)
+dev.off()
 
 ssp126.prec.wr <- raster::extract(ssp126.cnrm.prec,select(wr.sf.95,c("gid","geometry")),fun=mean,df = T, sp = T, na.rm = T)
 names(ssp126.prec.wr) <- c("gid", "prec126")
@@ -895,11 +647,15 @@ wr.sf <- readRDS("WR/wr.sf.rds")
 
 raster.ssp126.prec.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp126_2081-2100.tif", band = 12)
 raster.ssp370.prec.2100 <- raster::raster("worldclim_future/wc2.1_30s_bioc_CNRM-CM6-1-HR_ssp370_2081-2100.tif", band = 12)
+
 ssp126.cnrm.prec.2100.crop <- raster::crop(raster.ssp126.prec.2100,c(0,35,55,73))
+png("worldclim_future/ssp126.2100.prec.png")
 plot(ssp126.cnrm.prec.2100.crop)
+dev.off()
+
+png("worldclim_future/ssp370.2100.prec.png")
 ssp370.cnrm.prec.2100.crop <- raster::crop(raster.ssp370.prec.2100,c(0,35,55,73))
 plot(ssp370.cnrm.prec.2100.crop)
-
 
 ssp126.prec.2100 <- raster::extract(raster.ssp126.prec.2100,dplyr::select(wr.sf,c("gid","geom")),fun=mean,df = T, sp = T, na.rm = T)
 names(ssp126.prec.2100) <- c("gid", "prec126.2100")
@@ -943,19 +699,21 @@ saveRDS(df.ssp370.2100, "WR/df.ssp370.2100.rds")
 
 ```{r plot-future-prec}
 listgrob <- list("worldclim_future/ssp126.2050.prec.png", "worldclim_future/ssp370.2050.prec.png","worldclim_future/ssp126.2100.prec.png","worldclim_future/ssp370.2100.prec.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-grid.arrange(grobs = listgrob, ncol = 2)
-ggarrange(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("SSP126-2050","SSP370-2050","SSP126-2100","SSP370-2100"))
 
+plot_grid(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("a) SSP126-2050","b) SSP370-2050","c) SSP126-2100","d) SSP370-2100"), label_size = 10)
 ```
 
+`r fig_nums(name = "future-prec", caption = "Map of forecasted precipitations (mm/s) for 2050 and 2100, under SSP 1-2.6 and SSP 3-7.0")`
 
 #### NDVI model based on past temperature and precipitation values
 
 We model NDVI based on temperature and precipitation, and use this model to predict the future NDVI in 2050. 
-Choice of future data: ssp 126 as best scenario, ssp 370 as worse scenario @Hausfather2019 @CORDEX2021
-CRNM according to @Raju2020
+Choice of future data: ssp 126 as best scenario, ssp 370 as worse scenario [@Hausfather2019; @CORDEX2021].
+CRNM according to @Raju2020.
 
-Using a SELM model for NDVI, we notice that high residuals are observed in catchments where original NDVI is lower than 0,4. Myers-Smith et al. @Myers-Smith2020 show that the relationship between NDVI and the Arctic biomass is not linear: under 0,4, an increase in NDVI reflects the vegetalisation of bare ground, while over 0,4, an increase of NDVI reflects an increased productivity in established forests. 
+Using a SELM model for NDVI, we notice that high residuals are observed in catchments where original NDVI is lower than 0,4. @Myers-Smith2020 show that the relationship between NDVI and the Arctic biomass is not linear: under 0,4, an increase in NDVI reflects the vegetalization of bare ground, while over 0,4, an increase of NDVI reflects an increased productivity in established forests. 
+
+Several models were tested to model the NDVI: a linear model, a spatial error linear model, a quadratic model and a polynomial model. 
 
 ```{r ndvi-model-test}
 library(betareg)
@@ -964,66 +722,110 @@ library(VGAM)
 wr.kmat <- readRDS("WR/wr.kmat.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
-cor.ndvi <- wr.sf.95 %>% st_drop_geometry() %>% cor()
-corrplot::corrplot(cor.ndvi, method = "number")
+par(mfrow = c(2,2))
 
 #LM
 summary(m1 <- lm(NDVI ~ Temp * log(Precip), data = wr.sf.95))
 summary(m1 <- step(m1))
-plot(wr.sf.95$NDVI, predict(m1),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted",abline(0,1))
+plot(wr.sf.95$NDVI, predict(m1),  pch = ".", main="a ) NDVI - LM", xlab="Observed NDVI", ylab="Predicted",abline(0,1))
+text(x = 0.8, y = 0.4, label = paste("r2 =", round(summary(m1)$adj.r.squared,2), sep= ""))
 
 # SELM
-ndvi.model <- errorsarlm(formula = NDVI~Temp+log(Precip)+log(Alt), data = wr.sf.95, listw = wr.kmat)
+ndvi.model <- errorsarlm(formula = NDVI~Temp+log(Precip), data = wr.sf.95, listw = wr.kmat)
 AIC <- 2*(3-1)-2*ndvi.model$LL
-plot(wr.sf.95$NDVI, ndvi.model$fitted.values)
-abline(a = 0, b = 1)
+plot(wr.sf.95$NDVI, ndvi.model$fitted.value,  pch = ".", main="b) NDVI - SELM", xlab="Observed", ylab="Predicted",abline(0,1))
+text(x = 0.8, y = 0.5, label = paste("r2 =", round(cor(ndvi.model$fitted.values, wr.sf.95$NDVI)^2,2), sep= ""))
+saveRDS(ndvi.model, "WR/selm.ndvi.rds")
 
 # quadratic
 summary(m2 <- lm(NDVI ~ (Temp + I(Temp^2)) * (log(Precip) + I(log(Precip)^2)), data = wr.sf.95))
 summary(m2 <- step(m2))
-plot(wr.sf.95$NDVI, predict(m2),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted - quadratic",abline(0,1))
+plot(wr.sf.95$NDVI, predict(m2),  pch = ".", main="c) NDVI - quadratic model", xlab="Observed", ylab="Predicted",abline(0,1))
+text(x = 0.8, y = 0.4, label = paste("r2 =", round(summary(m2)$adj.r.squared,2), sep= ""))
 
 # poly 
 summary(m3 <- lm(NDVI ~ poly(cbind(Temp, log(Precip)), degree = 5), data = wr.sf.95))
 summary(m3 <- step(m3))
-plot(wr.sf.95$NDVI, predict(m3),  pch = ".", main="NDVI", xlab="Observed", ylab="Predicted - poly ",abline(0,1))
+plot(wr.sf.95$NDVI, predict(m3),  pch = ".", main="d) NDVI - polynomial ", xlab="Observed", ylab="Predicted",abline(0,1))
+text(x = 0.8, y = 0.4, label = paste("r2 =", round(summary(m3)$adj.r.squared,2), sep= ""))
+
+saveRDS(m3,"WR/poly.ndvi.rds")
 ```
 
+`r fig_nums("ndvi-model-test","Test of 4 NDVI models, a) linear model, b) spatial error linear model, c) quadratic model, d) polynomial model")`
+
+The SELM and the polynomial model had the best results. We tested them on the Fennoscandia dataset. 
 
 ```{r ndvi-model-fen, eval = F}
+k.neigh.w <- readRDS("k.neigh.w.rds")
 fennoscandia <- readRDS("fennoscandia.rds")
 fennoscandia.33 <- readRDS("fennoscandia.33.rds")
+
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 nor <- st_read("Country_shapefile/norway.shp")
 swe <- st_read("Country_shapefile/sweden.shp")
 fin <- st_read("Country_shapefile/finland.shp") 
 
-poly.ndvi <- lm(NDVI ~ poly(cbind(Temp, log(Precip)), degree = 5), data = fennoscandia)
-poly.ndvi <- step(poly.ndvi)
-summary(poly.ndvi)
-plot(fennoscandia$NDVI, poly.ndvi$fitted.values)
+selm.ndvi <- readRDS("WR/selm.ndvi.rds")
 
-fennoscandia.ndvi.model <- fennoscandia.33 %>% st_as_sf() %>% mutate(ndvi.residuals = poly.ndvi$residuals) 
+selm.ndvi.fen <-  predict(selm.ndvi,fennoscandia.33,k.neigh.w, pred.type = "TS",legacy.mixed = F, zero.policy = T) %>% as.data.frame()
+fennoscandia.selm.ndvi.model <- fennoscandia.33 %>% st_as_sf() %>% mutate(ndvi.fit = selm.ndvi.fen$fit, ndvi.residuals = fennoscandia.33$NDVI - selm.ndvi.fen$fit) 
+fennoscandia.selm.ndvi.model$area <- st_area(fennoscandia.selm.ndvi.model) %>% as.numeric()
+  
+ggplot(fennoscandia.selm.ndvi.model) + geom_point(aes(y = ndvi.fit, x = NDVI, col = latitude), size = 1)+
+   scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
+   labs(x = "NDVI", y = "Predicted NDVI",subtitle = "a)")+
+   annotate(geom = "label", label = paste("r = ", round(cor(fennoscandia.selm.ndvi.model$NDVI,fennoscandia.selm.ndvi.model$ndvi.fit)^2,2)), x = 0.75, y = 0.3, size = 2)+
+   geom_abline(slope  = 1, intercept = 0, col = "red")+
+   theme_minimal(base_size = 6)
+ggsave(filename = "WR/fen.ndvi.selm.results.png", dpi = "retina", width = 6, height = 8, units = "cm")
 
-fen.residuals <- ggplot()+geom_sf(data = nor, fill = "white")+geom_sf(data = swe, fill = "white")+geom_sf(data = fin, fill = "white")+
-  geom_sf(data = fennoscandia.ndvi.model, aes(fill = poly.ndvi$residuals, col = poly.ndvi$residuals))+
-  scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+
-  theme_classic(base_size = 6)+theme(legend.position = "bottom")
-ggsave(plot = fen.residuals, filename = "WR/poly.ndvi.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
+fen.residuals.selm <- ggplot()+
+  geom_sf(data = fennoscandia.selm.ndvi.model, aes(fill = ndvi.residuals, col = ndvi.residuals))+
+  scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, aesthetics = c("fill", "col"), name = "SELM residuals")+
+  labs(subtitle = "b)")+
+  theme_minimal(base_size = 6)+theme(legend.position = "bottom")
+ggsave(plot = fen.residuals.selm, filename = "WR/fen.selm.ndvi.residuals.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
-wr.ndvi.test <- predict(object = poly.ndvi, newdata = wr.sf.95)
-plot(wr.sf.95$NDVI, wr.ndvi.test)
-wr.ndvi.model <- wr.sf.95 %>% mutate(ndvi.predicted = wr.ndvi.test, ndvi.residuals = wr.ndvi.test-wr.sf.95$NDVI)
 
-ggplot(wr.ndvi.model)+geom_sf(aes(fill = ndvi.residuals, col = ndvi.residuals))+
-  scale_color_gradient2(high = "darkgreen", low = "red", mid = "white", midpoint = 0, aesthetics = c("fill", "col"))+theme_classic(base_size = 6)+theme(legend.position = "bottom")
-ggsave(filename = "WR/wr.ndvi.residuals.plot.png",dpi = "retina", width = 6, height = 8, units = "cm")
+# poly.ndvi 
+
+poly.ndvi <- readRDS("WR/poly.ndvi.rds")
+
+poly.ndvi.fen <-  predict(poly.ndvi,fennoscandia.33)
+fennoscandia.poly.ndvi.model <- fennoscandia.33 %>% mutate(ndvi.fit = poly.ndvi.fen, ndvi.residuals = fennoscandia.33$NDVI - poly.ndvi.fen) 
+fennoscandia.poly.ndvi.model$area <- st_area(fennoscandia.selm.ndvi.model) %>% as.numeric()
+
+resi <- filter(select(fennoscandia.poly.ndvi.model, c(ebint, nation, area, TOC, NDVI,ndvi.residuals)), ndvi.residuals < -0.2) 
+ggplot(resi)+geom_sf(aes(col = ebint))
+
+test.compare <- filter(fennoscandia.poly.ndvi.model, between(ebint, 16600000, 16620000)) %>% select(c("ebint","nation","TOC","NDVI","ndvi.residuals","Runoff","Temp","Precip","Slope","Bog","Forest","Arable","TNdep"))
+
+ggplot(fennoscandia.poly.ndvi.model) + geom_point(aes(y = ndvi.fit, x = NDVI, col = latitude), size = 1)+
+   scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
+   labs(x = "NDVI", y = "Predicted NDVI",subtitle = "c)")+
+   annotate(geom = "label", label = paste("r = ", round(cor(fennoscandia.poly.ndvi.model$NDVI,fennoscandia.poly.ndvi.model$ndvi.fit),2)), x = 0.75, y = 0.3, size = 2)+
+   geom_abline(slope  = 1, intercept = 0, col = "red")+
+   theme_minimal(base_size = 6)
+ggsave(filename = "WR/fen.ndvi.poly.results.png", dpi = "retina", width = 6, height = 8, units = "cm")
+
+fen.residuals <- ggplot()+
+  geom_sf(data = fennoscandia.poly.ndvi.model, aes(fill = ndvi.residuals, col = ndvi.residuals))+
+  scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, aesthetics = c("fill", "col"), name = "Polynomial residuals")+
+  labs(subtitle = "d)")+
+  theme_minimal(base_size = 6)+theme(legend.position = "bottom")
+ggsave(plot = fen.residuals, filename = "WR/fen.poly.ndvi.residuals.png",dpi = "retina", width = 6, height = 8, units = "cm")
+
 ```
 
-```{r plot-residuals-ndvi}
-listgrob <- list("WR/poly.ndvi.residuals.plot.png","WR/wr.ndvi.residuals.plot.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-grid.arrange(grobs = listgrob, ncol = 2, nrow = 1)
+```{r plot-residuals-ndvi, fig.dim = c(12,16)}
+listgrob <- list("WR/fen.ndvi.selm.results.png","WR/fen.ndvi.poly.results.png","WR/fen.selm.ndvi.residuals.png","WR/fen.poly.ndvi.residuals.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+plot_grid(plotlist = listgrob, ncol = 2, nrow = 2, rel_heights = c(1,2), labels = c("a) Observed vs predicted NDVI for SELM","b) Observed vs predicted NDVI for polynomial model","c) Map of residuals for SELM","d) Map of residuals for Polynomial model"))
 ```
+
+`r fig_nums(name = "residuals-ndvi", caption = "Results of NDVI models (SELM and polynomial): observed vs predicted for a) SELM and b) polynoimal model,  and map of residuals (observed - predicted) for c) SELM and d) Polynomial")`
+
+The polynomial model preforms better on the test set (Fennoscandia catchments). This model will be used to forecast NDVI in 2050 and in 2100. 
 
 #### Forecast NDVI in 2050 and 2100
 
@@ -1037,14 +839,7 @@ wr.kmat <- readRDS("WR/wr.kmat.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 
 #NDVI 126 2050
-ndvi.ssp126.fit <- predict(object = spatial.beta.ndvi, newdata = df.ssp126, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
-
-plot(wr.sf.95$NDVI, logclink(ndvi.ssp126.fit$ndvi, inverse = T))
-plot(logclink(wr.sf.95$NDVI), ndvi.ssp126.fit$ndvi)
-
-ndvi.ssp126.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp126) 
-
-plot(wr.sf.95$NDVI, ndvi.ssp126.fit)
+ndvi.ssp126.fit <- predict(object = ndvi.model, newdata = df.ssp126, pred.type = "TS", legacy.mixed = F, zero.policy = T) %>% as.data.frame() %>% setNames(c("ndvi","trend","signal"))
 
 ndvi.ssp126 <- cbind(df.ssp126, ndvi.ssp126.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","trend","signal","geometry"))
 
@@ -1074,55 +869,18 @@ saveRDS(ndvi.ssp370.2100,"WR/ndvi.ssp370.2100.rds")
 
 ```
 
-```{r model-future-ndvi-quadra, eval = F}
-df.ssp126 <- readRDS("WR/df.ssp126.rds")
-df.ssp370 <- readRDS("WR/df.ssp370.rds")
-df.ssp126.2100 <- readRDS("WR/df.ssp126.2100.rds")
-df.ssp370.2100 <- readRDS("WR/df.ssp370.2100.rds")
-ndvi.model <- readRDS("WR/ndvi.model.rds")
-wr.kmat <- readRDS("WR/wr.kmat.rds")
-wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
-
-#NDVI 126 2050
-
-ndvi.ssp126.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp126) 
-plot(wr.sf.95$NDVI, ndvi.ssp126.fit)
-
-ndvi.ssp126 <- cbind(df.ssp126, ndvi.ssp126.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","geometry"))
-
-saveRDS(ndvi.ssp126,"WR/ndvi.ssp126.rds")
-
-# NDVI 370 2050
-ndvi.ssp370.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp370)
-
-ndvi.ssp370 <- cbind(df.ssp370, ndvi.ssp370.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","geometry"))
-
-saveRDS(ndvi.ssp370,"WR/ndvi.ssp370.rds")
-
-
-#NDVI 126 2010
-ndvi.ssp126.2100.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp126.2100)
-
-ndvi.ssp126.2100 <- cbind(df.ssp126.2100, ndvi.ssp126.2100.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","geometry"))
-
-saveRDS(ndvi.ssp126.2100,"WR/ndvi.ssp126.2100.rds")
-
-
-#NDVI 370 2100
-ndvi.ssp370.2100.fit <- predict(object = quadra.lm.ndvi, newdata = df.ssp370.2100)
-ndvi.ssp370.2100 <- cbind(df.ssp370.2100, ndvi.ssp370.2100.fit) %>% setNames(c("gid","area","Alt","Slope","Latitude","Temp","Precip","NDVI","geometry"))
-
-saveRDS(ndvi.ssp370.2100,"WR/ndvi.ssp370.2100.rds")
-
-```
-
+`r fig_nums(name = "residuals-ndvi", caption = "Map of residuals of log(TOC) in coastal drainage basins for 1995")`
 
 ### Forecast runoff 2050 and 2100
-
 
 In the historical dataset in Worldclim, the runoff is given as a yearly average in kg/m2/s, or mm/s. 
 
 In the CNRM-CM6 forecast we get the monthly forecast for runoff (in mm/s) and convert it in mm/y.
+
+```{r plot-future-runoff}
+listgrob <- list("CORDEX_future/runoff.ssp126.2050.png", "CORDEX_future/runoff.ssp370.2050.png","CORDEX_future/runoff.ssp126.2100.png","CORDEX_future/runoff.ssp370.2100.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+ggarrange(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("SSP126-2050","SSP370-2050","SSP126-2100","SSP370-2100"))
+```
 
 ```{r extract-future-runoff-2050, eval = F}
 wr.sf <- readRDS("WR/wr.sf.rds")
@@ -1174,35 +932,30 @@ ssp370.runoff.2100$Runoff <- ssp370.runoff.2100$runoff *365*24*60*60
 saveRDS(ssp370.runoff.2100,"WR/ssp370.runoff.2100.rds")
 ```
 
-```{r plot-future-runoff}
-listgrob <- list("CORDEX_future/runoff.ssp126.2050.png", "CORDEX_future/runoff.ssp370.2050.png","CORDEX_future/runoff.ssp126.2100.png","CORDEX_future/runoff.ssp370.2100.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-grid.arrange(grobs = listgrob, ncol = 2)
-ggarrange(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("SSP126-2050","SSP370-2050","SSP126-2100","SSP370-2100"))
-
-```
-
-
 ### Future TNdep
 
 Future TNdep will largely depend on the public policies implemented under the scenarios SSP 1-2.6 and 3-7.0. 
 
-
 TNdep data are from 2000.
 
 Emission reduction between 2005 and 2020 [@EEA2021]:
+
 * NH3: -8%
 * NOx -42%
 
 
 Predictions for future emissions for NOx (summary for policymakers AR6 [@IPCC2019]):
+
 * SSP1-2.6: from 11 MtN2O/y to 9 MtN2O (18% decrease) in 2050, stable in 2100 (also 20% compared to 2015)
 * SSP3-7.0: from 11 MtN2o/y to 15 MtN2O (137% increase) in 2050, and 21 MtN2O (190% increase) in 2100
 
 Assumption for NH3: 
+
 * SSP1-2.6: Decrease according to targets (-20%)
 * SSP3-7.0: No decrease
 
-```{r evaluate future TNdep}
+```{r forecast-TNdep, eval = F}
+
 ndep.wr <- readRDS("WR/ndep.wr.rds")
 ndep.sum <- ndep.wr@data %>% apply(2, sum)
 
@@ -1240,6 +993,7 @@ saveRDS(ssp370.ndep.2100,"WR/ssp370.ndep.2100.rds")
 
 ### Gather datasets and plot
 
+The datasets were gathered into a single dataframe.
 
 ```{r future-wr, eval = F}
 ndvi.ssp126 <- readRDS("WR/ndvi.ssp126.rds")
@@ -1295,6 +1049,8 @@ saveRDS(wr.sf.126.2100, "WR/wr.sf.126.2100.rds")
 saveRDS(wr.sf.370.2100, "WR/wr.sf.370.2100.rds")
 
 ```
+
+Then we plot the difference between the forecasted variables in 2050 and 2100, compared to 1995.  
 
 ```{r create-plots-forecasts, eval = F}
 wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
@@ -1362,22 +1118,24 @@ min.lim <- apply(all.diff, 2, min, na.rm = T)
 # x4 <- filter(wr.sf.370.2100, NDVI95 > 0.4)
 # all.ndvi <- c(x1$NDVI/x1$NDVI95*100-100,x2$NDVI/x2$NDVI95*100-100, x3$NDVI/x3$NDVI95*100-100, x4$NDVI/x4$NDVI95*100-100)
 
-palettes <- data.frame(diffTemp =  brewer.pal(name = "RdYlBu", n = 9)[c(1,5,9)],
-                       diffPrecip =  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)],
-                       diffNDVI =  brewer.pal(name = "RdYlGn", n = 9)[c(9,5,1)],
-                       diffRunoff =  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)],
-                       diffTNdep = brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)])
+# palettes <- data.frame(diffTemp =  brewer.pal(name = "RdYlBu", n = 9)[c(1,5,9)],
+#                        diffPrecip =  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)],
+#                        diffNDVI =  brewer.pal(name = "RdYlGn", n = 9)[c(9,5,1)],
+#                        diffRunoff =  brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)],
+#                        diffTNdep = brewer.pal(name = "RdYlBu", n = 9)[c(9,5,1)])
 legends <- c("Difference Temperature (°C)", "Difference Precipitation (mm/y)", "Difference NDVI", "Difference Runoff (mm/y)","DIfference Nitrogen Deposition (ug/m2)")
 
 diffs <- c("diffTemp","diffPrecip","diffNDVI","diffRunoff","diffTNdep")
+rev.pal <- c(T,F,T,F,T)
 
 
 for(i in c(1:length(list.sf))){
-  for(x in diffs[5]){
+  for(x in diffs){
   g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
-  scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],mid=palettes[2, grep(x,names(palettes))],high = palettes[1, grep(x,names(palettes))],
-                       midpoint = 0, aesthetics = c("fill","col"),
-                       name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""), limits = c(min.lim[[x]], max.lim[[x]])) + 
+  scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, rev = rev.pal[grep(x, diffs)] , aesthetics = c("fill","col"), name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""), limits = c(min.lim[[x]], max.lim[[x]])) +
+#  scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],mid=palettes[2, grep(x,names(palettes))],high = palettes[1, grep(x,names(palettes))],
+#                      midpoint = 0, aesthetics = c("fill","col"),
+#                     name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""), limits = c(min.lim[[x]], max.lim[[x]])) + 
   theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
   
@@ -1389,59 +1147,49 @@ white <- ggplot()+theme_void()
 ggsave(plot = white, filename = "white.png",dpi = "retina", width = 12, height = 16, units = "cm")
 ```
 
-```{r print-plot-forecast-temp, fig.dim = c(12,8)}
-t1 <- readPNG("WR/wr.map.Temp.png") %>% rasterGrob
-t2 <- readPNG("WR/SSP126.2050.diffTemp.png") %>% rasterGrob
-t3 <- readPNG("WR/SSP126.2100.diffTemp.png") %>% rasterGrob
-
-grid.arrange(t1, t2, t3, ncol = 3)
-
-t0 <- readPNG("white.png") %>% rasterGrob
-t4 <- readPNG("WR/SSP370.2050.diffTemp.png") %>% rasterGrob
-t5 <- readPNG("WR/SSP370.2100.diffTemp.png") %>% rasterGrob
-
-grid.arrange(t0, t4, t5, ncol = 3)
-#knitr::include_graphics(c("WR/wr.map.Temp.png","WR/SSP126.2050.diffTemp.png","WR/SSP370.2050.diffTemp.png","WR/SSP126.2100.diffTemp.png","WR/SSP370.2100.diffTemp.png"))
+```{r print-plot-forecast-temp, fig.dim = c(6,8)}
+listgrob <- list("WR/SSP126.2050.diffTemp.png", "WR/SSP126.2100.diffTemp.png","WR/SSP370.2050.diffTemp.png","WR/SSP370.2100.diffTemp.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ```
 
 `r fig_nums("future-temp","Forecast of mean temperature intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in temperature compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
-```{r print-plot-forecast-precip, fig.dim = c(12,8)}
-listgrob <- list("WR/wr.map.Precip.png","WR/SSP126.2050.diffPrecip.png","WR/SSP126.2100.diffPrecip.png","white.png","WR/SSP370.2050.diffPrecip.png","WR/SSP370.2100.diffPrecip.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+```{r print-plot-forecast-precip, fig.dim = c(6,8)}
+listgrob <- list("WR/SSP126.2050.diffPrecip.png","WR/SSP126.2100.diffPrecip.png","WR/SSP370.2050.diffPrecip.png","WR/SSP370.2100.diffPrecip.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 
-grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
+plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
+
 ```
 
 `r fig_nums("future-precipitation","Forecast of mean precipitation intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in precipitation compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
-```{r print-plot-forecast-ndvi, fig.dim = c(12,8)}
-listgrob <- list("WR/wr.map.NDVI.png","WR/SSP126.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","white.png","WR/SSP370.2050.diffNDVI.png","WR/SSP370.2100.diffNDVI.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+```{r print-plot-forecast-ndvi, fig.dim = c(6,8)}
+listgrob <- list("WR/SSP126.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","WR/SSP370.2050.diffNDVI.png","WR/SSP370.2100.diffNDVI.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 
-grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
+plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ```
 
 `r fig_nums("future-ndvi","Forecast of mean NDVI for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in NDVI compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
-```{r print-plot-forecast-runoff, fig.dim = c(12,8)}
-listgrob <- list("WR/wr.map.Runoff.png","WR/SSP126.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png","white.png","WR/SSP370.2050.diffRunoff.png","WR/SSP370.2100.diffRunoff.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+```{r print-plot-forecast-runoff, fig.dim = , fig.dim = c(6,8)}
+listgrob <- list("WR/SSP126.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png","WR/SSP370.2050.diffRunoff.png","WR/SSP370.2100.diffRunoff.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 
-grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
+plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ```
 
 `r fig_nums("future-runoff","Forecast of mean runoff intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in runoff compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
-```{r print-plot-forecast-tndep, fig.dim = c(12,8)}
-listgrob <- list("WR/wr.map.TNdep.png","WR/SSP126.2050.diffTNdep.png","WR/SSP126.2100.diffTNdep.png","white.png","WR/SSP370.2050.diffTNdep.png","WR/SSP370.2100.diffTNdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+```{r print-plot-forecast-tndep, fig.dim = c(6,8)}
+listgrob <- list("WR/SSP126.2050.diffTNdep.png","WR/SSP126.2100.diffTNdep.png","WR/SSP370.2050.diffTNdep.png","WR/SSP370.2100.diffTNdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 
-grid.arrange(grobs = listgrob, ncol = 3, nrow = 2)
+plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ```
 
 `r fig_nums("future-tndep","Forecast of mean total nitrogen deposition for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in TNdep compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
 
 ## Forecast TOC for 2050 and 2100
 
-
-### Forecast TOC SSP126 2050
+The average concentration of total organic carbon in the coastal drainage basins was predicted based on the SELM with 5 predictors, fitted on the Fennoscandian dataset. The difference between the predicted log(TOC) for 2050 and 2100 under the SSP 1-2.6 and 3-7.0 scenarios, compared to the log(TOC) predicted for 1995, was computed and plotted.  
 
 ```{r sem-model-toc-ssp126-2050, eval = F}
 sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
@@ -1459,8 +1207,6 @@ saveRDS(wr.ssp126,"WR/wr.ssp126.2050.rds")
 
 ```
 
-### Forecast TOC SSP370 2050
-
 ```{r sem-model-toc-ssp370-2050, eval = F}
 sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
 wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
@@ -1475,8 +1221,6 @@ wr.ssp370$TOC <- exp(wr.ssp370$fit)
 wr.ssp370 <- merge(wr.ssp370, select(st_drop_geometry(sem.pred.wr),c("gid","wr.pred.fit","TOC95")))
 saveRDS(wr.ssp370,"WR/wr.ssp370.2050.rds")
 ```
-
-### Forecast TOC SSP126 2100
 
 ```{r sem-model-toc-ssp126-2100, eval = F}
 sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
@@ -1494,9 +1238,6 @@ saveRDS(wr.ssp126,"WR/wr.ssp126.2100.rds")
 
 ```
 
-
-### Forecast TOC SSP370 2100
-
 ```{r sem-model-toc-ssp370-2100, eval = F}
 sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
 wr.sf.370.2100 <- readRDS("WR/wr.sf.370.2100.rds")
@@ -1512,18 +1253,21 @@ wr.ssp370 <- merge(wr.ssp370, select(st_drop_geometry(sem.pred.wr),c("gid","wr.p
 saveRDS(wr.ssp370,"WR/wr.ssp370.2100.rds")
 ```
 
-### Plot Forecast TOC
+The average TOC concentration was plotted. 
 
-```{r boxplots-ssp126}
+```{r boxplots-ssp126, eval = F}
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
-wr.ssp126 <- readRDS("WR/wr.ssp126.rds")
-wr.ssp370 <- readRDS("WR/wr.ssp370.rds")
+wr.ssp126.2050 <- readRDS("WR/wr.ssp126.2050.rds")
+wr.ssp370.2050 <- readRDS("WR/wr.ssp370.2050.rds")
+wr.ssp126.2100 <- readRDS("WR/wr.ssp126.2050.rds")
+wr.ssp370.2100 <- readRDS("WR/wr.ssp370.2050.rds")
 
-temperature <- c(sem.pred.wr$Temp,wr.ssp126$temp126,wr.ssp370$temp370)
-precipitation <- c(sem.pred.wr$Precip,wr.ssp126$prec126,wr.ssp370$prec370)
-ndvi <- c(sem.pred.wr$NDVI,wr.ssp126$ndvi126,wr.ssp370$ndvi370)
-runoff <- c(sem.pred.wr$Runoff,wr.ssp126$runoff126,wr.ssp370$runoff370)
-toc <- c(sem.pred.wr$TOC95,wr.ssp126$toc,wr.ssp370$toc)
+temperature <- c(sem.pred.wr$Temp,wr.ssp126.2050$Temp,wr.ssp370.2050$Temp, wr.ssp126.2100$Temp,wr.ssp370.2100$Temp)
+precipitation <- c(sem.pred.wr$Precip,wr.ssp126.2050$Precip,wr.ssp370.2050$Precip, wr.ssp126.2100$Precip,wr.ssp370.2100$Precip)
+ndvi <- c(sem.pred.wr$NDVI,wr.ssp126.2050$NDVI,wr.ssp370.2050$NDVI, wr.ssp126.2100$NDVI,wr.ssp370.2100$NDVI)
+runoff <- c(sem.pred.wr$Runoff,wr.ssp126.2050$Runoff,wr.ssp370.2050$Runoff, wr.ssp126.2100$Runoff,wr.ssp370.2100$Runoff)
+tndep <- c(sem.pred.wr$TNdep,wr.ssp126.2050$TNdep,wr.ssp370.2050$TNdep, wr.ssp126.2100$TNdep,wr.ssp370.2100$TNdep)
+toc <- c(sem.pred.wr$TOC95,wr.ssp126.2050$TOC,wr.ssp370.2050$TOC, wr.ssp126.2100$TOC,wr.ssp370.2100$TOC)
 
 neworder <- c("1995","SSP126","SSP370")
 model <- factor(c(rep("1995",dim(sem.pred.wr)[1]),rep("SSP126", dim(wr.ssp126)[1]), rep("SSP370", dim(wr.ssp370)[1])),levels = neworder)
@@ -1544,34 +1288,6 @@ wr.ssp126.2050 <- readRDS("WR/wr.ssp126.2050.rds")
 wr.ssp370.2050 <- readRDS("WR/wr.ssp370.2050.rds")
 wr.ssp126.2100 <- readRDS("WR/wr.ssp126.2100.rds")
 wr.ssp370.2100 <- readRDS("WR/wr.ssp370.2100.rds")
-
-# diff.var <- function(sf, vars1, vars2){
-# 
-#       sf2 <- sf
-#   
-#     newname <- paste("diff", vars2, sep = "")
-#     
-#     x <- sf2[,vars2] %>% st_drop_geometry()
-#     y <- sf2[,vars1] %>% st_drop_geometry()
-#     z <- x-y
-#     
-#     names(z) <- newname
-#     sf2 <- cbind(sf2, z)
-#     
-#     newname2 <- paste("diff", vars2,".percent", sep = "")
-#     
-#     w <- x/y*100-100
-#     names(w) <- newname2
-#     sf2 <- cbind(sf2, w)
-#     
-#     return(sf2)
-# }
-# 
-# wr.ssp126.2050 <- diff.var(wr.ssp126.2050, vars1 = c("TOC95"), vars2 = c("TOC"))
-# wr.ssp370.2050 <- diff.var(wr.ssp370.2050, vars1 = c("TOC95"), vars2 = c("TOC"))
-# wr.ssp126.2100 <- diff.var(wr.ssp126.2100, vars1 = c("TOC95"), vars2 = c("TOC"))
-# wr.ssp370.2100 <- diff.var(wr.ssp370.2100, vars1 = c("TOC95"), vars2 = c("TOC"))
-
 
 list.sf <- list(wr.ssp126.2050, wr.ssp126.2100, wr.ssp370.2050, wr.ssp370.2100)
 names(list.sf) <- c("SSP126.2050", "SSP126.2100", "SSP370.2050", "SSP370.2100")
@@ -1597,48 +1313,55 @@ for(x in c("diffTOC","diff.log","exp.diff.log")){
 max.lim <- apply(all.diff, 2, max, na.rm = T)
 min.lim <- apply(all.diff, 2, min, na.rm = T)
 
-palettes <- data.frame(diffTOC =  brewer.pal(name = "RdBu", n = 9)[c(1,5,9)],
-                       diff.log = brewer.pal(name = "RdBu", n = 9)[c(1,5,9)],
-                       exp.diff.log = brewer.pal(name = "RdBu", n = 9)[c(1,5,9)])
 legends <- c("Difference TOC (mg/L)","Difference log(TOC)", "exp(difference log(TOC)")
 
 diffs <- c("diffTOC","diff.log", "exp.diff.log")
 
-# for(i in c(1:length(list.sf))){
-#   for(x in diffs[2:3]){
-#   g <- ggplot(list.sf[[i]])+geom_sf(aes(fill = .data[[x]], col = .data[[x]])) + 
-#   scale_fill_gradient2(low=palettes[3, grep(x,names(palettes))],
-#                        mid=palettes[2, grep(x,names(palettes))],
-#                        high = palettes[1, grep(x,names(palettes))],
-#                        midpoint = 0, aesthetics = c("fill","col"),
-#                        name = paste(legends[grep(x, diffs)],"\n",names(list.sf)[i], sep = ""),
-#                        limits = c(min.lim[[x]], max.lim[[x]]))+
-#   theme_minimal(base_size = 6)+
-#   theme(legend.position = "bottom")
-#   
-#   ggsave(plot = g, filename = paste("WR/", names(list.sf)[i], ".", x, ".png",sep = ""),dpi = "retina", width = 12, height = 16, units = "cm")
-# }
-# }
+g <- ggplot(list.sf[["SSP126.2050"]])+
+    geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Difference log(TOC)\n SSP 1-2.6 - 2050", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
+    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+
+ggsave(plot = g, filename = "WR/SSP126.2050.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
+
+g <- ggplot(list.sf[["SSP126.2100"]])+
+    geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="b) Difference log(TOC)\n SSP 1-2.6 - 2100", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
+    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+
+ggsave(plot = g, filename = "WR/SSP126.2100.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
+
+g <- ggplot(list.sf[["SSP370.2050"]])+
+    geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="c) Difference log(TOC)\n SSP 3-7.0 - 2050", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
+    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+
+ggsave(plot = g, filename = "WR/SSP370.2050.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
 
 g <- ggplot(list.sf[["SSP370.2100"]])+
-    geom_sf(aes(fill=diff.log,col=diff.log))+
-    scale_fill_gradient2(low=palettes[3,1], mid= palettes[2,1], high = palettes[1,1],limits = c(-1,3), aesthetics = c("fill","col"),name="Difference log(TOC)\n SSP370 - 2100")+
+    geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="d) Difference log(TOC)\n SSP 3-7.0 - 2100", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
     theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 
 ggsave(plot = g, filename = "WR/SSP370.2100.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
-
 ```
 
-# Sea watersheds: coastal darkening
+```{r ssp-toc, fig.dim= c(12,16)}
+listgrob <- list("WR/SSP126.2050.diff.log.png", "WR/SSP126.2100.diff.log.png","WR/SSP370.2050.diff.log.png","WR/SSP370.2100.diff.log.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+ssp <- plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
+save_plot("ssp.toc.png",ssp, ncol = 2, nrow = 2, base_height = 4, base_width = 3)
+print(ssp)
+```
 
-The drainage basin of the Baltic sea was 
-https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/f86c56e9-d8a0-42ba-b1c7-
+# Coastal drainage basins: coastal darkening
 
-Baltic sea drainage basin: https://www.grida.no/resources/5324
+Most coastal drainage basins in Sweden and Finland drain into to the Baltic Sea (see Supplementary 2), while Norwegian sea watershed drain in Skagerrak, in the North sea, in the Norwegian Sea and in the Barent sea in the North [@Saetre2007]. The drainage basin of the Baltic sea matches almost exactly the borders of Sweden and Finland : https://www.grida.no/resources/5324. All contribute to the Norwegian Coastal Current water masses.  The estimated exported TOC was computed as:
 
-Approximately matching the borders Norway/Sweden/Finland: include graphics from QGIS
+$$ TOC_exp = [TOC] (mg.L^{-1}) \times Runoff (mm/y, or L.m^{-2}.y^{-1}) \times Watershed area (m^2)$$
 
-```{r compute-discharge}
+Where the TOC concentration (past and future) was obtained by back-transforming the results of the model (log(TOC)) into TOC in mg/L. The result of the above equation, giving the amount of TOC exported in mg, is converted to Tg. Forecast are presented on `r fig_nums("coastal-darkening",display = "c")`.
+
+```{r compute-discharge, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 wr.centroid <- st_centroid(wr.sf.95, of_largest_polygon = T) %>% dplyr::select("gid","geometry")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
@@ -1749,7 +1472,6 @@ ggplot(filter(toc.export.df, Diff == "Absolute")) + geom_point(aes(x=Year, y = T
   geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
   theme_bw(base_size = 5)+
   theme(legend.position = "none")
-ggsave(filename = "WR/TOC_export_abs.png", dpi = "retina", width = 6, height = 5, units = "cm")
 
 ggplot(toc.export.df) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
   geom_path(aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.3) +
@@ -1761,5 +1483,12 @@ ggplot(toc.export.df) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= M
   theme(legend.position = "bottom")
 ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 15, height = 10, units = "cm")
 
-
 ```
+
+```{r future-darkening, fig.dim = c(12,18)}
+knitr::include_graphics("WR/TOC_export.png")
+```
+
+`r fig_nums("toc-export","TOC exported from coastal drainage basins (mg/L)")`
+
+# References 

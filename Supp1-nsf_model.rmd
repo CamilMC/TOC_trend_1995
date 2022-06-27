@@ -32,6 +32,7 @@ library(cowplot)
 library(spdep)
 library(tibble)
 library(RColorBrewer)
+library(colorspace)
 
 library(kableExtra)
 
@@ -124,6 +125,7 @@ catchment.poly <- st_transform(catchment.poly.1000, CRS("EPSG:4326"))
 saveRDS(catchment.poly,"catchment.poly.Rdata")
 catchment.poly.corine <- st_transform(catchment.poly.1000, CRS("EPSG:3035"))
 saveRDS(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.Rdata")
+st_write(catchment.poly,"catchment.poly.shp")
 ```
 
 ## TOC
@@ -170,7 +172,7 @@ summer.scan <- reclassify(summer.scandinavia, cbind(-Inf, 0, NA), right=FALSE)
 saveRDS(summer.scan, "summer.scan.rds")
 
 # Extract NDVI for each catchment
-summer.ndvi <- raster::extract(summer.mean,catchment.poly, fun = mean, df = T, sp = T)
+summer.ndvi <- raster::extract(summer.scan,catchment.poly, fun = mean, df = T, sp = T)
 names(summer.ndvi) <- c("ebint","ndvi")
 summer.ndvi$ndvi.value <- floor(summer.ndvi$ndvi/10)/1000
 summer.ndvi$flag.value <- summer.ndvi$ndvi - floor(summer.ndvi$ndvi/10)*10 + 1 
@@ -178,6 +180,8 @@ summer.ndvi$flag.value <- summer.ndvi$ndvi - floor(summer.ndvi$ndvi/10)*10 + 1
 # Saves NDVI file
 saveRDS(summer.ndvi, "summer.ndvi.Rdata")
 write.csv(summer.ndvi,"summer.ndvi.csv")
+
+ndvi.vatten <- raster::extract(summer.scan, catchment.poly[which(catchment.poly$ebint == 16612216),], fun = mean, df = T, sp = T, na.rm = T)
 ```
 
 ```{r maps-ndvi, eval = F}
@@ -207,7 +211,7 @@ The runoff data was downloaded from the CORDEX database @CORDEXvERC. The data is
 
 The names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
 
-THe mean of the 30 years between 1970 and 2000 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf).
+THe mean of the 30 years between 1970 and 2000 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf). This time period matches the temperature and precipitation data provided by WorldClim.
 
 ```{r runoff, eval = F}
 runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
@@ -305,7 +309,7 @@ saveRDS(clc.remote,"clc.remote.Rdata")
 The proportion of each land-cover catergory was computed for each catchment. 
 
 ```{r corine-tab-prop, eval = F}
-readRDS("clc.remote.Rdata")
+clc.remote <- readRDS("clc.remote.Rdata")
 clc.tab <- sapply(clc.remote, function(x) tabulate(x,45))
 clc.tab.area <- clc.tab*prod(res(corine))
 catchment.area <- colSums(clc.tab.area)
@@ -531,44 +535,27 @@ The TOC concentration and the predictor variables were plotted by catchment.
 ```{r map-cat-variable, eval = F}
 fennoscandia.33 <- readRDS("fennoscandia.33.rds")
 m <- c("TOC","NDVI","Runoff","Precip","Temp","Bog","Arable","Forest","TNdep","TSdep")
-u <- c("TOC concentration,\nmgC/L", "a) NDVI on scale 0 to 1", "b) Mean Runoff, mm/y","c) Mean annual\nprecipitation, mm/y","d) Mean annual\n temperature, °C","e) Proportion of bogs","f) Proportion of\narable land","g) Proportion of forest","h) Total nitrogen\ndeposition, mg/m2", "i) Total sulphur\ndeposition, mg/m2")
-couleurs <- c("RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu")
-dir <- c(T,F,T,T,F,F,F,F,F,F)
+u <- c("TOC concentration,\nmgC/L", "NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean annual\nprecipitation, mm/y","Mean annual\n temperature, °C","Proportion of bogs","Proportion of\narable land","Proportion of forest","Total nitrogen\ndeposition, mg/m2", "Total sulphur\ndeposition, mg/m2")
+dir <- c(T,F,F,F,T,F,F,F,F,F)
 marg <- 0
 nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(crs(fennoscandia.33))
 swe <- st_read("Country_shapefile/sweden.shp") %>% st_transform(crs(fennoscandia.33))
 fin <- st_read("Country_shapefile/finland.shp") %>% st_transform(crs(fennoscandia.33))
 
-for(i in m[2:10]){
+for(i in m[2]){
   
  mysf <- fennoscandia.33
- mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
- display.brewer.pal(name = couleurs[which(m == i)], n = 9)
- midcol <- median(mysf[[i]])
 
- if(dir[which(m == i)] == F){
  map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
    geom_sf(data = swe, fill = "white", size = 0.2)+
    geom_sf(data = fin, fill = "white", size = 0.2)+
    geom_sf(data = mysf, aes(fill = .data[[i]], col = .data[[i]]))+
-   scale_fill_gradientn(colours = rev(mypal),name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
-    theme_minimal(base_size = 8)+
+     scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name= paste(u[grep(i,m)],"\n(",i,")",sep=""), mid = 0.6, rev = dir[grep(i,m)]) +
+    theme_minimal(base_size = 10)+
     theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
     
   filename_i <- paste("map",i,"png",sep = ".")
-  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
-  
- } else if(dir[which(m == i)] == T){
-   map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
-     geom_sf(data = swe, fill = "white", size = 0.2)+
-     geom_sf(data = fin, fill = "white", size = 0.2)+
-     geom_sf(data = mysf, aes(fill = .data[[i]], col = .data[[i]]))+
-    scale_fill_gradientn(colours = mypal,name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
-                    theme_minimal(base_size = 8)+
-    theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
-    
-  filename_i <- paste("map",i,"png",sep = ".")
-  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 6, height = 8, units = "cm")
    
  }
 }
@@ -583,8 +570,6 @@ label_sf <- label_tb %>% st_as_sf(coords = c("Long", "Lat"), crs = "+proj=longla
 for(i in m[1]){
   
  mysf <- fennoscandia.33
- mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
- display.brewer.pal(name = couleurs[which(m == i)], n = 9)
  midcol <- quantile(mysf[[i]], 0.99)
 
  map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
@@ -593,7 +578,7 @@ for(i in m[1]){
   geom_sf(data = fin, fill = "white", size = 0.2)+
   geom_sf(data = filter(mysf, TOC < 20), aes(fill = .data[[i]], col = .data[[i]]))+
   geom_sf(data = filter(mysf, TOC > 20), fill = "sienna4", col = "sienna4")+
-  scale_fill_gradientn(colours = rev(mypal),name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
+  scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name= paste(u[grep(i,m)],"\n(",i,")",sep=""), mid = median(mysf[[i]]), rev = dir[grep(i,m)]) +
    labs(x="",y="")+
    theme_minimal(base_size = 9)+
     theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
@@ -741,7 +726,7 @@ knitr::kable(summary.table.lm.5,digits = 3, caption = "LM with 5 selected predic
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
 ```
 
-`r `tab_nums("summary-lm-5","Results for the linear model with 5 selected predictors on Norway, Sweden and Finland")`
+`r `table_nums("summary-lm-5","Results for the linear model with 5 selected predictors on Norway, Sweden and Finland")`
 
 The residuals are plotted below.
 
@@ -815,7 +800,7 @@ saveRDS(summary.table.sem.5, "summary.table.sem.5.rds")
 ```
 
 ```{r print-table-sem-5}
-summary.table.se.5 <- readRDS("summary.table.sem.5.rds")
+summary.table.sem.5 <- readRDS("summary.table.sem.5.rds")
 
 n <- 5
 
@@ -826,7 +811,7 @@ knitr::kable(summary.table.sem.5,digits = 3, caption = "SELM with 5 selected pre
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 ```
 
-The residuals for scaled and unscaled models are presented in `r fig_num("sem-residuals",display = "c")`
+The residuals for scaled and unscaled models are presented in `r fig_nums("sem-residuals",display = "c")`
 
 ```{r residuals-sem5}
 s.sem.fennoscandia.5 <- readRDS("s.sem.fennoscandia.5.rds")
@@ -836,11 +821,14 @@ f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.5$residuals, plottitl
 f_plotspatial(data = fennoscandia,var = sem.fennoscandia.5$residuals, plottitle = "b)Residuals for unscaled SELM")
 ```
 
-`r fig_num("sem-residuals","Map of residuals for a) scaled and b) unscaled SELM")`
+`r fig_nums("sem-residuals","Map of residuals for a) scaled and b) unscaled SELM")`
 
 ## Comparative plots 5
 
 ```{r compare-estimates}
+s.lm.coef.5 <- readRDS("s.lm.coef.5.rds")
+s.sem.coef.5 <- readRDS("s.sem.coef.5.rds")
+
 n <- c(names(s.sem.coef.5),"Model")
 m <- cbind.data.frame(s.lm.coef.5[,1:3],Model = "LM") %>% setNames(n)
 o <- cbind.data.frame(s.sem.coef.5,Model = "SELM")
@@ -848,13 +836,16 @@ o <- cbind.data.frame(s.sem.coef.5,Model = "SELM")
 scaled.df.5 <- rbind(m,o)
 scaled.df.5$Parameter <- factor(scaled.df.5$Parameter, levels = c("s.TNdep","s.Arable","s.Bog","s.logRunoff","s.NDVI"))
 
-scaled.plot.5 <- ggplot(scaled.df.5, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model, col = Model), position = "dodge", width = 0.5)+
+scaled.plot.5 <- ggplot(scaled.df.5, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
+  scale_fill_manual(values = c("#d73027","#4575b4"))+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
   labs(x = "Scaled Estimate", y = "Model with 6 predictors")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
 ```
 
 ```{r compare-effect-size-5}
+sem.effectsize.5 <- readRDS("sem.effectsize.5.rds")
+lm.effectsize.5 <- readRDS("lm.effectsize.5.rds")
 
 n <- c(names(sem.effectsize.5),"Model")
 m <- cbind.data.frame(lm.effectsize.5,Model = "LM") %>% setNames(n)
@@ -865,6 +856,7 @@ h.df.5$Parameter <- factor(h.df.5$Parameter, levels = c("TNdep","Arable","Bog","
 
 effectsize.plot.5 <- ggplot(h.df.5, aes(group = Model))+
   geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
+  scale_fill_manual(values = c("#d73027","#4575b4"))+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
@@ -877,7 +869,7 @@ save_plot(plot = compare.5, filename = "compare.lm.selm.5.png")
 print(compare.5)
 ```
 
-`r fig_num("compare-plot-5","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with NDVI, logRunoff, Bog, Arable and TNdep as predictors")`
+`r fig_nums("compare-plot-5","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with NDVI, logRunoff, Bog, Arable and TNdep as predictors")`
 
 # Other models
 
@@ -930,7 +922,7 @@ summary.table.lm.9[,-1] <- apply(summary.table.lm.9[,-1],2,as.numeric)
 saveRDS(summary.table.lm.9, "summary.table.lm.9.rds")
 ```
 
-`r tab_num("table-lm-9","Summary table for linear model with 9 predictors")`
+`r table_nums("table-lm-9","Summary table for linear model with 9 predictors")`
 
 ```{r print-lm-9}
 summary.table.lm.9 <- readRDS("summary.table.lm.9.rds")
@@ -952,7 +944,7 @@ f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.9$residuals, plottitle
 f_plotspatial(data = fennoscandia,var = lm.fennoscandia.9$residuals, plottitle = "Residuals for unscaled LM, with all predictors")
 ```
 
-`r fig_num("lm-residuals-9","Map of residuals for a) scaled and b) unscaled LM with 9 predictors")`
+`r fig_nums("lm-residuals-9","Map of residuals for a) scaled and b) unscaled LM with 9 predictors")`
 
 ### Spatial error linear model on NSF, 9 predictors
 
@@ -1006,7 +998,7 @@ summary.table.sem[,-1] <- apply(summary.table.sem[,-1],2,as.numeric)
 saveRDS(summary.table.sem, "summary.table.sem.9.rds")
 ```
 
-`r tab_num("table-sem-9","Summary table for spatial error linear model with 9 predictors")`
+`r table_nums("table-sem-9","Summary table for spatial error linear model with 9 predictors")`
 
 ```{r sem-table-results}
 summary.table.sem.9 <- readRDS("summary.table.sem.9.rds")
@@ -1021,14 +1013,14 @@ knitr::kable(summary.table.sem.9,digits = 3, caption = "SELM with 9 predictors")
 ```
 
 ```{r residuals-sem-9}
-s.sem.fen.9 <- readRDS("s.sem.fen.9.rds")
-sem.fen.9 <- readRDS("sem.fen.9.rds")
+s.sem.fen.9 <- readRDS("s.sem.fen.9.Rdata")
+sem.fen.9 <- readRDS("sem.fen.9.Rdata")
 
 f_plotspatial(data = fennoscandia,var = s.sem.fen.9$residuals, plottitle = "a) Residuals for scaled SEM, with all predictors")
 f_plotspatial(data = fennoscandia,var = sem.fen.9$residuals, plottitle = "b) Residuals for unscaled SELM, with all predictors")
 ```
 
-`r fig_num("residuals-sem-9","Map of residuals for a) scaled and b) unscaled SELM with 9 predictors")`
+`r fig_nums("residuals-sem-9","Map of residuals for a) scaled and b) unscaled SELM with 9 predictors")`
 
 ### Comparative plots 9
 
@@ -1043,7 +1035,7 @@ o <- cbind.data.frame(s.sem.coef.9,Model = "SELM")
 scaled.df <- rbind(m,o)
 scaled.df$Parameter <- factor(scaled.df$Parameter, levels = c("s.TNdep","s.TSdep","s.Forest","s.Arable","s.Bog","s.logRunoff","s.Temp","s.logPrecip","s.NDVI"))
 
-scaled.plot.9 <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model, col = Model), position = "dodge", width = 0.5)+
+scaled.plot.9 <- ggplot(scaled.df, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model), position = "dodge", width = 0.5)+ scale_fill_manual(values = c("#d73027","#4575b4"))+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
   labs(x = "Scaled Estimate", y = "Model with 9 predictors")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
@@ -1062,7 +1054,7 @@ h.df <- rbind(m,o)
 h.df$Parameter <- factor(h.df$Parameter, levels = c("TNdep","TSdep","Forest","Arable","Bog","logRunoff","Temp","logPrecip","NDVI"))
 
 effectsize.plot.9 <- ggplot(h.df, aes(group = Model))+
-  geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
+  geom_col(aes(x=Percent,y=Parameter, fill = Model), position = "dodge", width = 0.5)+ scale_fill_manual(values = c("#d73027","#4575b4"))+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
@@ -1075,7 +1067,7 @@ save_plot(plot = compare.9, filename = "compare.lm.selm.9.png")
 print(compare.9)
 ```
 
-`r fig_num("compare-plot-9","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with 9 predictors")`
+`r fig_nums("compare-plot-9","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with 9 predictors")`
 
 ## Spatial error linear models with NDVI, Bog and logRunoff
 
@@ -1131,7 +1123,7 @@ summary.table.simple.sem.3[,-1] <- apply(summary.table.simple.sem.3[,-1],2,as.nu
 saveRDS(summary.table.simple.sem.3, "summary.table.simple.sem.3.rds")
 ```
 
-`r tab_num("table-sem-3","Summary table for SELM model with 3 predictors")`
+`r table_nums("table-sem-3","Summary table for SELM model with 3 predictors")`
 
 ```{r summary-table-fen-runoff}
 summary.table.simple.sem.3 <- readRDS("summary.table.simple.sem.3.rds")
@@ -1152,12 +1144,12 @@ f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.3$residuals, plottitl
 f_plotspatial(data = fennoscandia,var = sem.fennoscandia.3$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Runoff and Bogs")
 ```
 
-`r fig_num("sem-residuals-3","Map of residuals for a) scaled and b) unscaled SELM with 3 predictors")`
+`r fig_nums("sem-residuals-3","Map of residuals for a) scaled and b) unscaled SELM with 3 predictors")`
 
 ```{r compare-estimates-runoff}
 sem.coef.3 <- readRDS("s.sem.coef.3.rds")
 
-scaled.plot.3 <- ggplot(s.sem.coef.3)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "cadetblue3")+
+scaled.plot.3 <- ggplot(s.sem.coef.3)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "#d73027")+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), width = 0.5)+
   labs(x = "Scaled estimates",y = "Predictor")+
   theme_bw(base_size = 8)+
@@ -1169,7 +1161,7 @@ scaled.plot.3 <- ggplot(s.sem.coef.3)+geom_col(aes(x=Estimate,y=Parameter), widt
 sem.effectsize.fen.3 <- readRDS("sem.effectsize.fen.3.rds")
 
 effectsize.plot.3 <- ggplot(sem.effectsize.fen.3)+
-  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "coral3")+
+  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "#4575b4")+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
@@ -1261,7 +1253,7 @@ f_plotspatial(data = fennoscandia,var = sem.fen.precip$residuals, plottitle = "R
 ```{r compare-estimates-precip}
 s.sem.coef.precip <- readRDS("s.sem.coef.precip.rds")
 
-scaled.plot.precip <- ggplot(s.sem.coef.precip)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "cadetblue3")+
+scaled.plot.precip <- ggplot(s.sem.coef.precip)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "#d73027")+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), width = 0.5)+
   labs(x = "Scaled estimates",y = "Predictor")+
   theme_bw(base_size = 8)+
@@ -1273,7 +1265,7 @@ scaled.plot.precip <- ggplot(s.sem.coef.precip)+geom_col(aes(x=Estimate,y=Parame
 sem.effectsize.precip <- readRDS("sem.effectsize.precip.rds")
 
 effectsize.plot.precip <- ggplot(sem.effectsize.precip)+
-  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "coral3")+
+  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "#4575b4")+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
@@ -1340,7 +1332,7 @@ summary.table.sem.tndep[,-1] <- apply(summary.table.sem.tndep[,-1],2,as.numeric)
 saveRDS(summary.table.sem.tndep, "summary.table.sem.tndep.rds")
 ```
 
-`r tab_num("table-sem-precip","Summary table for SELM model with 3 predictors: NDVI, TNdep and logPrecip")`
+`r table_nums("table-sem-precip","Summary table for SELM model with 3 predictors: NDVI, TNdep and logPrecip")`
 
 ```{r summary-table-fen-tndep}
 summary.table.sem.tndep <- readRDS("summary.table.sem.tndep.rds")
@@ -1366,7 +1358,7 @@ f_plotspatial(data = fennoscandia,var = sem.fen.tndep$residuals, plottitle = "Re
 ```{r compare-estimates-tndep}
 s.sem.coef.tndep <- readRDS("s.sem.coef.tndep.rds")
 
-scaled.plot.tndep <- ggplot(s.sem.coef.tndep)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "cadetblue3")+
+scaled.plot.tndep <- ggplot(s.sem.coef.tndep)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "#d73027")+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), width = 0.5)+
   labs(x = "Scaled estimates",y = "Predictor")+
   theme_bw(base_size = 8)+
@@ -1377,7 +1369,7 @@ scaled.plot.tndep <- ggplot(s.sem.coef.tndep)+geom_col(aes(x=Estimate,y=Paramete
 sem.effectsize.fen.tndep <- readRDS("sem.effectsize.fen.tndep.rds")
 
 effectsize.plot.tndep <- ggplot(sem.effectsize.fen.tndep)+
-  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "coral3")+
+  geom_col(aes(x=Percent,y=Parameter), width = 0.5, fill = "#4575b4")+
   geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), position = "dodge", width = 0.5)+
   labs(x = "Effect size in %", y = "")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
@@ -1390,6 +1382,8 @@ print(compare.tndep)
 ```
 
 `r fig_nums(name = "compare-plots-tndep", caption = "Comparison of scaled estimates and effect sizes from the SELM model with NDVI, TNdep and log Precipitation as predictors.")`
+
+# References
 
 ```{r early-exit}
 knitr::knit_exit()
