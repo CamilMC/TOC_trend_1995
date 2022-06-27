@@ -1,0 +1,187 @@
+---
+title: "Supplementary 6 - Model on Norway"
+author: "Camille Crapart"
+date: "3 5 2022"
+output: 
+  bookdown::html_document2:
+   toc: true
+   toc_float: true
+   number_sections: true
+   fig_caption: true
+   code_folding: hide
+bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+link-citations: yes
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T)
+options(knitr.kable.NA="", knitr.table.format = "html")
+```
+
+```{r libraries}
+library(DBI)
+library(sf)
+library(dplyr)
+library(gimms)
+library(raster)
+
+library(ncdf4)
+library(rgdal)
+
+library(stringr)
+library(ggplot2)
+library(cowplot)
+library(spdep)
+library(tibble)
+
+library(kableExtra)
+
+source("f_plotspatial.R")
+```
+
+```{r function-effect-size}
+compute.effect.size <- function(df.coef){
+
+df.es <- df.coef[,1:3]
+n <- length(df.es$Parameter)
+m <- df.es$Parameter
+
+
+for(i in 1:n){
+  if(grepl("log",m[i])==T){
+    df.es[i,2] <- 1.01^(df.coef[i,2])
+    df.es[i,3] <- 1.01^(df.coef[i,2])*log(1.01)*df.coef[i,3]
+  }else if(m[i] %in% c("NDVI","Bog","Arable","Forest","Temp")){
+    df.es[i,2] <- exp(df.coef[i,2]*0.01)
+    df.es[i,3] <- 0.01*df.coef[i,2]*df.coef[i,3]
+  }else if(m[i] %in% c("TNdep","TSdep")){
+    df.es[i,2] <- exp(df.coef[i,2]*25)
+    df.es[i,3] <- 25*exp(df.coef[i,2]*25)*df.coef[i,3]
+  } else {
+    df.es[i,2] <- exp(df.coef) # effect size for temperature???
+  }
+}
+
+df.es$Percent <- 100*(df.es$Estimate-1)
+
+return(df.es)
+
+}
+
+# other es
+eslog <- 1.01
+es <- 0.01
+```
+
+```{r fig-num-function}
+library(captioner)
+fig_nums <- captioner() 
+table_nums <- captioner(prefix = "Table")
+```
+
+The Spatial Error Linear Model was fitted on Norway, Sweden and Finland. In order to compare the results of our model with those in Larsen et al. @Larsen2011, we used the same model on the Norwegian catchments only.
+
+# SELM Model Norway with predictors NDVI, Runoff and Bogs
+
+We first compute the neighboring matrix of the Norwegian catchments.
+
+```{r kmat, eval = F}
+norge.spdf <- SpatialPointsDataFrame(norge[,c("longitude","latitude")],norge)
+norge.kmat <- norge.spdf %>% knearneigh(k=50) %>% knn2nb %>% nb2listw
+saveRDS(norge.kmat,"norge.kmat.rds")
+```
+
+```{r sem-simple-norway, eval = F}
+norge.kmat <- readRDS("norge.kmat.Rdata")
+
+s.fm <- s.logTOC~s.NDVI+s.logRunoff+s.Bog
+s.sem.norge.simple <- errorsarlm(s.fm,norge,norge.kmat)
+saveRDS(s.sem.norge.simple,"s.sem.norge.simple.Rdata")
+
+fm <- logTOC~NDVI+logRunoff+Bog
+sem.norge.simple <- errorsarlm(fm,norge,norge.kmat)
+saveRDS(sem.norge.simple,"sem.norge.simple.Rdata")
+```
+
+```{r sem-simple-results-norway}
+s.sem.norge.simple <- readRDS("s.sem.norge.simple.Rdata")
+sem.norge.simple <- readRDS("sem.norge.simple.Rdata")
+norge.kmat <- readRDS("norge.kmat.Rdata")
+
+s.sem.coef.norge <- s.sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+s.sem.coef.norge <- s.sem.coef.norge %>% rownames_to_column(var = "Parameter")
+s.sem.coef.norge$std.error <- s.sem.norge.simple$rest.se[-1]
+
+sem.coef.norge <- sem.norge.simple$coefficients[-1] %>% as.data.frame() %>% 
+              setNames("Estimate")
+sem.coef.norge <- sem.coef.norge %>% rownames_to_column(var = "Parameter")
+sem.coef.norge$std.error <- sem.norge.simple$rest.se[-1]
+
+saveRDS(sem.coef.norge, "sem.coef.norge.rds")
+
+sem.effectsize.norge <- compute.effect.size(sem.coef.norge)
+saveRDS(sem.effectsize.norge, "sem.effectsize.norge.rds")
+
+n <- length(sem.coef.norge$Parameter)
+
+s.sem.AIC.norge <- 2*(n-1)-2*s.sem.norge.simple$LL
+s.moran.I.res.sem.norge <- moran.test(s.sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
+
+sem.AIC.norge <- 2*(n-1)-2*sem.norge.simple$LL
+moran.I.res.sem.norge <- moran.test(sem.norge.simple$residuals, norge.kmat, alternative = "two.sided")
+
+summary.table.sem.norge <- cbind(dplyr::select(sem.coef.norge,Parameter),s.sem.coef.norge[,2:3],sem.coef.norge[,2:3],sem.effectsize.norge[,2:4]) %>%
+                rbind(c("AIC",s.sem.AIC.norge,"",sem.AIC.norge,"","","","")) %>%
+                rbind(c("Moran'I res", s.moran.I.res.sem.norge$estimate[[1]],"",moran.I.res.sem.norge$estimate[[1]], "","","",""))
+summary.table.sem.norge[,-1] <- apply(summary.table.sem.norge[,-1],2,as.numeric)
+```
+
+```{r plot-estimates}
+sem.coef.norge <- readRDS("sem.coef.norge.rds")
+scaled.plot.n <- ggplot(sem.coef.norge)+geom_col(aes(x=Estimate,y=Parameter), width = 0.5, fill = "cadetblue3")+
+  geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), width = 0.5)+
+  labs(x = "Scaled estimates",y = "Predictor")+
+  theme_bw(base_size = 10)+
+  theme(legend.position = "bottom")
+```
+
+```{r plot-effect-size-simple}
+sem.effectsize.norge <- readRDS("sem.effectsize.norge.rds")
+
+effectsize.plot.n <- ggplot(sem.effectsize.norge)+
+  geom_col(aes(x=Percent,y=Parameter), fill = "coral3", width = 0.5)+
+  geom_errorbar(aes(y=Parameter,xmin = Percent-(100*std.error),xmax=Percent+(100*std.error)), width = 0.5)+
+  labs(x = "Effect size in %", y = "")+
+  theme_bw(base_size = 10)+theme(legend.position = "bottom")
+```
+
+```{r compare-plots-n, fig.dim = c(10,5)}
+compare.n <- cowplot::plot_grid(plotlist = list(scaled.plot.n,effectsize.plot.n),ncol=2)
+save_plot(plot = compare.n, filename = "results.norge.png" )
+print(compare.n)
+```
+
+# Model summary table
+
+```{r print-tables}
+
+summary.table.sem.norge <- readRDS("summary.table.sem.norge.rds")
+
+knitr::kable(summary.table.sem.norge,digits = 3) %>%
+  add_header_above(c("Model"=1,"Scaled SELM" = 2, "SELM" = 2, "Effect size" = 3),italic = T) %>%
+  column_spec(column = 8, bold = T) %>% 
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+
+
+summary.table.sem.forest.norge <- readRDS("summary.table.sem.forest.norge.rds")
+
+knitr::kable(summary.table.sem.forest.norge,digits = 3) %>%
+  add_header_above(c("Model"=1, "SELM" = 2, "Effect size" = 3),italic = T) %>%
+  column_spec(column = 6, bold = T) %>% 
+  kable_styling(bootstrap_options = "bordered") %>%
+  group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
+
+```
