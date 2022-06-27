@@ -1,0 +1,540 @@
+---
+title: "Supplementary 2 - SELM test on data from the 1000 lakes survey 2019"
+author: "Camille Crapart"
+date: "27 06 2022"
+output: 
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    number_sections: true
+    code_folding: hide 
+bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, collapse = T, message = F, warning = F, error = F, fig.align = "center")
+```
+
+```{r libraries}
+library(readxl)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(png)
+library(sf)
+library(spatialreg)
+library(spdep)
+library(ncdf4)
+library(RColorBrewer)
+
+library(captioner)
+fig_nums <- captioner() 
+table_nums <- captioner(prefix = "Table")
+
+memory.limit(size = 160000)
+```
+
+# 1000-lakes survey dataset
+
+The TOC concentration from the 1000-lakes survey in 2019 was provided by NIVA [@NIVA2020] and is available on GitHub [@github_camille]. The lakes samples in 2019 were matched with the lakes sampled in 1995 based on their sampling coordinates, then the data was extracted in the same way as for the model with 1995-data.
+
+## NIVA data
+
+The TOC data and sampling points were provided by Heleen de Wit. 
+
+```{r load-niva-dataset}
+niva <- read_xlsx("NIVA_test/niva_selection.xlsx")
+```
+
+The lakes from the 1000-lakes survey were matched with the lakes from the Northern European Lake Survey based on the sampling point. The correspondance between 1995 and 2019 TOC-values was checked in a second step. 
+
+```{r match-fennoscandia-lakes, eval = F}
+fennoscandia.33 <- readRDS("fennoscandia.33.rds") %>% dplyr::select(c("ebint","nation","TOC","longitude","latitude","geom"))
+niva <- read_xlsx("NIVA_test/niva_selection.xlsx") %>% dplyr::select(c("station_id","longitude","latitude","toc_2019","toc_1995"))
+
+niva.sf <- st_as_sf(niva,coords=c("longitude","latitude"))
+st_crs(niva.sf) <- "+proj=longlat +datum=WGS84 +no_defs"
+niva.sf <- niva.sf %>% st_transform(crs(fennoscandia.33))
+
+fennoscandia.point <- fennoscandia.33 %>% st_drop_geometry() %>% st_as_sf(coords = c("longitude","latitude"), remove = F)
+st_crs(fennoscandia.point) <- "+proj=longlat +datum=WGS84 +no_defs"
+fennoscandia.sf <- st_transform(fennoscandia.point,crs(fennoscandia.33))
+
+niva.near <- st_join(st_buffer(niva.sf, dist = 1000), st_buffer(fennoscandia.sf, 1000), join = st_intersects)
+niva.unique <- niva.near %>% dplyr::filter(toc_1995 == TOC)
+
+niva.poly <- merge(dplyr::select(fennoscandia.33,c("ebint","geom")), st_drop_geometry(niva.unique), by = "ebint")
+saveRDS(niva.poly,"NIVA_test/niva.poly.rds")
+
+```
+
+```{r plot-niva}
+niva.poly <- readRDS("NIVA_test/niva.poly.rds")
+ggplot()+geom_sf(data = niva.poly, aes(fill = toc_2019, col = toc_2019))+scale_color_distiller(type = "div", palette = "RdYlBu",name = "TOC sampled 2019 (mg/L)", aesthetics = c("colour","fill"))+theme_minimal(base_size = 8)
+```
+
+`r fig_nums("niva-poly","Catchment studied for the 2019 1000-lakes survey")`
+
+```{r compare-toc}
+ggplot(niva.poly)+geom_point(aes(x=TOC,y=toc_2019))+ labs(x = "TOC concentration in lakes, 1995 (mg/L)", y = "TOC concentration in lakes, 2019 (mg/L)")+theme_minimal()
+```
+ 
+`r fig_nums("niva-toc","Catchment studied for the 2019 1000-lakes survey")`
+
+## NDVI 
+
+The NDVI was extracted for the year 2015 from the GIMMS dataset, as data from this database was not available for later dates. Other databases like Copernicus could have provided this data, but GIMMS was used for the original model and we assumed that the changes in mean NDVI are minimal in 3 years (as NDVI is taken for y-1). For details about the extraction of NDVI in each catchment, see Supplementary 1.
+
+```{r download-NDVI-raster-2015, eval = F}
+# http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/
+library(gimms)
+ndvi.2015 <- downloadGimms(x= 2015,y=2015,dsn = "NDVI")
+ 
+ndvi.max.2015 <- monthlyComposite(ndvi.2015,monthlyIndices(ndvi.2015))
+saveRDS(ndvi.max.2015,"NIVA_test/ndvi.max.2015.rds")
+```
+
+```{r NDVI, eval = F}
+ndvi.max.2015 <- readRDS("NIVA_test/ndvi.max.2015.rds")
+niva.poly <- readRDS("NIVA_test/niva.poly.rds") %>% dplyr::select(c("ebint","geometry"))
+
+# Makes the raster smaller, ensuring faster processing of the data
+summer.scandinavia.2015 <- raster::crop(ndvi.max.2015,c(0,35,55,73))
+
+# Re-introduces NA
+summer.scan <- reclassify(summer.scandinavia.2015, cbind(-Inf, 0, NA), right=FALSE)
+
+# Stack bands for summer
+summer.mean.2015 <- raster::stack(summer.scan[[6]],summer.scan[[7]],summer.scan[[8]]) %>% mean()
+
+# extract data
+summer.ndvi.2015 <- raster::extract(summer.mean.2015,niva.poly, fun = mean, df = T, sp = T, na.rm = T)
+names(summer.ndvi.2015) <- c("ebint","ndvi")
+summer.ndvi.2015$NDVI <- floor(summer.ndvi.2015$ndvi/10)/1000
+
+# save df
+saveRDS(summer.ndvi.2015, "NIVA_test/100lakes.summer.ndvi.2015.rds")
+write.csv(summer.ndvi.2015,"NIVA_test/100lakes.summer.ndvi.2015.csv")
+```
+
+```{r map-ndvi-niva}
+
+```
+
+## Runoff
+
+```{r runoff-niva, eval = F}
+niva.poly <- readRDS("NIVA_test/niva.poly.rds") %>% dplyr::select(c("ebint","geometry"))
+runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
+runoff.nc <- nc_open(runoff.raster)
+
+runoff.stack <- raster::stack(runoff.raster, bands = c(1621:1980)) # runoff from 1985 to 2015
+runoff.mean <- runoff.stack %>% mean() 
+
+runoff.niva <- raster::extract(runoff.mean, niva.poly, fun = mean, df = T, sp = T, na.rm = T)
+names(runoff.niva) <- c("ebint","Runoff")
+saveRDS(runoff.niva,"NIVA_test/runoff.niva.rds")
+
+ggplot(st_as_sf(runoff.niva))+geom_sf(aes(fill=Runoff,col=Runoff))
+
+```
+
+## Corine Land Cover
+
+The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/clc2018. We used the 2018 version, the lst available. 
+
+The land cover data was downloaded as a raster (.tiff file), which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were:
+
+Arable land:
+* 12: non-irrigated arable land
+* 16: fruit trees and berries plantations
+* 18: pastures
+* 19: annual crops associated with permanent crops
+* 20: Complex cultivation patterns
+
+Bogs:
+* 36: peat bogs
+* 35: inland marshes, excluded because all zeros in the studied area.
+
+Forest:
+* 23: Broad-leaved forest
+* 24: Coniferous forest
+* 25: Mixed forest
+
+Bare:
+31: Bare rocks
+32: Sparsely vegetated areas
+33: Burnt areas
+
+```{r extract-land-cover, eval = F}
+niva.poly <- readRDS("NIVA_test/niva.poly.rds") %>% dplyr::select(c("ebint","geometry"))
+corine.2018 <- raster::raster("NIVA_test/CLC/U2018_CLC2018_V2020_20u1.tif")
+niva.corine <- niva.poly %>% st_transform(crs(corine.2018))
+niva.list <- split(niva.corine,seq(nrow(niva.corine)))
+
+extract_corine <- function(x){
+  clc <- extract(corine.2018,x)
+  saveRDS(clc,file = paste("NIVA_test/CLC/clc",x$ebint,"rds",sep="."))
+}
+
+lapply(niva.list,extract_corine) 
+
+clc.test <- readRDS("NIVA_test/CLC/clc.16711649.rds")
+clc.files <- list.files(path = "NIVA_test/CLC/", pattern = "clc.*.rds", full.names = T)
+
+list.clc <- sapply(clc.files,readRDS)
+list.clc.niva <- sapply(list.clc, as.integer)
+
+names.list <- str_extract(clc.files,"\\d+")
+names(list.clc.niva) <- names.list
+
+saveRDS(list.clc.niva,"NIVA_test/CLC/list.clc.niva.rds")
+```
+
+```{r corine-tab-prop, eval = F}
+list.clc.niva <- readRDS("NIVA_test/CLC/list.clc.niva.rds")
+clc.tab.niva <- sapply(list.clc.niva, function(x) tabulate(x,45)) %>% t()
+clc.tab.area.niva <- clc.tab.niva*prod(res(corine.2018))
+catchment.area <- rowSums(clc.tab.area.niva)
+clc.tab.prop.niva <- sweep(clc.tab.area.niva,1,catchment.area, FUN = "/")
+saveRDS(clc.tab.prop.niva,"NIVA_test/CLC/clc.tab.prop.niva.rds")
+```
+
+```{r corine-select-categories, eval = F}
+clc.tab.prop.niva <- readRDS("NIVA_test/CLC/clc.tab.prop.niva.rds") %>% as.data.frame()
+
+bogs <- clc.tab.prop.niva[,36] %>% as.data.frame() %>% setNames("Bog") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(bogs,"NIVA_test/CLC/bogs.niva.rds")
+arable <- rowSums(clc.tab.prop.niva[,c(12,16,18,19,20)]) %>% as.data.frame() %>% setNames("Arable") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(arable,"NIVA_test/CLC/arable.niva.rds")
+forest <- rowSums(clc.tab.prop.niva[,c(23,24,25)]) %>% as.data.frame() %>% setNames("Forest") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(forest,"NIVA_test/CLC/forest.niva.rds")
+bare <- rowSums(clc.tab.prop.niva[,c(31,32,33)]) %>% as.data.frame() %>% setNames("Bare") %>% tibble::rownames_to_column(var = "ebint")
+saveRDS(bare,"NIVA_test/CLC/bare.niva.rds")
+```
+
+## TNdep
+
+The nitrogen and sulfur deposition data were extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). The data from 2019 was used.
+
+N-deposition (NOx and NH3) is the sum of: 
+* Dry deposition of oxidized nitrogen per m2 grid DDEP_OXN_m2Grid, in mg/m2
+* Wet deposition of oxidized nitrogen WDEP_OXN, in mg/m2 
+* Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid, in mg/m2
+* Wet deposition of reduced nitrogen WDEP_RDN, in mg/m2
+
+```{r extract Ndep, eval = F}
+EMEP_file <- "NIVA_test/Ndep/EMEP01_rv4.42_year.2019met_2019emis.nc"
+
+niva.poly <- readRDS("NIVA_test/niva.poly.rds") %>% dplyr::select(c("ebint","geometry"))
+
+woxn <- raster(EMEP_file, varname = "WDEP_OXN") 
+doxn <- raster(EMEP_file, varname = "DDEP_OXN_m2Grid")
+wrdn <- raster(EMEP_file, varname = "WDEP_RDN")
+drdn <- raster(EMEP_file, varname = "DDEP_RDN_m2Grid")
+
+woxn_df <- extract(woxn,niva.poly, sp = T, df = T, na.rm = T, fun = mean) 
+names(woxn_df) <- c("ebint","woxn")
+woxn_u <- woxn_df %>% st_as_sf() %>% st_drop_geometry() %>% dplyr::distinct() 
+
+doxn_df <- extract(doxn,niva.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(doxn_df) <- c("ebint","doxn")
+doxn_u <- doxn_df %>% st_as_sf() %>% st_drop_geometry() %>% dplyr::distinct() 
+
+wrdn_df <- extract(wrdn,niva.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(wrdn_df) <- c("ebint","wrdn")
+wrdn_u <- wrdn_df %>% st_as_sf() %>% st_drop_geometry() %>% dplyr::distinct() 
+
+drdn_df <- extract(drdn,niva.poly, sp = T, df = T, na.rm = T, fun = mean)
+names(drdn_df) <- c("ebint","drdn")
+drdn_u <- drdn_df %>% st_as_sf() %>% st_drop_geometry()  %>% dplyr::distinct() 
+
+ndep.df <- merge(woxn_u,doxn_u, by = "ebint") %>% merge(wrdn_u, by = "ebint") %>% merge(drdn_u, by = "ebint")
+ndep.df$TNdep <- rowSums(ndep.df[,c(2:5)])
+
+saveRDS(ndep.df,"NIVA_test/Ndep/ndep.df.niva.rds")
+```
+
+
+
+## Gather dataset
+
+The dataset from NIVA and the NDVI values were merged and the variables were given names matching the Fennoscandian dataset. The projection of the polygons was converted to the projection used in the present project (EU33).
+
+```{r merge-data, eval = F}
+ndvi.niva <- readRDS("NIVA_test/100lakes.summer.ndvi.2015.rds") %>% st_as_sf() %>% st_drop_geometry() %>% dplyr::distinct()
+runoff.niva <- readRDS("NIVA_test/runoff.niva.rds") %>% st_as_sf() %>% st_drop_geometry() %>% dplyr::distinct()
+bogs.niva <- readRDS("NIVA_test/CLC/bogs.niva.rds")
+arable.niva <- readRDS("NIVA_test/CLC/arable.niva.rds")
+ndep.df.niva <- readRDS("NIVA_test/Ndep/ndep.df.niva.rds")
+
+niva.poly <- readRDS("NIVA_test/niva.poly.rds")
+
+niva.data <- niva.poly %>% merge(ndvi.niva, by = "ebint") %>% merge(runoff.niva, by = "ebint") %>% merge(bogs.niva, by = "ebint") %>% merge(arable.niva, by = "ebint") %>% merge(ndep.df.niva, by = "ebint") %>% dplyr::distinct()
+
+niva.data <- niva.data[-which(is.na(niva.data$toc_2019) == T),]
+niva.data <- niva.data[-which(is.na(niva.data$NDVI) == T),]
+niva.data$Runoff <- niva.data$Runoff *365*24*60*60 # from kg/m2/s to kg/m2/year or mm/y 
+niva.data$logRunoff <- log(niva.data$Runoff)
+
+saveRDS(niva.data,"NIVA_test/niva.data.rds")
+``` 
+
+```{r plot-toc-niva}
+niva.data <- readRDS("NIVA_test/niva.data.rds")
+nor <- st_read("Country_shapefile/norway.shp") 
+
+ggplot()+ geom_sf(data = nor, fill = "white", col = "lightgray")+
+  geom_sf(data = st_as_sf(niva.data), aes(fill = toc_2019, col = toc_2019))+
+  scale_color_distiller(type = "div", palette = "RdYlBu", direction = -1, aesthetics = c("fill","col"))+
+  labs(x ="", y = "")+
+  theme_minimal()
+```
+
+```{r compare-1995-2019}
+niva.data <- readRDS("NIVA_test/niva.data.rds")
+ggplot(niva.data)+ geom_point(aes(x=toc_1995,y=toc_2019, col = latitude), size= 1)+
+  scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("fill","col"))+
+  geom_abline(slope = 1, intercept = 0, col = "black")+
+  labs(x ="Sampled TOC 1995 (mg/L)", y = "Sample TOC 2019 (mg/L)", subtitle = "a)")+
+  theme_minimal(base_size = 8)
+ggsave(filename = "NIVA_test/comparison_1995_2019.png", dpi = "retina", width = 8, height = 6, units = "cm")
+```
+
+```{r maps-niva, eval = F}
+niva.data <- readRDS("NIVA_test/niva.data")
+m <- c("TOC","NDVI","Runoff","Bog","Arable","TNdep")
+u <- c("TOC concentration,\nmgC/L", "NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean annual\nprecipitation, mm/y","Mean annual\n temperature, °C","Proportion of bogs","Proportion of\narable land","Proportion of forest","Total nitrogen\ndeposition, mg/m2", "Total sulphur\ndeposition, mg/m2")
+couleurs <- c("RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu","RdYlBu")
+dir <- c(T,F,T,T,F,F,F,F,F,F)
+marg <- 0
+nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(crs(niva.data))
+swe <- st_read("Country_shapefile/sweden.shp") %>% st_transform(crs(niva.data))
+fin <- st_read("Country_shapefile/finland.shp") %>% st_transform(crs(niva.data))
+
+for(i in m[2:10]){
+  
+ mysf <- fennoscandia.33
+ mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
+ display.brewer.pal(name = couleurs[which(m == i)], n = 9)
+ midcol <- median(mysf[[i]])
+
+ if(dir[which(m == i)] == F){
+ map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
+   geom_sf(data = swe, fill = "white", size = 0.2)+
+   geom_sf(data = fin, fill = "white", size = 0.2)+
+   geom_sf(data = mysf, aes(fill = .data[[i]], col = .data[[i]]))+
+   scale_fill_gradientn(colours = rev(mypal),name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
+    theme_minimal(base_size = 8)+
+    theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
+    
+  filename_i <- paste("map",i,"png",sep = ".")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
+  
+ } else if(dir[which(m == i)] == T){
+   map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
+     geom_sf(data = swe, fill = "white", size = 0.2)+
+     geom_sf(data = fin, fill = "white", size = 0.2)+
+     geom_sf(data = mysf, aes(fill = .data[[i]], col = .data[[i]]))+
+    scale_fill_gradientn(colours = mypal,name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
+                    theme_minimal(base_size = 8)+
+    theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
+    
+  filename_i <- paste("map",i,"png",sep = ".")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
+   
+ }
+}
+
+label_tb <- read.table(text = 
+  " Label Long Lat
+    Norway 7 65
+    Sweden 10 55
+    Finland 25 59", header = T) 
+label_sf <- label_tb %>% st_as_sf(coords = c("Long", "Lat"), crs = "+proj=longlat +datum=WGS84") %>% st_transform(crs(fennoscandia.33))
+
+for(i in m[1]){
+  
+ mysf <- fennoscandia.33
+ mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
+ display.brewer.pal(name = couleurs[which(m == i)], n = 9)
+ midcol <- quantile(mysf[[i]], 0.99)
+
+ map <- ggplot()+geom_sf(data = nor, fill = "white", size = 0.2)+
+  geom_sf_label(data = label_sf, aes(label = Label), label.size = 0.2, label.padding = unit(0.1,"lines"), size = 3)+
+  geom_sf(data = swe, fill = "white", size = 0.2)+
+  geom_sf(data = fin, fill = "white", size = 0.2)+
+  geom_sf(data = filter(mysf, TOC < 20), aes(fill = .data[[i]], col = .data[[i]]))+
+  geom_sf(data = filter(mysf, TOC > 20), fill = "sienna4", col = "sienna4")+
+  scale_fill_gradientn(colours = rev(mypal),name = paste(u[grep(i,m)],"\n(",i,")",sep=""), aesthetics = c("colour","fill"))+
+   labs(x="",y="")+
+   theme_minimal(base_size = 9)+
+    theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
+    
+  filename_i <- paste("map",i,"png",sep = ".")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
+  
+}
+
+white.fen <- ggplot()+theme_void()+theme(plot.margin = unit(c(0,marg,0,marg), units = "cm"))
+ggsave(plot = white.fen, filename = "white.fen.png", dpi = "retina", width = 10, height = 12, units = "cm")
+
+
+# TOC prediction for NIVA dataset 
+
+In order to predict the TOC in 2019 using the SELM, a neighbour matrix with the NIVA-lakes is first computed. 
+
+```{r niva-kmat, eval = F}
+niva.data <- readRDS("NIVA_test/niva.data.rds")
+niva.kmat <- st_centroid(niva.data, of_largest_polygon = T) %>% knearneigh(k = 100) %>% knn2nb() %>% nb2listw()
+saveRDS(niva.kmat,"NIVA_test/niva.kmat.rds")
+```
+
+The SELM is then applied to the 2019-dataset.
+
+```{r predict-toc, eval = F}
+sem.model <- readRDS("sem.fennoscandia.5.rds")
+niva.data <- readRDS("NIVA_test/niva.data.rds")
+niva.kmat <- readRDS("NIVA_test/niva.kmat.rds")
+
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
+
+niva_fit <- predict(sem.model, newdata = niva.data, niva.kmat)
+
+niva_predict <- cbind(niva.data, niva_fit)
+niva_predict$diffTOC <- niva_predict$toc_2019 - exp(niva_predict$fit)
+
+niva_predict$diffLogTOC <- log(niva_predict$toc_2019) - niva_predict$fit
+
+saveRDS(niva_predict,"NIVA_test/niva_predict.rds")
+
+```
+
+```{r plot-model-results}
+niva_predict <- readRDS("NIVA_test/niva_predict.rds")
+
+ggplot(niva_predict) + geom_point(aes(y = log(toc_2019), x = fit, col = latitude), size = 1)+
+  scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
+  labs(y = "log(TOC 2019)", x = "Predicted log(TOC)",subtitle = "b)")+
+  annotate(geom = "label", label = paste("r = ", round(cor(log(niva_predict$toc_2019),niva_predict$fit),2)), x = 2, y = -1.5, size = 3)+
+  geom_abline(slope  = 1, intercept = 0, col = "black")+
+  theme_minimal(base_size = 8)
+ggsave(filename = "NIVA_test/niva-test-result.png", dpi = "retina", width = 8, height = 6, units = "cm")
+```
+
+```{r maps-toc-predictions, eval=F}
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
+niva_predict <- readRDS("NIVA_test/niva_predict.rds")
+
+nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(st_crs(wr.sf.95))
+mypal <- brewer.pal(9, name = "RdYlBu")
+lims.toc <- c(min(c(log(niva_predict$toc_2019), niva_predict$fit)), max((c(log(niva_predict$toc_2019), niva_predict$fit))))
+  
+diff.niva <- ggplot() + geom_sf(data = nor, fill = "white", col = "black", size = 0.1)+
+  geom_sf(data = niva_predict, aes(fill = diffLogTOC, col = diffLogTOC)) + 
+   scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="Difference between\nobserved and predicted log(TOC)\nwith NDVI, Bog, Arable, logRunoff and TNdep", mid = 0, limits = lims.toc, rev = F) +
+  labs(x = "", y = "",subtitle = "c)") +
+  theme_minimal(base_size = 8) +
+  theme(legend.position = "bottom")
+ggsave(plot = diff.niva, filename = "NIVA_test/diff.niva.png", dpi = "retina", width = 8, height = 10, units = "cm")
+  
+fitted.niva <- ggplot() +  geom_sf(data = nor, fill = "white", col = "lightgray", size = 0.2)+
+  geom_sf(data = niva_predict, aes(fill = niva_fit, col = niva_fit)) + 
+  scale_color_viridis_c(name = "Fitted log(TOC)", aesthetics = c("fill","col"), limits = lims.toc)+
+#scale_color_gradient2(low = mypal[1],high = mypal[5], mid = mypal[9], midpoint = 0, name = "Fitted log(TOC)", aesthetics = c("fill","col"), limits = lims.toc)+
+  labs(x = "", y = "")+
+  theme_minimal(base_size = 8)+
+  theme(legend.position = "bottom")
+
+ggsave(plot = fitted.niva, filename =  "NIVA_test/fitted.niva.png",dpi = "retina", width = 8, height = 10, units = "cm")
+
+obs.niva <- ggplot() + geom_sf(data = nor, fill = "white", col = "lightgray") +
+  geom_sf(data = niva_predict, aes(fill = log(toc_2019), col = log(toc_2019))) + 
+ scale_color_gradient2(low = mypal[9],high = mypal[1], mid = mypal[5], midpoint = 0, name = "Sampled log(TOC)", aesthetics = c("fill","col"), limits = lims.toc)+
+  labs(x = "", y = "")+
+  theme_minimal(base_size = 8)+
+  theme(legend.position = "bottom")
+
+ggsave(plot = obs.niva, filename = "NIVA_test/obs.niva.png",dpi = "retina", width = 8, height = 10, units = "cm", device = "png")
+```
+
+```{r include-maps, fig.dim = c(16,20)}
+listgrob <- list("NIVA_test/obs.niva.png", "NIVA_test/fitted.niva.png", "NIVA_test/diff.niva.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+grid.arrange(grobs = listgrob, ncol = 2, nrow = 2)
+```
+
+The difference between model results and observations is computed as $ln([TOC]_{obs})-ln([TOC]_{fit})$. 
+
+# TOC prediction with LM
+
+The LM is then applied to the 2019-dataset.
+
+```{r predict-toc-lm, eval = F}
+lm.model <- readRDS("lm.fennoscandia.5.rds")
+niva_final <- readRDS("NIVA_test/niva_final.rds")
+
+fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
+
+niva_fit <- predict(lm.model, newdata = niva_final)
+
+niva_predict <- cbind(niva_final, niva_fit)
+niva_predict$diffTOC <- niva_predict$toc_2019 - exp(niva_predict$niva_fit)
+
+niva_predict$diffLogTOC <- log(niva_predict$toc_2019) - niva_predict$niva_fit
+
+saveRDS(niva_predict,"NIVA_test/niva_predict_lm.rds")
+```
+
+```{r plot-model-results-lm}
+niva_predict <- readRDS("NIVA_test/niva_predict_lm.rds")
+
+ggplot(niva_predict) + geom_point(aes(x = log(toc_2019), y = niva_fit))+
+  labs(x = "log(TOC 2019)", y = "Predicted log(TOC)")+
+  annotate(geom = "label", label = paste("r = ", round(cor(log(niva_predict$toc_2019),niva_predict$niva_fit),2)), x = 2, y = -0.2)+
+  geom_abline(slope  = 1, intercept = 0, col = "red")+
+  theme_minimal(base_size = 8)
+ggsave(filename = "NIVA_test/niva-lm-result.png", dpi = "retina", width = 8, height = 10, units = "cm")
+```
+
+```{r maps-toc-predictions-lm, eval=F}
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
+niva_predict <- readRDS("NIVA_test/niva_predict_lm.rds")
+
+nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(st_crs(wr.sf.95))
+mypal <- brewer.pal(9, name = "RdYlGn")
+lims.toc <- c(min(c(log(niva_predict$toc_2019), niva_predict$fit)), max((c(log(niva_predict$toc_2019), niva_predict$fit))))
+  
+diff.niva <- ggplot() + geom_sf(data = nor, fill = "white", col = "lightgray")+
+  geom_sf(data = niva_predict, aes(fill = diffLogTOC, col = diffLogTOC)) + 
+  scale_color_gradient2(low = mypal[9],high = mypal[1], mid = mypal[5], midpoint = 0, name = "Difference between\nobserved and predicted log(TOC)\nwith NDVI, Bogs, logRunoff and TNdep ", aesthetics = c("fill","col"))+
+  labs(x = "", y = "")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+ggsave(plot = diff.niva, filename = "NIVA_test/diff.niva.lm.png", dpi = "retina", width = 8, height = 10, units = "cm")
+  
+fitted.niva <- ggplot() +  geom_sf(data = nor, fill = "white", col = "lightgray")+
+  geom_sf(data = niva_predict, aes(fill = niva_fit, col = niva_fit)) + 
+scale_color_gradient2(low = mypal[9],high = mypal[1], mid = mypal[5], midpoint = 0, name = "Fitted log(TOC)", aesthetics = c("fill","col"), limits = lims.toc)+
+  labs(x = "", y = "")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+
+ggsave(plot = fitted.niva, filename =  "NIVA_test/fitted.niva.lm.png",dpi = "retina", width = 8, height = 10, units = "cm")
+
+obs.niva <- ggplot() + geom_sf(data = nor, fill = "white", col = "lightgray") +
+  geom_sf(data = niva_predict, aes(fill = log(toc_2019), col = log(toc_2019))) + 
+ scale_color_gradient2(low = mypal[9],high = mypal[1], mid = mypal[5], midpoint = 0, name = "Sampled log(TOC)", aesthetics = c("fill","col"), limits = lims.toc)+
+  labs(x = "", y = "")+
+  theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+
+ggsave(plot = obs.niva, filename = "NIVA_test/obs.niva.lm.png",dpi = "retina", width = 8, height = 10, units = "cm", device = "png")
+```
+
+```{r include-maps-lm, fig.dim = c(16,20)}
+listgrob <- list("NIVA_test/obs.niva.lm.png", "NIVA_test/fitted.niva.lm.png", "NIVA_test/diff.niva.lm.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+grid.arrange(grobs = listgrob, ncol = 2, nrow = 2)
+```
+
+The difference between model results and observations is computed as $ln([TOC]_{obs})-ln([TOC]_{fit})$. 

@@ -1,7 +1,7 @@
 ---
-title: "Supplementary 5 - Forest impact"
+title: "Supplementary 5: SELM with proportion of Forest as predictor"
 author: "Camille M. Crapart"
-date: "5 1 2022"
+date: "27 06 2022"
 output: 
   bookdown::html_document2:
    toc: true
@@ -33,9 +33,12 @@ library(stringr)
 library(ggplot2)
 library(RColorBrewer)
 library(cowplot)
+library(png)
+
 library(spdep)
 library(spatialreg)
 
+library(grid)
 library(kableExtra)
 library(reshape2)
 
@@ -86,15 +89,15 @@ es <- 0.01
 
 # Introduction
 
-Forest management is an essential tool in achieving the commitments in the Fennoscandian climate policies. @Sundnes2020 In line with the Declaration on Forest and Land Use signed on November 2021 @UNClimateChangeConferenceUK2021, the Fennoscandian governments consider forest as a leverage for offsetting their carbon emissions and reaching their zero-emission goals. @NordicCouncilofMinisters2021  Norway, Sweden and Finland (collectively labelled Fennoscandia) are not subject to deforestation with 43.5, 65.5 and 70.9% @OECD2020, respectively, of their territories covered with forest.These boreal forests hold large belowground and peatland pools of organic carbon. During the last century, the Fennoscandian forest volume has increased some 25% (ref).  Most of this is a result from massive forest planting campaigns in the 50ies and 60ies, but forest growth has also benefited from a milder climate, with longer growing seasons, as well as the accumulation of reactive nitrogen from long-range transported air pollution and potentially also increased atmospheric concentrations of CO2. This increased forest volume also implies a strong C-sequestration,  and current policies in the Nordics promote the intensification of the forest industry. In Norway, the ministry of Environment (Miljødirektoratet) subsidies densification of the planted areas and the afforestation of new so-called Climate forests  @Miljodirektoratet2013. In Fennoscandia as a whole, timber industry is a major economical resource. @RoyalSwedish2015 Forestry products account for 23% of the Swedish total exports and the standing biomass doubled over the last 100 years @Narin. Formas, the Swedish government research council for sustainable development, promotes bioeconomy as a major climate mitigation tool. @Formas2012. Similarly, in Finland the national subsidy schemes aim at intensifying the forestry sector. A fifth of the Finnish export of goods come from the wood industry. @Forestry2014  The Finnish forest legislation was renewed in the 2010s to improve its competitiveness while conserving its goals in terms of sustainability.
+Forest management is an essential tool in achieving the commitments in the Fennoscandian climate policies [@Sundnes2020]. In line with the Declaration on Forest and Land Use signed on November 2021[@UNClimateChangeConferenceUK2021], the Fennoscandian governments consider forest as a leverage for offsetting their carbon emissions and reaching their zero-emission goals [@NordicCouncilofMinisters2021]  Norway, Sweden and Finland (collectively labelled Fennoscandia) are not subject to deforestation with 43.5, 65.5 and 70.9% [@OECD2020], respectively, of their territories covered with forest.These boreal forests hold large belowground and peatland pools of organic carbon. During the last century, the Fennoscandian forest volume has increased some 25% (ref).  Most of this is a result from massive forest planting campaigns in the 50ies and 60ies, but forest growth has also benefited from a milder climate, with longer growing seasons, as well as the accumulation of reactive nitrogen from long-range transported air pollution and potentially also increased atmospheric concentrations of CO2. This increased forest volume also implies a strong C-sequestration,  and current policies in the Nordics promote the intensification of the forest industry. In Norway, the ministry of Environment (Miljødirektoratet) subsidies densification of the planted areas and the afforestation of new so-called Climate forests  [@Miljodirektoratet2013]. In Fennoscandia as a whole, timber industry is a major economical resource [@RoyalSwedish2015]. Forestry products account for 23% of the Swedish total exports and the standing biomass doubled over the last 100 years [@Narin]. Formas, the Swedish government research council for sustainable development, promotes bioeconomy as a major climate mitigation tool [@Formas2012]. Similarly, in Finland the national subsidy schemes aim at intensifying the forestry sector. A fifth of the Finnish export of goods come from the wood industry. [@Forestry2014]. The Finnish forest legislation was renewed in the 2010s to improve its competitiveness while conserving its goals in terms of sustainability.
 
-The planned intensification of forest management and afforestation has, on the other hand, raised concern regarding the water quality @NorskVann. In Norway, 90% of the raw water used for drinking water comes from surface waters @EnergifaktaNorge2020. Browning has potential impact on the required raw water treatment to ensure potability of water @Eikebrokk2004. In addition, browning impact lakes by reducing light absorbance, and thus reducing primary production @Karlsson2007,  @Thrane2014, while at the same time increasing the CO2 and CH4 emissions from the lakes, especially in small lakes (@Yang2015, Parra et al. ms, @DeWit2018), further increasing the net heterotrophy that prevails in boreal lakes @Tranvik2009. Reduced primary production propagate up the trophic ladder and also affect fish, both via reduced productivity, but also by affecting visual feeding in fish (Finstad et al.)@Finstad2014 and thermal regimes  @Karlsson2009 @Craig2017. The current browning of freshwater lakes and rivers also entails the darkening of coastal waters, delaying phytoplankton spring blooms and decreasing coastal primary production @Opdal2019a. Understanding the governing factors for TOC concentration under local anthropogenic and regional climatic stresses is therefore essential to forecast its potential detrimental effects to the water quality and ecosystem services.
+The planned intensification of forest management and afforestation has, on the other hand, raised concern regarding the water quality [@NorskVann]. In Norway, 90% of the raw water used for drinking water comes from surface waters [@EnergifaktaNorge2020]. Browning has potential impact on the required raw water treatment to ensure potability of water [@Eikebrokk2004]. In addition, browning impact lakes by reducing light absorbance, and thus reducing primary production [@Karlsson2007],  while at the same time increasing the CO2 and CH4 emissions from the lakes, especially in small lakes [@Yang2015; Parra et al. ms ; @DeWit2018], further increasing the net heterotrophy that prevails in boreal lakes [@Tranvik2009]. Reduced primary production propagate up the trophic ladder and also affect fish, both via reduced productivity, but also by affecting visual feeding in fish [@Finstad2014] and thermal regimes  [@Karlsson2009; @Craig2017]. The current browning of freshwater lakes and rivers also entails the darkening of coastal waters, delaying phytoplankton spring blooms and decreasing coastal primary production [@Opdal2019a]. Understanding the governing factors for TOC concentration under local anthropogenic and regional climatic stresses is therefore essential to forecast its potential detrimental effects to the water quality and ecosystem services.
 
 NDVI and Forest cover are both proxy for the biomass amount on the catchment. However, they are poorly correlated (`r round(cor(fennoscandia$NDVI, fennoscandia$Forest),2)`) and are not expected to have exactly the same effect on TOC  concentration in time. To investigate the effect of an increase of forest cover in Norway, Sweden and Finland, in line with the forest policies in these three countries, an alternative model was fitted using Forest (instead of NDVI), Bog and Runoff as predictors based on the Northern Lake Survey (1995). Then, the model was tested with the 2019 survey and the forecast made for 2100, when planted trees will have reached maturity.
 
 # Spatial error model with Forest as predictor {#forest}
 
-* Model NSF
+A Spatial error model was fitted on the Fennoscandia dataset with Forest, logRunoff and Bog as predictors. 
 
 ```{r sem-with-forest, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.Rdata")
@@ -132,7 +135,7 @@ saveRDS(summary.table.sem.forest,"summary.table.sem.forest.rds")
 ``` 
 
 
-```{r sem-with-forest, eval = F}
+```{r sem-with-forest-norge, eval = F}
 norge.kmat <- readRDS("norge.kmat.Rdata")
 
 fm <- logTOC ~ Forest+logRunoff+Bog
@@ -167,7 +170,6 @@ saveRDS(summary.table.sem.forest.norge, "summary.table.sem.forest.norge.rds")
 ```
 
 
-* Comparative plots
 
 ```{r compare-effect-size-simple-forest}
 sem.effectsize.forest <- readRDS("sem.effectsize.forest.rds")
@@ -203,7 +205,7 @@ knitr::kable(summary.table.sem.forest,digits = 4) %>%
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+1)
 ```
 
-```{r summary-table-forest}
+```{r summary-table-forest-norge}
 summary.table.sem.forest.norge <- readRDS("summary.table.sem.forest.norge.rds")
 
 n <- 3
@@ -215,7 +217,7 @@ knitr::kable(summary.table.sem.forest.norge,digits = 4) %>%
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+1)
 ```
 
-```{r compare-effect-size-simple-forest}
+```{r compare-effect-size-simple-forest-norway}
 sem.coef.forest <- readRDS("sem.coef.forest.rds")
 sem.effectsize.forest <- readRDS("sem.effectsize.forest.rds")
 sem.coef.norge.forest <- readRDS("sem.coef.norge.forest.rds")
@@ -470,9 +472,7 @@ ggsave(plot = map.diff.toc.forest, filename = "WR/map.diff.toc.forest.png",dpi =
 
 ```{r map-toc-forest}
 listgrob <- list("WR/map.toc.forest.png","WR/map.diff.toc.forest.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-grid.arrange(grobs = listgrob, ncol = 2)
-
-knitr::include_graphics(c("WR/map.toc.forest.png","WR/map.diff.toc.forest.png"))
+plot_grid(plotlist = listgrob, ncol = 2, nrow = 1)
 ```
 
 `r fig_nums("map-toc-forest","Forecast of TOC concentration due to an increase of forest cover as a NbS to abate climate change.")`
