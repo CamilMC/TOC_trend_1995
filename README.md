@@ -7,12 +7,12 @@ This website supports the supplementary information for the article "Spatial pre
 
 ## Supplementary information
 
-[Supplementary 1](https://camilmc.github.io/TOC_trend_1995/Supp1_nsf_model.html)
+[Supplementary 1 : Data preparation](https://camilmc.github.io/TOC_trend_1995/Supp1_nsf_model.html)
 
 Contains the code used to extact and gather the data, to plot it, and to build spatial models 
 (section "Modelling of TOC concentration on the Northern European Lake Survey dataset" in main article)
 
-Supplementary 2: SELM test on data from the 1000 lakes survey 2019
+[Supplementary 2: SELM test on data from the 1000 lakes survey 2019](https://camilmcr.github.io/TOC_trend_1995/Supp2-NIVA_modelv2.html)
 
 Test the SELM model fitted in Supplementary 1 on data collected in 2019 during the "1000 Lakes Survey" by NIVA
 (section "Validation against a new 1000-lakes-survey" in main article)
