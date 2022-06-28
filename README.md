@@ -26,7 +26,7 @@ Data preparation for predictions in coastal drainage basins. Forecasts for 2050 
 
 Description of the models and equations used to fit linear model and spatial error linear model. Description of effect sizes
 
-[Supplementary 5 : SELM with proportion of Forest as predictor](https://camilmc.github.uio/TOC_trend_1995/Supp5_forest_impact.html)
+[Supplementary 5 : SELM with proportion of Forest as predictor](https://camilmc.github.io/TOC_trend_1995/Supp5_forest_impact.html)
 
 Spatial error model fitted with proportion of forest as a predictor. Forecast of the TOC concentration in coastal drainage basins in 2100, after implementation of the planned forest policies in Norway, Sweden and Finland. 
 
