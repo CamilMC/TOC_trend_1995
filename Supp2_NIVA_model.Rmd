@@ -12,6 +12,8 @@ bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 link-citations: yes
 ---
 
+[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, collapse = T, message = F, warning = F, error = F, fig.align = "center")
 ```

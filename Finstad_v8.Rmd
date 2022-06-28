@@ -128,7 +128,7 @@ Nine explanatory parameters i.e., NDVI, Runoff, Precip, Temp, Bogs, Arable, Fore
 ```{r insert-maps, fig.dim = c(30,48), fig.align = "center"}
 listgrob <- list("map.ndvi.png","map.Runoff.png","map.Precip.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 #grid.arrange(grobs = listgrob, ncol = 3)
-all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T)
+all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)"), label_size = 20)
 save_plot("predictor.maps.png",all.map, ncol = 3, nrow = 3, base_height = 8, base_width = 6)
 print(all.map)
 ```
@@ -165,7 +165,7 @@ corrplot::corrplot(cor.mat, method = "number",type = "lower", number.cex = 0.7, 
 dev.off()
 ```
 
-fig_nums(toc-map, "Map of TOC concentration in Fennoscandian catchments, mg/L")
+`r fig_nums(toc-map, "Map of TOC concentration in Fennoscandian catchments, mg/L")`
 
 ```{r moran-vif-print}
 moran.vif.df %>% arrange(desc(moran.I)) %>%

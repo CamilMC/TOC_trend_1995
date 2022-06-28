@@ -11,7 +11,7 @@ output:
 bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 ---
   
-[Back to main menu]("https://camilmcr.github.io/TOC_trend_1995)  
+[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)  
   
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T)
@@ -195,7 +195,7 @@ ndvi.plot <- (floor(summer.scan)/10)/1000
 ndvi.plot.spdf <- ndvi.plot %>% as("SpatialPixelsDataFrame") %>% spTransform(projection(wr.sf.95)) %>% as.data.frame()
 
 map.ndvi <- ggplot() + geom_tile(data = ndvi.plot.spdf, aes(x = x, y = y, fill = layer, width = 10000, height = 10000))+
-  scale_fill_distiller(type = "seq", palette = 2, direction = 1)+labs(fill = "Summer NDVI 1995", subtitle = "a)")+
+  scale_fill_distiller(type = "seq", palette = 2, direction = 1)+labs(fill = "Summer NDVI 1995")+
   theme_void(base_size = 8)+
   theme(legend.position = "bottom")
 ggsave(plot = map.ndvi, filename = "NDVI/map.ndvi.nsf.png", dpi = "retina", units = "cm")
@@ -205,7 +205,7 @@ ggsave(plot = map.ndvi, filename = "NDVI/map.ndvi.nsf.png", dpi = "retina", unit
 knitr::include_graphics("NDVI/map.ndvi.nsf.png")
 ```
 
-fig_nums(map_ndvi, "Map of summer NVDI in Norway, Sweden and Finland in 1994")
+`r fig_nums("map_ndvi", "Map of summer NVDI in Norway, Sweden and Finland in 1994")`
 
 ## Runoff
 
@@ -276,11 +276,12 @@ The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/
 knitr::include_graphics("Corine_Land_Cover/Map_clc.png") 
 ```
 
-fig_nums(map_clc, "Map of Land Cover in Norway, Sweden and Finland in 2000")
+`r fig_nums("map_clc", "Map of Land Cover in Norway, Sweden and Finland in 2000")`
 
 The land cover data was downloaded as a raster (.tiff file), which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were:
 
 Arable land:
+
 * 12: non-irrigated arable land
 * 16: fruit trees and berries plantations
 * 18: pastures
@@ -288,15 +289,18 @@ Arable land:
 * 20: Complex cultivation patterns
 
 Bogs:
+
 * 36: peat bogs
 * 35: inland marshes, excluded because all zeros in the studied area.
 
 Forest:
+
 * 23: Broad-leaved forest
 * 24: Coniferous forest
 * 25: Mixed forest
 
 Bare:
+
 31: Bare rocks
 32: Sparsely vegetated areas
 33: Burnt areas
@@ -308,7 +312,7 @@ clc.remote <- raster::extract(corine,catchment.poly.corine)
 saveRDS(clc.remote,"clc.remote.Rdata")
 ```
 
-The proportion of each land-cover catergory was computed for each catchment. 
+The proportion of each land-cover category was computed for each catchment. 
 
 ```{r corine-tab-prop, eval = F}
 clc.remote <- readRDS("clc.remote.Rdata")
@@ -340,6 +344,7 @@ saveRDS(bare,"bare.rds")
 The nitrogen and sulfur deposition data were extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). The data from 2000 was used as it is the first model available.
 
 N-deposition (NOx and NH3) is the sum of: 
+
 * Dry deposition of oxidized nitrogen per m2 grid DDEP_OXN_m2Grid, in mg/m2
 * Wet deposition of oxidized nitrogen WDEP_OXN, in mg/m2 
 * Dry deposition of oxidized nitrogen per m2 grid DDEP_RDN_m2Grid, in mg/m2
@@ -370,6 +375,7 @@ saveRDS(ndep.df,"ndep.df.Rdata")
 ```
 
 The S-deposition is composed of the sum of:
+
 * Dry deposition of oxidized sulphur per m2 grid DDEP_SOX_m2Grid, in mg/m2
 * Wet deposition of oxidized sulphur WDEP_SOX, in mg/m2
 
@@ -595,8 +601,13 @@ ggsave(plot = white.fen, filename = "white.fen.png", dpi = "retina", width = 10,
 ```
 
 ```{r include-maps, hold = T}
-knitr::include_graphics(c("map.TOC.png","map.NDVI.png","map.Runoff.png","map.Precip.png","map.Temp.png","map.Bog.png","map.Arable.png","map.Forest.png","map.TNdep.png","map.TSdep.png"))
+listgrob <- list("map.toc.png","map.ndvi.png","map.Runoff.png","map.Precip.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+#grid.arrange(grobs = listgrob, ncol = 3)
+all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)","j"), label_size = 20)
+print(all.map)
 ```
+
+`r fig_nums("insert-maps", "Maps of DOM (TOC, a) and its predictor variables : Biomass (NDVI, b), mean runoff intensity (Runoff, c), temperature (Temp, d), precipitation intensity (Precip, e), proportion of peat (Bog, f), proportion of forest (Forest, c), proportion of arable land (Arable, d), total nitrogen deposition (TNdep, i) and total sulfur deposition (TSdep, j) in the studied catchments")`
 
 # Spatial autocorrelation & VIF
 
@@ -635,6 +646,8 @@ for (i in 1:length(moran.list)){
 
 saveRDS(moran.df,"moran.df.rds")
 ```
+
+`r table_nums("moran-table","Moran's I of the variables")`
 
 ```{r moran-table}
 moran.df <- readRDS("moran.df.rds")
@@ -716,6 +729,8 @@ summary.table.lm.5[,-1] <- apply(summary.table.lm.5[,-1],2,as.numeric)
 saveRDS(summary.table.lm.5, "summary.table.lm.5.rds")
 ```
 
+`r table_nums("summary-lm-5","Results for the linear model with 5 selected predictors on Norway, Sweden and Finland")`
+
 ```{r print-table-lm-5}
 summary.table.lm.5 <- readRDS("summary.table.lm.5.rds")
 
@@ -728,8 +743,6 @@ knitr::kable(summary.table.lm.5,digits = 3, caption = "LM with 5 selected predic
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+3)
 ```
 
-`r `table_nums("summary-lm-5","Results for the linear model with 5 selected predictors on Norway, Sweden and Finland")`
-
 The residuals are plotted below.
 
 ```{r residuals-lm5}
@@ -740,7 +753,7 @@ f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.5$residuals, plottitle
 f_plotspatial(data = fennoscandia,var = lm.fennoscandia.5$residuals, plottitle = "b) Residuals for unscaled LM")
 ```
 
-`r `fig_nums("residuals-lm-5","Residuals for linear model, a) with scaled variables, b) with unscaled variables")`
+`r fig_nums("residuals-lm-5","Residuals for linear model, a) with scaled variables, b) with unscaled variables")`
 
 
 ## Spatial error linear model on NSF, 5 selected predictors (NDVI, Runoff, Bog, Arable, TNdep)
@@ -813,6 +826,8 @@ knitr::kable(summary.table.sem.5,digits = 3, caption = "SELM with 5 selected pre
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 ```
 
+`r table_nums("summary-lm-5","Results for the spatial error linear model with 5 selected predictors on Norway, Sweden and Finland")`
+
 The residuals for scaled and unscaled models are presented in `r fig_nums("sem-residuals",display = "c")`
 
 ```{r residuals-sem5}
@@ -820,7 +835,7 @@ s.sem.fennoscandia.5 <- readRDS("s.sem.fennoscandia.5.rds")
 sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.rds")
 
 f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.5$residuals, plottitle = "a) Residuals for scaled SELM")
-f_plotspatial(data = fennoscandia,var = sem.fennoscandia.5$residuals, plottitle = "b)Residuals for unscaled SELM")
+f_plotspatial(data = fennoscandia,var = sem.fennoscandia.5$residuals, plottitle = "b) Residuals for unscaled SELM")
 ```
 
 `r fig_nums("sem-residuals","Map of residuals for a) scaled and b) unscaled SELM")`
@@ -942,8 +957,8 @@ knitr::kable(summary.table.lm.9,digits = 3, caption = "LM with 9 predictors") %>
 s.lm.fennoscandia.9 <- readRDS("s.lm.fennoscandia.9.rds")
 lm.fennoscandia.9 <- readRDS("lm.fennoscandia.9.rds")
 
-f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.9$residuals, plottitle = "Residuals for scaled LM, with all predictors")
-f_plotspatial(data = fennoscandia,var = lm.fennoscandia.9$residuals, plottitle = "Residuals for unscaled LM, with all predictors")
+f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.9$residuals, plottitle = "a) Residuals for scaled LM, with all predictors")
+f_plotspatial(data = fennoscandia,var = lm.fennoscandia.9$residuals, plottitle = "b) Residuals for unscaled LM, with all predictors")
 ```
 
 `r fig_nums("lm-residuals-9","Map of residuals for a) scaled and b) unscaled LM with 9 predictors")`
@@ -1230,6 +1245,8 @@ summary.table.simple.sem.precip[,-1] <- apply(summary.table.simple.sem.precip[,-
 saveRDS(summary.table.simple.sem.precip, "summary.table.simple.precip.rds")
 ```
 
+`r table_nums("table-sem-precip","Summary table for SELM model with 3 predictors: NDVI, Bog and logPrecip")`
+
 ```{r summary-table-fen-precip}
 summary.table.simple.precip <- readRDS("summary.table.simple.precip.rds")
 
@@ -1247,8 +1264,8 @@ knitr::kable(summary.table.simple.precip,digits = 3, caption = "SELM with 3 pred
 s.sem.fen.precip <- readRDS("s.sem.fen.precip.rds")
 sem.fen.precip <- readRDS("sem.fen.precip.rds")
 
-f_plotspatial(data = fennoscandia,var = s.sem.fen.precip$residuals, plottitle = "Residuals for scaled SEM, with NDVI, logPrecip, Bogs")
-f_plotspatial(data = fennoscandia,var = sem.fen.precip$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Precip, Bogs")
+f_plotspatial(data = fennoscandia,var = s.sem.fen.precip$residuals, plottitle = "a) Residuals for scaled SEM, with NDVI, logPrecip, Bogs")
+f_plotspatial(data = fennoscandia,var = sem.fen.precip$residuals, plottitle = "b) Residuals for unscaled SELM, with NDVI, Precip, Bogs")
 ```
 
 `r fig_nums(name = "residuals-precip", caption = "Map of residuals for SELM model with NDVI, log Precipitation and Bog as predictors, on a) scaled and b) unscaled variables")`
@@ -1352,8 +1369,8 @@ knitr::kable(summary.table.sem.tndep,digits = 3, caption = "SELM with 3 predicto
 s.sem.fen.tndep <- readRDS("s.sem.fen.tndep.rds")
 sem.fen.tndep <- readRDS("sem.fen.tndep.rds")
 
-f_plotspatial(data = fennoscandia,var = s.sem.fen.tndep$residuals, plottitle = "Residuals for scaled SEM, with NDVI, Precipitation, TNdep")
-f_plotspatial(data = fennoscandia,var = sem.fen.tndep$residuals, plottitle = "Residuals for unscaled SELM, with NDVI, Precipitation, TNdep")
+f_plotspatial(data = fennoscandia,var = s.sem.fen.tndep$residuals, plottitle = "a) Residuals for scaled SEM, with NDVI, Precipitation, TNdep")
+f_plotspatial(data = fennoscandia,var = sem.fen.tndep$residuals, plottitle = "b) Residuals for unscaled SELM, with NDVI, Precipitation, TNdep")
 ```
 
 `r fig_nums(name = "residuals-precip", caption = "Map of residuals for SELM model with NDVI, TNdep and log Precipitation as predictors, on a) scaled and b) unscaled variables")`

@@ -14,6 +14,8 @@ link-citations: yes
 
 ---
 
+[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", fig.show = "hold")
 options(knitr.kable.NA="", knitr.kable.format ="html")
