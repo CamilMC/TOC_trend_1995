@@ -76,13 +76,13 @@ niva.poly <- readRDS("NIVA_test/niva.poly.rds")
 ggplot()+geom_sf(data = niva.poly, aes(fill = toc_2019, col = toc_2019))+scale_color_distiller(type = "div", palette = "RdYlBu",name = "TOC sampled 2019 (mg/L)", aesthetics = c("colour","fill"))+theme_minimal(base_size = 8)
 ```
 
-`r fig_nums("niva-poly","Catchment studied for the 2019 1000-lakes survey")`
+<div align = 'center'>*`r fig_nums("niva-poly","Catchment studied for the 2019 1000-lakes survey")`*</div>
 
 ```{r compare-toc}
 ggplot(niva.poly)+geom_point(aes(x=TOC,y=toc_2019))+ labs(x = "TOC concentration in lakes, 1995 (mg/L)", y = "TOC concentration in lakes, 2019 (mg/L)")+theme_minimal()
 ```
  
-`r fig_nums("niva-toc","Catchment studied for the 2019 1000-lakes survey")`
+<div align = 'center'>*`r fig_nums("niva-toc","Catchment studied for the 2019 1000-lakes survey")`*</div>
 
 ## NDVI 
 
@@ -259,7 +259,6 @@ saveRDS(ndep.df,"NIVA_test/Ndep/ndep.df.niva.rds")
 ```
 
 
-
 ## Gather dataset
 
 The dataset from NIVA and the NDVI values were merged and the variables were given names matching the Fennoscandian dataset. The projection of the polygons was converted to the projection used in the present project (EU33).
@@ -382,10 +381,11 @@ for(i in m[1]){
 white.fen <- ggplot()+theme_void()+theme(plot.margin = unit(c(0,marg,0,marg), units = "cm"))
 ggsave(plot = white.fen, filename = "white.fen.png", dpi = "retina", width = 10, height = 12, units = "cm")
 
+```
 
 # TOC prediction for NIVA dataset 
 
-In order to predict the TOC in 2019 using the SELM, a neighbour matrix with the NIVA-lakes is first computed. 
+In order to predict the TOC in 2019 using the SELM, a neighbor matrix with the NIVA-lakes is first computed. 
 
 ```{r niva-kmat, eval = F}
 niva.data <- readRDS("NIVA_test/niva.data.rds")

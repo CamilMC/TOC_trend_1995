@@ -94,11 +94,11 @@ st_write(wr.sf, "wr.sf.shp")
 
 ## NDVI
 
-NDVI values are extracted from the GIMMS NDVI3g dataset [@TheNationalCenterForAtmosphericResearch2018], stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package [@Destch2021] on Rstudio. 
+NDVI values are extracted from the GIMMS NDVI3g dataset [@NCAR2018], stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package [@Detsch2021] on Rstudio. 
 
 Data is taken bi-monthly [@Tucker2005]. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximum NDVI value is taken for each pixel. Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package [@Hijmans2018]. 
 
-The values stored in the ecocast dataset are composed of the NDVI value and a flag value indicating the goodness of the data [@Detsch2021]. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula $floor(ndvi3g/10)/1000$ [@Detsch2021], and then the mean of the 3 summer values (June, July and August) was computed for each catchment. 
+The values stored in the ecocast dataset are composed of the NDVI value and a flag value indicating the goodness of the data [@Detsch2021]. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula $NDVI = floor(ndvi3g/10)/1000$ [@Detsch2021], and then the mean of the 3 summer values (June, July and August) was computed for each catchment. 
 
 ```{r extract-ndvi-wr, eval = F}
 ndvi.max <- readRDS("ndvi.max.rds")
@@ -120,12 +120,12 @@ saveRDS(ndvi.wr, "WR/ndvi.wr.rds")
 knitr::include_graphics("WR/wr.map.NDVI.png")
 ```
 
-`r fig_nums("map-ndvi", "Summer NDVI in 1994 in coastal drainage basins")`
+<div align = 'center'>*`r fig_nums("map-ndvi", "Summer NDVI in 1994 in coastal drainage basins")`*</div>
 
 
 ## Runoff
 
-The runoff data was downloaded from the CORDEX database @CORDEXvERC. The data is available at https://esg-dn1.nsc.liu.se/projects/esgf-liu/.
+The runoff data was downloaded from the CORDEX database: https://portal.enes.org/data/enes-model-data/cordex. The data is available at https://esg-dn1.nsc.liu.se/projects/esgf-liu/.
 
 The names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
 
@@ -148,7 +148,7 @@ saveRDS(runoff.wr95,"WR/runoff.wr95.rds")
 knitr::include_graphics("WR/wr.map.Runoff.png")
 ``` 
 
-`r fig_nums("map-runoff","Runoff in 1995 in coastal drainage basins (mm/y)")`
+<div align = 'center'>*`r fig_nums("map-runoff","Runoff in 1995 in coastal drainage basins (mm/y)")`*</div>
 
 ## Land Cover
 
@@ -235,9 +235,11 @@ list.grob <- c("WR/wr.map.Bog.png", "WR/wr.map.Arable.png") %>% lapply(readPNG) 
 plot_grid(plotlist = list.grob, nrow = 1, ncol = 2, labels = c("a)","b)"), label_size = 10)
 ```
 
-`r fig_nums("map_clc","Proportion of a) bogs and b) arable land in 2000 in coastal drainage basins (%)")`
+<div align = 'center'>*`r fig_nums("map_clc","Proportion of a) bogs and b) arable land in 2000 in coastal drainage basins")`*</div>
 
 ## Temperature and precipitation
+
+Temperature and precipitation are downloaded from the WorldClim database: https://worldclim.org/data/index.html
 
 Temperature in historical Worldclim is in °C * 10 (to reduce file size). Precipitation are average monthly precipitation in mm. Here we use the mean monthly precipitation and temperature for the period 1970-2000. 
 
@@ -266,7 +268,7 @@ list.grob <- c("WR/wr.map.Temp.png", "WR/wr.map.Precip.png") %>% lapply(readPNG)
 plot_grid(plotlist = list.grob, nrow= 1, ncol = 2, labels = c("a)", "b)"), label_size = 10)
 ```
 
-`r fig_nums("map-temp-precip", "Map of a) average temperature (°C) and b) average precipitation (mm/y) in 1995 in coastal drainage basins ")`
+<div align = 'center'>*`r fig_nums("map-temp-precip", "Map of a) average temperature (°C) and b) average precipitation (mm) in 1995 in coastal drainage basins ")`*</div>
 
 ## TNdep
 
@@ -315,7 +317,7 @@ saveRDS(ndep.wr,"WR/ndep.wr.rds")
 knitr::include_graphics("WR/wr.map.TNdep.png")
 ```
 
-`r fig_nums("map-tndep","Total nitrogen deposition in 1995 in coastal drainage basins (mg/m2)")`
+<div align = 'center'>*`r fig_nums("map-tndep","Total nitrogen deposition in 1995 in coastal drainage basins (mg/m2)")`*</div>
 
 ## Elevation
 
@@ -448,45 +450,27 @@ saveRDS(wr.sf.95, "WR/wr.sf.95.rds")
 ```{r plot-wr-variable, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 m <- c("NDVI","Runoff","Precip","Temp","Bog","Forest","Arable","TNdep")
-u <- c("NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean annual precipitation,\n mm/y","Mean annual temperature,\n °C","Proportion of bogs","Proportion of Forest","Proportion of\narable land","Total Nitrogen Deposition")
+u <- c("NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean monthly precipitation,\n mm","Mean annual temperature,\n °C","Proportion of bogs","Proportion of Forest","Proportion of\narable land","Total Nitrogen Deposition (mg/m2)")
 couleurs <- c("Greens","Blues","Blues","RdYlBu","YlOrBr","RdYlGn","RdYlGn","PuRd")
-dir <- c(T,T,T,F,T,T,T,T)
+dir <- c(T,F,F,T,T,F,T,F)
 
 for(i in m){
   
  mysf <- wr.sf.95
- mypal <- brewer.pal(name = couleurs[which(m == i)], n = 9)
- display.brewer.pal(name = couleurs[which(m == i)], n = 9)
- 
 
- if(dir[which(m == i)] == T){
-midcol <- median(mysf[[i]])
  map <- ggplot(mysf)+geom_sf(aes(fill = .data[[i]], col = .data[[i]]))+
-                     scale_fill_gradient2(low = mypal[1], mid = mypal[5], high = mypal[9],
-                                          midpoint = midcol,
+                     scale_fill_continuous_divergingx(palette = "RdYlBu",
                                           aesthetics = c("colour","fill"), 
+                                          rev = dir[grep(i,m)],
                                           name = paste(u[grep(i,m)],"\n(",i,")",sep=""))+
-    theme_minimal(base_size = 6)+
+    theme_minimal(base_size = 9)+
     theme(legend.position = "bottom")
     
   filename_i <- paste("WR/wr.map",i,"png",sep = ".")
-  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 6, height = 8, units = "cm")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
   
- } else if(dir[which(m == i)] == F){
-   midcol <- 0
-   map <- ggplot(mysf)+geom_sf(aes(fill = .data[[i]], col = .data[[i]]))+
-                     scale_fill_gradient2(low = mypal[9], mid = mypal[5], high = mypal[1],
-                                          midpoint = midcol,
-                                          aesthetics = c("colour","fill"), 
-                                          name = paste(u[grep(i,m)],"\n(",i,")",sep=""))+
-    theme_minimal(base_size = 6)+
-    theme(legend.position = "bottom")
-    
-  filename_i <- paste("WR/wr.map",i,"png",sep = ".")
-  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 6, height = 8, units = "cm")
-   
  }
-}
+
 
 ```
 
@@ -545,7 +529,7 @@ saveRDS(sem.pred.wr,"WR/sem.pred.wr.rds")
 knitr::include_graphics("WR/wr.log.toc.png")
 ```
 
-`r fig_nums(name = "fit-toc-95", caption = "Map of log(TOC) in coastal drainage basins for 1995")`
+<div align = 'center'>*`r fig_nums(name = "fit-toc-95", caption = "Map of log(TOC) in coastal drainage basins for 1995")`*</div>
 
 # Forecast
 
@@ -617,7 +601,7 @@ listgrob <- list("worldclim_future/ssp126.temp.2050.png", "worldclim_future/ssp3
 plot_grid(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("a) SSP126-2050","b) SSP370-2050","c) SSP126-2100","d) SSP370-2100"), label_size = 10)
 ```
 
-`r fig_nums(name = "future-temp", caption = "Map of forecasted temperature (ºC) for 2050 and 2100, under SSP 1-2.6 and SSP 3-7.0")`
+<div align = 'center'>*`r fig_nums(name = "future-temp", caption = "Map of forecasted temperature (ºC) for 2050 and 2100, under SSP 1-2.6 and SSP 3-7.0")`*</div>
 
 ```{r extract-future-prec, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
@@ -705,7 +689,7 @@ listgrob <- list("worldclim_future/ssp126.2050.prec.png", "worldclim_future/ssp3
 plot_grid(plotlist = listgrob, ncol = 2, nrow = 2, labels = c("a) SSP126-2050","b) SSP370-2050","c) SSP126-2100","d) SSP370-2100"), label_size = 10)
 ```
 
-`r fig_nums(name = "future-prec", caption = "Map of forecasted precipitations (mm/s) for 2050 and 2100, under SSP 1-2.6 and SSP 3-7.0")`
+<div align = 'center'>*`r fig_nums(name = "future-prec", caption = "Map of forecasted precipitations (mm/s) for 2050 and 2100, under SSP 1-2.6 and SSP 3-7.0")`*</div>
 
 #### NDVI model based on past temperature and precipitation values
 
@@ -729,32 +713,32 @@ par(mfrow = c(2,2))
 #LM
 summary(m1 <- lm(NDVI ~ Temp * log(Precip), data = wr.sf.95))
 summary(m1 <- step(m1))
-plot(wr.sf.95$NDVI, predict(m1),  pch = ".", main="a ) NDVI - LM", xlab="Observed NDVI", ylab="Predicted",abline(0,1))
+plot(predict(m1),  wr.sf.95$NDVI, pch = ".", main="a ) NDVI - LM", ylab="Observed NDVI", xlab="Predicted",abline(0,1))
 text(x = 0.8, y = 0.4, label = paste("r2 =", round(summary(m1)$adj.r.squared,2), sep= ""))
 
 # SELM
 ndvi.model <- errorsarlm(formula = NDVI~Temp+log(Precip), data = wr.sf.95, listw = wr.kmat)
 AIC <- 2*(3-1)-2*ndvi.model$LL
-plot(wr.sf.95$NDVI, ndvi.model$fitted.value,  pch = ".", main="b) NDVI - SELM", xlab="Observed", ylab="Predicted",abline(0,1))
+plot(ndvi.model$fitted.value,  wr.sf.95$NDVI, pch = ".", main="b) NDVI - SELM", ylab="Observed", xlab="Predicted",abline(0,1))
 text(x = 0.8, y = 0.5, label = paste("r2 =", round(cor(ndvi.model$fitted.values, wr.sf.95$NDVI)^2,2), sep= ""))
 saveRDS(ndvi.model, "WR/selm.ndvi.rds")
 
 # quadratic
 summary(m2 <- lm(NDVI ~ (Temp + I(Temp^2)) * (log(Precip) + I(log(Precip)^2)), data = wr.sf.95))
 summary(m2 <- step(m2))
-plot(wr.sf.95$NDVI, predict(m2),  pch = ".", main="c) NDVI - quadratic model", xlab="Observed", ylab="Predicted",abline(0,1))
+plot(predict(m2),  wr.sf.95$NDVI, pch = ".", main="c) NDVI - quadratic model", ylab="Observed", xlab="Predicted",abline(0,1))
 text(x = 0.8, y = 0.4, label = paste("r2 =", round(summary(m2)$adj.r.squared,2), sep= ""))
 
 # poly 
 summary(m3 <- lm(NDVI ~ poly(cbind(Temp, log(Precip)), degree = 5), data = wr.sf.95))
 summary(m3 <- step(m3))
-plot(wr.sf.95$NDVI, predict(m3),  pch = ".", main="d) NDVI - polynomial ", xlab="Observed", ylab="Predicted",abline(0,1))
+plot(predict(m3),  wr.sf.95$NDVI, pch = ".", main="d) NDVI - polynomial ", ylab="Observed", xlab="Predicted",abline(0,1))
 text(x = 0.8, y = 0.4, label = paste("r2 =", round(summary(m3)$adj.r.squared,2), sep= ""))
 
 saveRDS(m3,"WR/poly.ndvi.rds")
 ```
 
-`r fig_nums("ndvi-model-test","Test of 4 NDVI models, a) linear model, b) spatial error linear model, c) quadratic model, d) polynomial model")`
+<div align = 'center'>*`r fig_nums("ndvi-model-test","Test of 4 NDVI models, a) linear model, b) spatial error linear model, c) quadratic model, d) polynomial model")`*</div>
 
 The SELM and the polynomial model had the best results. We tested them on the Fennoscandia dataset. 
 
@@ -776,7 +760,7 @@ fennoscandia.selm.ndvi.model$area <- st_area(fennoscandia.selm.ndvi.model) %>% a
   
 ggplot(fennoscandia.selm.ndvi.model) + geom_point(aes(y = ndvi.fit, x = NDVI, col = latitude), size = 1)+
    scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
-   labs(x = "NDVI", y = "Predicted NDVI",subtitle = "a)")+
+   labs(x = "NDVI", y = "Predicted NDVI")+
    annotate(geom = "label", label = paste("r = ", round(cor(fennoscandia.selm.ndvi.model$NDVI,fennoscandia.selm.ndvi.model$ndvi.fit)^2,2)), x = 0.75, y = 0.3, size = 2)+
    geom_abline(slope  = 1, intercept = 0, col = "red")+
    theme_minimal(base_size = 6)
@@ -785,7 +769,6 @@ ggsave(filename = "WR/fen.ndvi.selm.results.png", dpi = "retina", width = 6, hei
 fen.residuals.selm <- ggplot()+
   geom_sf(data = fennoscandia.selm.ndvi.model, aes(fill = ndvi.residuals, col = ndvi.residuals))+
   scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, aesthetics = c("fill", "col"), name = "SELM residuals")+
-  labs(subtitle = "b)")+
   theme_minimal(base_size = 6)+theme(legend.position = "bottom")
 ggsave(plot = fen.residuals.selm, filename = "WR/fen.selm.ndvi.residuals.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
@@ -805,7 +788,7 @@ test.compare <- filter(fennoscandia.poly.ndvi.model, between(ebint, 16600000, 16
 
 ggplot(fennoscandia.poly.ndvi.model) + geom_point(aes(y = ndvi.fit, x = NDVI, col = latitude), size = 1)+
    scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
-   labs(x = "NDVI", y = "Predicted NDVI",subtitle = "c)")+
+   labs(x = "NDVI", y = "Predicted NDVI")+
    annotate(geom = "label", label = paste("r = ", round(cor(fennoscandia.poly.ndvi.model$NDVI,fennoscandia.poly.ndvi.model$ndvi.fit),2)), x = 0.75, y = 0.3, size = 2)+
    geom_abline(slope  = 1, intercept = 0, col = "red")+
    theme_minimal(base_size = 6)
@@ -814,7 +797,6 @@ ggsave(filename = "WR/fen.ndvi.poly.results.png", dpi = "retina", width = 6, hei
 fen.residuals <- ggplot()+
   geom_sf(data = fennoscandia.poly.ndvi.model, aes(fill = ndvi.residuals, col = ndvi.residuals))+
   scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, aesthetics = c("fill", "col"), name = "Polynomial residuals")+
-  labs(subtitle = "d)")+
   theme_minimal(base_size = 6)+theme(legend.position = "bottom")
 ggsave(plot = fen.residuals, filename = "WR/fen.poly.ndvi.residuals.png",dpi = "retina", width = 6, height = 8, units = "cm")
 
@@ -822,10 +804,10 @@ ggsave(plot = fen.residuals, filename = "WR/fen.poly.ndvi.residuals.png",dpi = "
 
 ```{r plot-residuals-ndvi, fig.dim = c(12,16)}
 listgrob <- list("WR/fen.ndvi.selm.results.png","WR/fen.ndvi.poly.results.png","WR/fen.selm.ndvi.residuals.png","WR/fen.poly.ndvi.residuals.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-plot_grid(plotlist = listgrob, ncol = 2, nrow = 2, rel_heights = c(1,2), labels = c("a) Observed vs predicted NDVI for SELM","b) Observed vs predicted NDVI for polynomial model","c) Map of residuals for SELM","d) Map of residuals for Polynomial model"))
+plot_grid(plotlist = listgrob, ncol = 2, nrow = 2, rel_heights = c(1,2), labels = c("a) Observed vs predicted NDVI for SELM","b) Observed vs predicted NDVI for polynomial model","c) Map of residuals for SELM","d) Map of residuals for Polynomial model"), hjust = 3)
 ```
 
-`r fig_nums(name = "residuals-ndvi", caption = "Results of NDVI models (SELM and polynomial): observed vs predicted for a) SELM and b) polynoimal model,  and map of residuals (observed - predicted) for c) SELM and d) Polynomial")`
+<div align = 'center'>*`r fig_nums(name = "residuals-ndvi", caption = "Results of NDVI models (SELM and polynomial): observed vs predicted for a) SELM and b) polynoimal model,  and map of residuals (observed - predicted) for c) SELM and d) Polynomial")`*</div>
 
 The polynomial model preforms better on the test set (Fennoscandia catchments). This model will be used to forecast NDVI in 2050 and in 2100. 
 
@@ -871,7 +853,7 @@ saveRDS(ndvi.ssp370.2100,"WR/ndvi.ssp370.2100.rds")
 
 ```
 
-`r fig_nums(name = "residuals-ndvi", caption = "Map of residuals of log(TOC) in coastal drainage basins for 1995")`
+<div align = 'center'>*`r fig_nums(name = "residuals-ndvi", caption = "Map of residuals of log(TOC) in coastal drainage basins for 1995")`*</div>
 
 ### Forecast runoff 2050 and 2100
 
@@ -1154,7 +1136,7 @@ listgrob <- list("WR/SSP126.2050.diffTemp.png", "WR/SSP126.2100.diffTemp.png","W
 plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ```
 
-`r fig_nums("future-temp","Forecast of mean temperature intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in temperature compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+<div align = 'center'>*`r fig_nums("future-temp","Forecast of mean temperature intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in temperature compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`*</div>
 
 ```{r print-plot-forecast-precip, fig.dim = c(6,8)}
 listgrob <- list("WR/SSP126.2050.diffPrecip.png","WR/SSP126.2100.diffPrecip.png","WR/SSP370.2050.diffPrecip.png","WR/SSP370.2100.diffPrecip.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
@@ -1163,7 +1145,7 @@ plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 
 ```
 
-`r fig_nums("future-precipitation","Forecast of mean precipitation intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in precipitation compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+<div align = 'center'>*`r fig_nums("future-precipitation","Forecast of mean precipitation intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in precipitation compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`*</div>
 
 ```{r print-plot-forecast-ndvi, fig.dim = c(6,8)}
 listgrob <- list("WR/SSP126.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","WR/SSP370.2050.diffNDVI.png","WR/SSP370.2100.diffNDVI.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
@@ -1171,7 +1153,7 @@ listgrob <- list("WR/SSP126.2050.diffNDVI.png","WR/SSP126.2100.diffNDVI.png","WR
 plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ```
 
-`r fig_nums("future-ndvi","Forecast of mean NDVI for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in NDVI compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+<div align = 'center'>*`r fig_nums("future-ndvi","Forecast of mean NDVI for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in NDVI compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`*</div>
 
 ```{r print-plot-forecast-runoff, fig.dim = , fig.dim = c(6,8)}
 listgrob <- list("WR/SSP126.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png","WR/SSP370.2050.diffRunoff.png","WR/SSP370.2100.diffRunoff.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
@@ -1179,7 +1161,7 @@ listgrob <- list("WR/SSP126.2050.diffRunoff.png","WR/SSP126.2100.diffRunoff.png"
 plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ```
 
-`r fig_nums("future-runoff","Forecast of mean runoff intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in runoff compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+<div align = 'center'>*`r fig_nums("future-runoff","Forecast of mean runoff intensities for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in runoff compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`*</div>
 
 ```{r print-plot-forecast-tndep, fig.dim = c(6,8)}
 listgrob <- list("WR/SSP126.2050.diffTNdep.png","WR/SSP126.2100.diffTNdep.png","WR/SSP370.2050.diffTNdep.png","WR/SSP370.2100.diffTNdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
@@ -1187,7 +1169,7 @@ listgrob <- list("WR/SSP126.2050.diffTNdep.png","WR/SSP126.2100.diffTNdep.png","
 plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ```
 
-`r fig_nums("future-tndep","Forecast of mean total nitrogen deposition for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in TNdep compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`
+<div align = 'center'>*`r fig_nums("future-tndep","Forecast of mean total nitrogen deposition for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), and change in TNdep compared to the average for 1995 to 2050, under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`*</div>
 
 ## Forecast TOC for 2050 and 2100
 
@@ -1361,7 +1343,7 @@ Most coastal drainage basins in Sweden and Finland drain into to the Baltic Sea 
 
 $$ TOC_exp = [TOC] (mg.L^{-1}) \times Runoff (mm/y, or L.m^{-2}.y^{-1}) \times Watershed area (m^2)$$
 
-Where the TOC concentration (past and future) was obtained by back-transforming the results of the model (log(TOC)) into TOC in mg/L. The result of the above equation, giving the amount of TOC exported in mg, is converted to Tg. Forecast are presented on `r fig_nums("coastal-darkening",display = "c")`.
+Where the TOC concentration (past and future) was obtained by back-transforming the results of the model (log(TOC)) into TOC in mg/L. The result of the above equation, giving the amount of TOC exported in mg, is converted to Tg. Forecast are presented on `r fig_nums("coastal-darkening",display = "c")`*</div>.
 
 ```{r compute-discharge, eval = F}
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
@@ -1491,6 +1473,6 @@ ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 15, height = 10, 
 knitr::include_graphics("WR/TOC_export.png")
 ```
 
-`r fig_nums("toc-export","TOC exported from coastal drainage basins (mg/L)")`
+<div align = 'center'>*`r fig_nums("toc-export","TOC exported from coastal drainage basins (mg/L)")`*</div>*
 
 # References 
