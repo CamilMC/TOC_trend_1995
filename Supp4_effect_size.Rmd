@@ -14,7 +14,7 @@ link-citations: yes
 
 ---
 
-[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)
+**[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)**
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center")
@@ -71,10 +71,6 @@ $$u = \rho Mu +\varepsilon$$
 
 The computation was made on R with the "spatialreg" package @Bivand2019. 
 
-
-## Geographically weigthed regression GWR
-
-Finally, we fitted a geographically weighted regression model, using the GWmodel package in R @Lu2021. A developement of the model using GWmodel is presented in @Gollini2015b. A geographically weighted model computes a linear regression for each point of the dataset, giving more weight to the closest neighbours. The weight of each neighbours is defined by a weight matrix, specific to each model point. Here we chose a decreasing kernel gaussian weighting function. Instead of using an automatically selected bandwith (the bandwith parameter controls the rate of decay of the function), we defined it as the 100 closest neighbours in order to remain consistent with bandwith chosen for the spatial error model. 
 
 # Effect size {#effect-size}
 
@@ -142,3 +138,11 @@ $Std(h(\hat{\theta})) = ln(1.1) \times 1.1^{\hat{\theta}} \times Std(\hat{\theta
 
 
 # References
+
+```{r early-exit}
+knitr::knit_exit()
+```
+
+## Geographically weigthed regression GWR
+
+Finally, we fitted a geographically weighted regression model, using the GWmodel package in R @Lu2021. A developement of the model using GWmodel is presented in @Gollini2015b. A geographically weighted model computes a linear regression for each point of the dataset, giving more weight to the closest neighbours. The weight of each neighbours is defined by a weight matrix, specific to each model point. Here we chose a decreasing kernel gaussian weighting function. Instead of using an automatically selected bandwith (the bandwith parameter controls the rate of decay of the function), we defined it as the 100 closest neighbours in order to remain consistent with bandwith chosen for the spatial error model. 

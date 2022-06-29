@@ -11,7 +11,7 @@ output:
 bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 ---
   
-[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)  
+**[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)**  
   
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T)
@@ -94,7 +94,7 @@ table_nums <- captioner(prefix = "Table")
 
 ## Catchment polygons
 
-The catchment and TOC data are stored on the PostgreSQL database ecco_biwa, accessed through Rstudio using the st_read function (sf package @Pebesma2021) and the dplyr package @Wickhman2021. 
+The catchment and TOC data are stored on the PostgreSQL database ecco_biwa, accessed through Rstudio using the st_read function in the sf package [@Pebesma2021] and the dplyr package [@Wickham2020]. 
 Each catchment polygon is linked to the corresponding TOC concentration via an "ebint" (identifyer), internal to the ecco_biwa database.
 
 The catchment polygons were designed by an elevation model and are assigned to the studied lake based on the distance to the sampling coordinates.
@@ -143,11 +143,11 @@ saveRDS(toc.df,"toc.df.Rdata")
 
 ## NDVI
 
-NDVI values are extracted from the GIMMS NDVI3g dataset [@TheNationalCenterForAtmosphericResearch2018], stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package [@Destch2021] on Rstudio. 
+NDVI values are extracted from the GIMMS NDVI3g dataset [@NCAR2018], stored on http://poles.tpdc.ac.cn/en/data/9775f2b4-7370-4e5e-a537-3482c9a83d88/, in the "ecocast" dataset and accessed via the "gimms" package [@Detsch2021] on Rstudio. 
 
-Data is taken bi-monthly [@Tucker2005]. Raster layers of all slices are downloaded using the gimmsdownload function, then monthly composite are calculated using the monthlyComposites function. The maximum NDVI value is taken for each pixel. Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package [@Hijmans2018]. 
+Data is taken bi-monthly [@Tucker2005]. Raster layers of all slices are downloaded using the downloadGimms function, then monthly composites are calculated using the monthlyComposites function. The maximum NDVI value is taken for each pixel. Afterwards the NDVI values for each catchment polygon are extracted using the extract function from the raster package [@Hijmans2018]. 
 
-The values stored in the ecocast dataset are composed of the NDVI value and a flag value indicating the goodness of the data [@Detsch2021]. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula $floor(ndvi3g/10)/1000$ [@Detsch2021], and then the mean of the 3 summer values (June, July and August) was computed for each catchment. 
+The values stored in the ecocast dataset are composed of the NDVI value and a flag value indicating the goodness of the data. All the NDVI values extracted, corresponding to the values for the studied catchments, had a flag of 1, indicating a good value. The NDVI value was retrieved from the stored value using the formula $floor(ndvi3g/10)/1000$ [@Detsch2021], and then the mean of the 3 summer values (June, July and August) was computed for each catchment. 
 
 
 ```{r summer-ndvi, eval = F}
@@ -182,8 +182,6 @@ summer.ndvi$flag.value <- summer.ndvi$ndvi - floor(summer.ndvi$ndvi/10)*10 + 1
 # Saves NDVI file
 saveRDS(summer.ndvi, "summer.ndvi.Rdata")
 write.csv(summer.ndvi,"summer.ndvi.csv")
-
-ndvi.vatten <- raster::extract(summer.scan, catchment.poly[which(catchment.poly$ebint == 16612216),], fun = mean, df = T, sp = T, na.rm = T)
 ```
 
 ```{r maps-ndvi, eval = F}
@@ -195,7 +193,7 @@ ndvi.plot <- (floor(summer.scan)/10)/1000
 ndvi.plot.spdf <- ndvi.plot %>% as("SpatialPixelsDataFrame") %>% spTransform(projection(wr.sf.95)) %>% as.data.frame()
 
 map.ndvi <- ggplot() + geom_tile(data = ndvi.plot.spdf, aes(x = x, y = y, fill = layer, width = 10000, height = 10000))+
-  scale_fill_distiller(type = "seq", palette = 2, direction = 1)+labs(fill = "Summer NDVI 1995")+
+  scale_fill_distiller(type = "seq", palette = 2, direction = 1)+labs(fill = "Summer NDVI 1994")+
   theme_void(base_size = 8)+
   theme(legend.position = "bottom")
 ggsave(plot = map.ndvi, filename = "NDVI/map.ndvi.nsf.png", dpi = "retina", units = "cm")
@@ -209,11 +207,11 @@ knitr::include_graphics("NDVI/map.ndvi.nsf.png")
 
 ## Runoff
 
-The runoff data was downloaded from the CORDEX database @CORDEXvERC. The data is available at https://esg-dn1.nsc.liu.se/projects/esgf-liu/.
+The runoff data was downloaded from the CORDEX database [@CORDEXvERC]. The data is available at https://esg-dn1.nsc.liu.se/projects/esgf-liu/.
 
-The names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/
+The names of the variables in the CORDEX project follow the CF Metadata convention: http://cfconventions.org/. We used here the "mrros" variable, for surface runuff, in kg/m2/s. 
 
-THe mean of the 30 years between 1970 and 2000 is used (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf). This time period matches the temperature and precipitation data provided by WorldClim.
+According to Euro-CORDEX guidelines, we used the mean runoff over 30 years. We chose the interval 1970 - 2000 to match the temperature and precipitation data provided by WorldClim (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf). This time period matches .
 
 ```{r runoff, eval = F}
 runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
@@ -230,7 +228,7 @@ saveRDS(runoff.fennoscandia,"CORDEX/runoff.fennoscandia.rds")
 
 ## Temperature, precipitation and slope
 
-Temperature and precipitation are downloaded from the database Worldclim. Temperature is the mean annual temperature from 1970 to 2000 in C, or bio1 in the bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the bioclimatic dataset : https://www.worldclim.org/data/worldclim21.html 
+Temperature and precipitation are downloaded from the database Worldclim [@WorldClim]. We use the average of the time interval 1970-2000, stored in the "Bioclimatic variable" dataset, available for download at: https://www.worldclim.org/data/worldclim21.html. We used the highest available resolution (30 seconds). Temperature is the mean annual temperature from 1970 to 2000 in °C, or "bio1" in the Bioclimatic dataset. The original data is in C*10 so the data is divided by 10 before use. Precipitation is the mean annual precipitation in mm or bio12 in the Bioclimatic dataset.  
 
 ```{r temp-prec, eval = F}
 bio.fennoscandia <- raster::getData(name = "worldclim", var = "bio", res = 2.5)
@@ -272,11 +270,6 @@ saveRDS(slope.df, "slope.df.Rdata")
 
 The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/lcc-2000-2006. The previous version (1995-2000) excludes Norway so the 2000 version was preferred. 
 
-```{r CLC-map, fig.dim=c(6,8)}
-knitr::include_graphics("Corine_Land_Cover/Map_clc.png") 
-```
-
-<div align = 'center'>*`r fig_nums("map_clc", "Map of Land Cover in Norway, Sweden and Finland in 2000")`*</div>
 
 The land cover data was downloaded as a raster (.tiff file), which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were:
 
@@ -301,9 +294,18 @@ Forest:
 
 Bare:
 
-31: Bare rocks
-32: Sparsely vegetated areas
-33: Burnt areas
+* 31: Bare rocks
+* 32: Sparsely vegetated areas
+* 33: Burnt areas
+
+The map of these combined categories is shown in `r fig_nums("map_clc", display = "c")`.
+
+```{r CLC-map, fig.dim=c(6,8)}
+knitr::include_graphics("Corine_Land_Cover/Map_clc.png") 
+```
+
+<div align = 'center'>*`r fig_nums("map_clc", "Map of Land Cover in Norway, Sweden and Finland in 2000")`*</div>
+
 
 ```{r extract-land-cover, eval = F}
 corine <- raster::raster("Corine_Land_Cover/U2006_CLC2000_V2020_20u1.tif")
@@ -341,7 +343,7 @@ saveRDS(bare,"bare.rds")
 
 ## Nitrogen and sulfur deposition
 
-The nitrogen and sulfur deposition data were extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). The data from 2000 was used as it is the first model available.
+The nitrogen and sulfur deposition data were extracted from the EMEP database [@EMEP]. The data from 2000 was used as it is the first model available.
 
 N-deposition (NOx and NH3) is the sum of: 
 
@@ -464,13 +466,19 @@ The distribution of the variables were checked with histograms.
 ```{r hist, results = F, fig.dim = c(24,48)}
 fennoscandia_raw <- readRDS("fennoscandia_raw.rds")
 
+fennoscandia_hist <- dplyr::select(fennoscandia_raw,!c("ebint","nation","dist_closest_ebint","dist_2nd_closest_ebint","ndvi","flag.value")) 
+
+titles <- c("TOC","Longitude","Latitude","NDVI","Runoff (mm)","Temperature (°C)","Precipitation (mm)","Slope","Altitude (m)","Bogs","Arable","Forest","Bare land", "Wet Oxidized Nitrogen Deposition, mg/m2","Dry Oxidized Nitrogen Deposition (mg/m2)", "Wet reduced nitrogen deposition (mg/m2)","Dry reduced Nitrogen deposition (mg/m2)", "Total Nitrogen Deposition (mg/m2)", "Wet sulphur deposition (mg/L)", "Dry sulphur deposition (mg/m2)","Total sulphur deposition (mg/m2)")
+  
 h_list <- c()
 
-for (i in names(fennoscandia_raw[,-c(1:2)])){
-  if(IQR(fennoscandia_raw[[i]], na.rm = T) > 0.1){
-    hi <- ggplot(data = fennoscandia_raw,aes_string(i))+geom_histogram(stat = "bin",na.rm = T,binwidth = function(x) 2*IQR(x, na.rm = T)/(length(x)^(1/3)))+labs(y="",title = i)+theme_light(base_size = 20)
+for (i in 1:length(names(fennoscandia_hist))){
+  if(IQR(fennoscandia_hist[,i], na.rm = T) > 0.1){
+    hi <- ggplot(data = fennoscandia_hist)+geom_histogram(aes_string(x = names(fennoscandia_hist)[i]), stat = "bin",na.rm = T,binwidth = function(x) 2*IQR(x, na.rm = T)/(length(x)^(1/3)))+
+          labs(y="",title = titles[i])+theme_light(base_size = 20)
   }else{
-    hi <- ggplot(data = fennoscandia_raw,aes_string(i))+geom_histogram(stat = "bin",na.rm = T)+labs(y="",title = i)+theme_light(base_size = 20)
+    hi <- ggplot(data = fennoscandia_hist)+geom_histogram(aes_string(x = names(fennoscandia_hist)[i]), stat = "bin",na.rm = T)+
+          labs(y="",title = titles[i])+theme_light(base_size = 20)
   }
   h_list[[i]] <- hi
 }
@@ -536,7 +544,7 @@ fennoscandia.33 <- st_transform(fennoscandia.cat,st_crs(wr.sf.95))
 saveRDS(fennoscandia.33, "fennoscandia.33.rds")
 ```
 
-# Mapping of predictor and response variable
+## Mapping of predictor and response variable
 
 The TOC concentration and the predictor variables were plotted by catchment. 
 
@@ -544,13 +552,15 @@ The TOC concentration and the predictor variables were plotted by catchment.
 fennoscandia.33 <- readRDS("fennoscandia.33.rds")
 m <- c("TOC","NDVI","Runoff","Precip","Temp","Bog","Arable","Forest","TNdep","TSdep")
 u <- c("TOC concentration,\nmgC/L", "NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean annual\nprecipitation, mm/y","Mean annual\n temperature, °C","Proportion of bogs","Proportion of\narable land","Proportion of forest","Total nitrogen\ndeposition, mg/m2", "Total sulphur\ndeposition, mg/m2")
-dir <- c(T,F,F,F,T,F,F,F,F,F)
+dir <- c(T,F,F,F,T,T,T,F,F,F)
+midpoint <- c(0,0.6,median(fennoscandia.33$Runoff),median(fennoscandia.33$Precip),median(fennoscandia.33$Temp),0.3,0.3,0.5,median(fennoscandia.33$TNdep), median(fennoscandia.33$TSdep))
 marg <- 0
 nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(crs(fennoscandia.33))
 swe <- st_read("Country_shapefile/sweden.shp") %>% st_transform(crs(fennoscandia.33))
 fin <- st_read("Country_shapefile/finland.shp") %>% st_transform(crs(fennoscandia.33))
 
-for(i in m[2]){
+
+for(i in m[6:7]){
   
  mysf <- fennoscandia.33
 
@@ -558,15 +568,15 @@ for(i in m[2]){
    geom_sf(data = swe, fill = "white", size = 0.2)+
    geom_sf(data = fin, fill = "white", size = 0.2)+
    geom_sf(data = mysf, aes(fill = .data[[i]], col = .data[[i]]))+
-     scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name= paste(u[grep(i,m)],"\n(",i,")",sep=""), mid = 0.6, rev = dir[grep(i,m)]) +
-    theme_minimal(base_size = 10)+
+   scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name= paste(u[grep(i,m)],"\n(",i,")",sep=""), rev = dir[grep(i,m)], mid = midpoint[grep(i,m)]) +
+   theme_minimal(base_size = 10)+
     theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
     
   filename_i <- paste("map",i,"png",sep = ".")
-  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 6, height = 8, units = "cm")
+  ggsave(plot = map, filename = filename_i, dpi = "retina", width = 10, height = 12, units = "cm")
    
  }
-}
+
 
 label_tb <- read.table(text = 
   " Label Long Lat
@@ -589,7 +599,7 @@ for(i in m[1]){
   scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name= paste(u[grep(i,m)],"\n(",i,")",sep=""), mid = median(mysf[[i]]), rev = dir[grep(i,m)]) +
    geom_sf(data = filter(mysf, TOC > 20),col = "sienna4", fill = "sienna4")+
    labs(x="",y="")+
-   theme_minimal(base_size = 9)+
+   theme_minimal(base_size = 10)+
     theme(legend.position = "bottom", plot.margin = unit(c(0,marg,0,marg), units = "cm"))
     
   filename_i <- paste("map",i,"png",sep = ".")
@@ -606,13 +616,13 @@ ggsave(plot = white.fen, filename = "white.fen.png", dpi = "retina", width = 10,
 ```{r include-maps, hold = T, fig.dim = c(30,30)}
 listgrob <- list("map.toc.png","map.ndvi.png","map.Runoff.png","map.Precip.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 #grid.arrange(grobs = listgrob, ncol = 3)
-all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)","j"), label_size = 14)
+all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)","j"), label_size = 20)
 print(all.map)
 ```
 
 <div align = 'center'>*`r fig_nums("insert-maps", "Maps of DOM (TOC, a) and its predictor variables : Biomass (NDVI, b), mean runoff intensity (Runoff, c), temperature (Temp, d), precipitation intensity (Precip, e), proportion of peat (Bog, f), proportion of forest (Forest, c), proportion of arable land (Arable, d), total nitrogen deposition (TNdep, i) and total sulfur deposition (TSdep, j) in the studied catchments")`*</div>
 
-# Spatial autocorrelation & VIF
+## Spatial autocorrelation & VIF
 
 The spatial autocorrelation of the response and predictor variables were computed using Moran's I (see Supplementary 4). 
 
@@ -817,6 +827,8 @@ summary.table.sem.5[,-1] <- apply(summary.table.sem.5[,-1],2,as.numeric)
 saveRDS(summary.table.sem.5, "summary.table.sem.5.rds")
 ```
 
+<div align = 'center'>*`r table_nums("summary-lm-5","Results for the spatial error linear model with 5 selected predictors on Norway, Sweden and Finland")`*</div>
+
 ```{r print-table-sem-5}
 summary.table.sem.5 <- readRDS("summary.table.sem.5.rds")
 
@@ -828,8 +840,6 @@ knitr::kable(summary.table.sem.5,digits = 3, caption = "SELM with 5 selected pre
   column_spec(column = 8, bold = T) %>% 
   group_rows(group_label = "Model Evaluation", start_row = n+1,end_row=n+2)
 ```
-
-<div align = 'center'>*`r table_nums("summary-lm-5","Results for the spatial error linear model with 5 selected predictors on Norway, Sweden and Finland")`*</div>
 
 The residuals for scaled and unscaled models are presented in `r fig_nums("sem-residuals",display = "c")`
 
@@ -889,16 +899,17 @@ save_plot(plot = compare.5, filename = "compare.lm.selm.5.png")
 print(compare.5)
 ```
 
-`r fig_nums("compare-plot-5","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with NDVI, logRunoff, Bog, Arable and TNdep as predictors")`*</div>
+<div align = 'center'>*`r fig_nums("compare-plot-5","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with NDVI, logRunoff, Bog, Arable and TNdep as predictors")`*</div>
 
-# Other models
+
+
+# SELM with other predictors
 
 ## Comparison of linear model and spatial error model, 9 predictors
 
 The linear model and the spatial error linear model were fitted with all 9 predictors (including predictors correlated to each other or having a high Variance Inflation Factor). 
 
 ### Linear model on NSF, 9 predictors
-
 
 ```{r lm-fennoscandia-9, results = T}
 k.neigh.w <- readRDS("k.neigh.w.rds")
@@ -965,6 +976,7 @@ f_plotspatial(data = fennoscandia,var = lm.fennoscandia.9$residuals, plottitle =
 ```
 
 <div align = 'center'>*`r fig_nums("lm-residuals-9","Map of residuals for a) scaled and b) unscaled LM with 9 predictors")`*</div>
+
 
 ### Spatial error linear model on NSF, 9 predictors
 
@@ -1042,7 +1054,7 @@ f_plotspatial(data = fennoscandia,var = sem.fen.9$residuals, plottitle = "b) Res
 
 <div align = 'center'>*`r fig_nums("residuals-sem-9","Map of residuals for a) scaled and b) unscaled SELM with 9 predictors")`*</div>
 
-### Comparative plots 9
+### Comparative plots, 9 predictors
 
 ```{r compare-estimates-lm-9}
 s.lm.coef.9 <- readRDS("s.lm.coef.9.rds")
@@ -1089,9 +1101,7 @@ print(compare.9)
 
 <div align = 'center'>*`r fig_nums("compare-plot-9","Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with 9 predictors")`*</div>
 
-## Spatial error linear models with NDVI, Bog and logRunoff
-
-## Spatial error linear model on Fennoscandian datasets with NDVI, Bog and logRunoff 
+## Spatial error linear model with NDVI, Bog and logRunoff 
 
 ```{r sem-runoff-fennosandia.3, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.rds")
@@ -1196,7 +1206,7 @@ print(compare.3)
 
 <div align = 'center'>*`r fig_nums(name = "compare-plots-3", caption = "Comparison of scaled estimates for LM and SELM (left) and of the effect sizes for each predictor (right) with 9 predictors")`*</div>
 
-## Spatial error linear model on Fennoscandian datasets with NDVI, Bog and logPrecip 
+## Spatial error linear model with NDVI, Bog and logPrecip 
 
 ```{r sem-precip-fennosandia, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.rds")
@@ -1304,7 +1314,7 @@ print(compare.precip)
 
 
 
-## Spatial error linear model on Fennoscandian datasets with NDVI, TNdep and logPrecip
+## Spatial error linear model with NDVI, TNdep and logPrecip
 
 ```{r sem-simple-fennosandia-tndep, eval = F}
 k.neigh.w <- readRDS("k.neigh.w.rds")
@@ -1376,7 +1386,7 @@ f_plotspatial(data = fennoscandia,var = s.sem.fen.tndep$residuals, plottitle = "
 f_plotspatial(data = fennoscandia,var = sem.fen.tndep$residuals, plottitle = "b) Residuals for unscaled SELM, with NDVI, Precipitation, TNdep")
 ```
 
-<div align = 'center'>*`r fig_nums(name = "residuals-precip", caption = "Map of residuals for SELM model with NDVI, TNdep and log Precipitation as predictors, on a) scaled and b) unscaled variables")`*</div>
+<div align = 'center'>*`r fig_nums(name = "residuals-precip", caption = "Map of residuals for SELM model with NDVI, TNdep and log Precip as predictors, on a) scaled and b) unscaled variables")`*</div>
 
 ```{r compare-estimates-tndep}
 s.sem.coef.tndep <- readRDS("s.sem.coef.tndep.rds")

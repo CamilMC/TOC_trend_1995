@@ -14,7 +14,7 @@ link-citations: yes
 
 ---
 
-[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)
+**[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)**
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, message = F, warning = F, error = F, fig.align = "center", collapse = T, fig.show = "hold")
@@ -58,6 +58,7 @@ table_nums <- captioner(prefix = "Table")
 # Coastal drainage basins data
 
 ## Connections to database
+
 The coastal drainage basins polygons were computed with a seamless digital elevation model for Fennoscandia [@ninanor]. The model resulted in more than 200 000 coastal drainage basins, most of them being extremely small polygons covering the coastal regions. In order to simplify the model and reduce the amount of data, we keep only the 0,001 % of the coastal drainage basins that are the biggest. They account to more than 93% of the total surface covered by the initial amount of polygons.  
 
 ```{r download-water-regions, eval = F}
@@ -152,7 +153,7 @@ knitr::include_graphics("WR/wr.map.Runoff.png")
 
 ## Land Cover
 
-The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/clc2018. We used the 2018 version, the lst available. 
+The Land Cover data was downloaded from https://land.copernicus.eu/pan-european/corine-land-cover/lcc-2000-2006. The previous version (1995-2000) excludes Norway so the 2000 version was preferred. 
 
 The land cover data was downloaded as a raster (.tiff file), which included the legend recording the code for each land use. The raster and legend were assembled in QGIS before being imported as a shapefile in R. The codes (corresponding to the line in the extracted dataframe) of the categories of interest were:
 
@@ -270,7 +271,7 @@ plot_grid(plotlist = list.grob, nrow= 1, ncol = 2, labels = c("a)", "b)"), label
 
 <div align = 'center'>*`r fig_nums("map-temp-precip", "Map of a) average temperature (°C) and b) average precipitation (mm) in 1995 in coastal drainage basins ")`*</div>
 
-## TNdep
+## Nitrogen deposition (TNdep)
 
 The nitrogen deposition data was extracted from the EMEP database (https://emep.int/mscw/mscw_moddata.html#Comp). The data from 2000 was used as it is the first model available.
 
@@ -349,7 +350,7 @@ names(slope.wr) <- c("gid","area","slope")
 saveRDS(slope.wr, "WR/slope.wr.rds")
 ```
 
-## Gathers wr dataset
+## Gathers dataset of coastal drainage basins
 
 The data was gathered and merged into a single dataframe, based on the catchment identifyer ("gid").
 

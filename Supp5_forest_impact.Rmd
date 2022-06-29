@@ -1,5 +1,5 @@
 ---
-title: "Supplementary 5: SELM with proportion of Forest as predictor"
+title: "Supplementary 5: Spatial Error Linear Model with Forest as predictor"
 author: "Camille M. Crapart"
 date: "27 06 2022"
 output: 
@@ -14,7 +14,7 @@ link-citations: yes
 
 ---
 
-[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)
+**[Back to main menu](https://camilmc.github.io/TOC_trend_1995/)**
 
 
 ```{r setup, include=FALSE}
@@ -194,7 +194,7 @@ ggsave(plot = effectsize.plot,filename = "effectsize.forest.plot.png", dpi = "re
 print(effectsize.plot)
 ```
 
-`r fig_nums("compare-effect-size-simple-forest", "Effect size for SELM model with forest as predictor instead of NDVI")`
+<div align = 'center'>*`r fig_nums("compare-effect-size-simple-forest", "Effect size for SELM model with forest as predictor instead of NDVI")`*</div>
 
 ```{r summary-table-forest}
 summary.table.sem.forest <- readRDS("summary.table.sem.forest.rds")
@@ -255,7 +255,7 @@ g2 <- ggplot(niva_predict_forest) + geom_point(aes(x = fit, y = log(toc_2019)-fi
 plot_grid(g1,g2,nrow = 1, ncol = 2, labels = c("a)","b)"), label_size = 20)
 ```
 
-`r fig_nums("niva_fit_obs", "Fitted vs observed log(TOC) concentration on the 2019-survey data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`
+<div align = 'center'>*`r fig_nums("niva_fit_obs", "Fitted vs observed log(TOC) concentration on the 2019-survey data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`*</div>
 
 ```{r plot-toc-predictions-forest, eval = F}
 niva_predict_forest <- readRDS("NIVA_test/niva_predict_forest.rds")
@@ -290,10 +290,10 @@ ggsave(plot = obs.niva.forest, filename = "NIVA_test/obs.niva.forest.png",dpi = 
 
 ```{r fitted-vs-obs-forest-niva, fig.dim = c(30, 12)}
 listgrob <- list("NIVA_test/obs.niva.forest.png","NIVA_test/fitted.niva.forest.png","NIVA_test/diff.niva.forest.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-plot_grid(plotlist = listgrob, nrow = 1, ncol = 3, labels= c("a)","b)","c)"), label_size = 25, vjust = 10)
+plot_grid(plotlist = listgrob, nrow = 1, ncol = 3, labels= c("a)","b)","c)"), label_size = 20)
 ```
 
-`r fig_nums("niva_fit_forest", "a) Observed, b) fitted and c) difference between observed and fitted values for TOC concentration on the 2019-survey data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`
+<div align = 'center'>*`r fig_nums("niva_fit_forest", "a) Observed, b) fitted and c) difference between observed and fitted values for TOC concentration on the 2019-survey data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`*</div>
 
 # Forecast of mean TOC concentration with an increase of forest cover
 
@@ -326,7 +326,7 @@ ggsave(plot = map.fit.forest, filename = "WR/wr.toc.forest.png",dpi = "retina", 
 knitr::include_graphics("WR/wr.toc.forest.png")
 ```
 
-`r fig_nums("wr_fit_forest-95", "Fitted mean TOC concentration for the water regions in 1995 data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`
+<div align = 'center'>*`r fig_nums("wr_fit_forest-95", "Fitted mean TOC concentration for the water regions in 1995 data based on the SELM model with Forest, Bogs, and log Runoff as predictors")`*</div>
 
 ## Prediction of forest increase in Norway, Sweden and Finland
 
@@ -374,7 +374,7 @@ plot_grid(i1,i2,i3, nrow = 1, ncol = 3, labels = c("a)","b)","c)"))
 
 ```
 
-`r fig_nums("forest-increase", "Prediction of forest increase with forest policies in a) Norway, b) Sweden, c) Finland")`
+<div align = 'center'>*`r fig_nums("forest-increase", "Prediction of forest increase with forest policies in a) Norway, b) Sweden, c) Finland")`*</div>
 
 ```{r predict-forest-increase}
 sem.forest.fen <- readRDS("sem.forest.fen.Rdata")
@@ -416,14 +416,14 @@ forest.increase.finland <- ggplot(filter(wr.sf.forest,Nation == "Finland"))+
 ggsave(plot = forest.increase.finland, filename = "WR/forest.increase.finland.png",dpi = "retina", width = 10, height = 12, units = "cm")
 ```
 
-`r fig_nums("forest-increase-NSF", "Predicted proportion of forest increase depending on the current proportion of forest fir Norway, Sweden and Finland")`
+<div align = 'center'>*`r fig_nums("forest-increase-NSF", "Predicted proportion of forest increase depending on the current proportion of forest fir Norway, Sweden and Finland")`*</div>
 
 ```{r map-increase-forest, fig.dim = c(30,12)}
 listgrob <- list("WR/forest.increase.norge.png","WR/forest.increase.sweden.png","WR/forest.increase.finland.png" ) %>% lapply(readPNG) %>% lapply(rasterGrob)
 plot_grid(plotlist = listgrob, nrow = 1, ncol = 3, labels = c("a)","b)","c)"), vjust = 10)
 ```
 
-`r fig_nums("map-increase-forest","Current proportion of forest and estimated potential for increase of forest cover by the year 2050 for a) Norway, b) Sweden and c) Finland")`
+<div align = 'center'>*`r fig_nums("map-increase-forest","Current proportion of forest and estimated potential for increase of forest cover by the year 2050 for a) Norway, b) Sweden and c) Finland")`*</div>
 
 
 ## TOC forecast for 2100 with forest increase
@@ -477,7 +477,7 @@ listgrob <- list("WR/map.toc.forest.png","WR/map.diff.toc.forest.png") %>% lappl
 plot_grid(plotlist = listgrob, ncol = 2, nrow = 1, labels = c("a)","b)"))
 ```
 
-`r fig_nums("map-toc-forest","Forecast of TOC concentration due to an increase of forest cover as a NbS to abate climate change. a) Modelled TOC with forest increase and b) difference with TOC concentration in 1995")`
+<div align = 'center'>*`r fig_nums("map-toc-forest","Forecast of TOC concentration due to an increase of forest cover as a NbS to abate climate change. a) Modelled TOC with forest increase and b) difference with TOC concentration in 1995")`*</div>
 
 Using the Spatial Error Linear Model, fitted for Fennoscandia in [section 3.5](#forest), the future TOC concentrations were predicted based on the estimated potential for the use of planting forest to sequester CO2 (`r fig_nums("map-increase-forest",display = "c")`), holding the log Runoff and Bog coverage constant. 
 
