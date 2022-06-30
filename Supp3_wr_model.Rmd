@@ -1430,43 +1430,46 @@ toc.export.df$Diff[-m.d] <- "Absolute"
 
 toc.export.sum <- toc.export.df %>% group_by(Model,Year,Diff) %>% summarise(TOC_Tg = sum(TOC_Tg))
 toc.export.sum$Nation <- "Total"
-toc.export.sum$variable <- NA
 
 toc.export.df <- rbind(toc.export.sum,toc.export.df)
 toc.export.df <- transform(toc.export.df, Nation = factor(Nation, levels = c("Norway","Sweden","Finland","Total")))
+toc.export.df$variable <- NULL
 
 knitr::kable(toc.export.df) %>% kable_styling()
 
 saveRDS(toc.export.df,"WR/toc.export.df.rds")
 
-ggplot(filter(toc.export.df, Diff == "Difference")) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
-  geom_path(aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.3) +
-  labs(x="Year", y= "TOC (Tg)", subtitle = "b.")+
-  scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
-  facet_grid(cols=vars(Nation))+
+ggplot() +
+  geom_point(data = toc.export.df, aes(x=Year, y = TOC_Tg, col = Model, shape = Model)) +
+  geom_path(data = toc.export.df, aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.5) +
   geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
-  theme_bw(base_size = 5)+
-  theme(legend.position = "bottom")
-ggsave(filename = "WR/TOC_export_diff.png", dpi = "retina", width = 6, height = 6, units = "cm")
-
-ggplot(filter(toc.export.df, Diff == "Absolute")) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
-  geom_path(aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.3) +
-  labs(x="Year", y= "TOC (Tg)", subtitle = "a.")+
   scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
-  facet_grid(cols=vars(Nation))+
-  geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
-  theme_bw(base_size = 5)+
-  theme(legend.position = "none")
-
-ggplot(toc.export.df) + geom_point(aes(x=Year, y = TOC_Tg, col = Model, shape= Model)) +
-  geom_path(aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.3) +
+  geom_label(data = filter(toc.export.df, Model == "SSP126"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = -1.5, size = 2, label.padding = unit(0.2,"lines"), show_guide = F) +
+  geom_label(data = filter(toc.export.df, Model == "SSP370"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = 1.5, size = 2, label.padding = unit(0.2,"lines"), show_guide = F) +
+  geom_label(data = filter(toc.export.df, Model == "Historical"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = 1.5, size = 2, label.padding = unit(0.2,"lines"), show_guide = F) +
   labs(x="Year", y= "TOC (Tg)")+
-  scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
   facet_grid(cols=vars(Nation), rows = vars(Diff), scales = "free_y")+
-  geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
-  theme_bw(base_size = 8)+
+  theme_bw(base_size = 12)+
   theme(legend.position = "bottom")
-ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 15, height = 10, units = "cm")
+ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 20, height = 15, units = "cm")
+
+```
+
+<div align = 'center'>*`r table_nums("toc-export-table","TOC exported from coastal drainage basins (Tg)")`*</div>*
+
+```{r table-darkening}
+toc.export.df <- readRDS("WR/toc.export.df.rds") %>% dplyr::select(c("Nation", "Model", "Year","Diff","TOC_Tg"))
+
+toc.export.df %>% arrange(Model) %>% 
+  knitr::kable(digits = 3, 
+               caption = "TOC export by country",
+               col.names = c("Country","Model","Year","Absolute/differential export","TOC export (Tg)")) %>%
+  kable_styling(bootstrap_options = "bordered",
+                position = "center",
+                full_width = F)
 
 ```
 
@@ -1474,6 +1477,6 @@ ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 15, height = 10, 
 knitr::include_graphics("WR/TOC_export.png")
 ```
 
-<div align = 'center'>*`r fig_nums("toc-export","TOC exported from coastal drainage basins (mg/L)")`*</div>*
+<div align = 'center'>*`r fig_nums("toc-export","TOC exported from coastal drainage basins (Tg)")`*</div>*
 
 # References 

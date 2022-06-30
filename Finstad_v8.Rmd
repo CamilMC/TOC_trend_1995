@@ -22,6 +22,7 @@ institute:
 date: "19 05 2022"
 output: 
   bookdown::word_document2:
+   reference_docx: TOC_trend_v8.docx
    toc: false
    toc_float: false
    number_sections: false
@@ -30,6 +31,7 @@ output:
    pandoc_args:
       - '--lua-filter=scholarly-metadata.lua'
       - '--lua-filter=author-info-blocks.lua'
+      
 always_allow_html: true
 bibliography: C:\\Users\\raine\\Documents\\UiO\\Bibtex\\Finstad.bib
 ---
@@ -80,7 +82,7 @@ In Nordic boreal lakes, increased flux of natural organic matter (NOM) from catc
 
 Climate change is a main driver for most ecosystem processes, especially increasing precipitation.  Changed runoff patterns are expected to lead to an increased flushing of TOC to surface waters  [@DeWit2016a]. Longer growing seasons increase the primary production and thereby the biomass in the catchments, which increases the production of TOC and subsequently causes browning of surface waters [@Larsen2011; @Finstad2016; @Kritzberg2020]. @Finstad2016, modelling the increase of DOM concentrations in 70 Norwegian lakes over 30 years, found that the increase in terrestrial biomass (based on the increase in Normalized difference vegetation index, NDVI, as its proxy) along with increasing temperature were significant temporal drivers for the increase in freshwater DOM concentration.  Accumulated nitrogen from atmospheric deposition due to anthropogenic activities is also expected to lead to a higher production of biomass [@DeVries2019]. In addition, land-use changes tend towards more and more intensive forestry practices. Abandonment of small-scale farming using out-field resources as grazing pastures for husbandry has resulted in increased standing forest biomass during the last centuries [@Myrstener2021]. In the coming decades, afforestation is expected to develop further, as the governments of Norway, Sweden and Finland (collectively referred to here as Fennoscandia) consider forest as a trade-off leverage for offsetting their carbon emissions and reaching their zero-emission goals [@NordicCouncilofMinisters2021].  
 
-The planned intensification of forest management and re-/afforestation has raised concern regarding the water quality [@NorskVann]. Most of the raw water sources used for producing drinking water in Fennoscandia are surface waters, and browning has thus a potential impact on water quality and treatment to ensure potability of water [@Eikebrokk2004]. In addition, browning has a suite of ecosystem impacts on lakes, e.g. by increasing light absorbance, and thus reducing primary production [@Karlsson2007;  @Thrane2014]. At the same time, browning may increase the CO2 and CH4 emissions especially in small lakes [@Yang2015; @DeWit2018], further increasing the net heterotrophy that prevails in boreal lakes [@Hessen1990; @Tranvik2009]. Reduced primary production propagates up the trophic ladder and also affects fish, both via reduced productivity, but also by affecting visual feeding [@Finstad2014] and thermal regimes [@Karlsson2009; @Craig2017]. The current browning of freshwater lakes and rivers also entails the darkening of coastal waters [@Opdal2019a]. Measures of the Secchi depth in the Baltic Sea have shown that the water steadily became less transparent since the beginning of the 20th century. It has been suggested that the increases of TOC concentration in surface freshwater led to an increase of the export of TOC to the coastal water, with subsequent eutrophication phenomena [@Fleming2012; @Opdal]. 
+The planned intensification of forest management and re-/afforestation has raised concern regarding the water quality [@NorskVann]. Most of the raw water sources used for producing drinking water in Fennoscandia are surface waters, and browning has thus a potential impact on water quality and treatment to ensure potability of water [@Eikebrokk2004]. In addition, browning has a suite of ecosystem impacts on lakes, e.g. by increasing light absorbance, and thus reducing primary production [@Karlsson2007;  @Thrane2014]. At the same time, browning may increase the CO2 and CH4 emissions especially in small lakes [@Yang2015; @DeWit2018], further increasing the net heterotrophy that prevails in boreal lakes [@Hessen1990; @Tranvik2009]. Reduced primary production propagates up the trophic ladder and also affects fish, both via reduced productivity, but also by affecting visual feeding [@Finstad2014] and thermal regimes [@Karlsson2009; @Craig2017]. The current browning of freshwater lakes and rivers also entails the darkening of coastal waters [@Opdal2019a]. Measures of the Secchi depth in the Baltic Sea have shown that the water steadily became less transparent since the beginning of the 20th century. It has been suggested that the increases of TOC concentration in surface freshwater led to an increase of the export of TOC to the coastal water, with subsequent eutrophication phenomena [@Fleming-Lehtinen2012; @Opdal]. 
 
 Understanding the governing factors for TOC concentration under local anthropogenic and regional climatic pressures is therefore essential to forecast its potential detrimental effects to the water quality and ecosystem services. 
 
@@ -101,7 +103,7 @@ The dataset comprised the `r dim(fennoscandia)[1]` lakes sampled during the Nort
 
 * Normalized difference vegetation index (NDVI) (`r fig_nums("insert-maps", display = "c")`a) or the summer months (June, July, and August) were downloaded from the GIMMS database [@NCAR2018] for 1994, i.e., the year preceding sampling. For the 2019 dataset, data from 2015 is used, as it was the latest available year in the GIMMS database. NDVI is used as a proxy for the density of vegetation (primarily forest) biomass [@Beck2007].  
 
-* Mean runoff (Runoff) values in mm/y (`r fig_nums("insert-maps", display = "d")`b) were derived from the CORDEX historical model. The period 1970-2000 was used for the 1995 data, and the period 1985-2015 was used for the 2019 data [@CORDEXvERC; @Kreienkamp2012]. As the runoff intensities were skewed the data were log-transformed (logRunoff) to normalize the distribution. 
+* Mean runoff (Runoff) values in mm/y (`r fig_nums("insert-maps", display = "c")`b) were derived from the CORDEX historical model. The period 1970-2000 was used for the 1995 data, and the period 1985-2015 was used for the 2019 data [@CORDEXvERC; @Kreienkamp2012]. As the runoff intensities were skewed the data were log-transformed (logRunoff) to normalize the distribution. 
 * Mean annual precipitation (Precip) in mm/y (`r fig_nums("insert-maps", display = "c")`e) and temperature (Temp) and temperature (Temp) in ºC (`r fig_nums("insert-maps", display = "c")`d) for the years 1970 to 2000 were downloaded from the WorldClim database [@WorldClim]. As the precipitation distribution was not normally distributed the data were log transformed (logPrecip). They were not used for the NIVA dataset, and not downloaded for the corresponding period.  
 
 *	Proportions of peatland (Bog), arable land (Arable) and forested area (Forest) (`r fig_nums("insert-maps", display = "c")`e, f, and g, respectively) within each catchment are computed from the Corine Land Cover (CLC) database [@CopernicusCLC], and correspond to the data of 2000, as land use data prior to this were not available. Several CLC categories were merged to create the three categories used in this study (see [Supplementary 1](https://camilmc.github.io/TOC_trend_1995/Supp1_nsf_model.html). For the 2019 dataset, Corine Land Cover data for 2018 were used. Although distributions of the different land use are not normally distributed, they are not log transformed due to many zeros in the data. Other transformations (square, square roots) did not contribute to normalizing the distribution. 
@@ -112,13 +114,13 @@ The dataset comprised the `r dim(fennoscandia)[1]` lakes sampled during the Nort
 
 @Larsen2011a used a multiple linear regression model (LM) to predict the effect of climate change on the TOC concentration in 1 000 Norwegian lakes. In this study, including almost 4 000 lakes in Sweden and Finland, a similar linear model is reproduced to investigate the role of the three predictors selected by Larsen et al. as well as other conceptually relevant predictors in explaining the spatial differences in TOC levels in Norwegian, Swedish, and Finish lakes. 
 
-The spatial autocorrelation of all the predictors were determined by computing Moran’s I (see details in [Supplementary 4](https://camilmc.github.io/TOC_trend_1995/Supp4_effect_size.html)).All variables were spatially autocorrelated. To take this into account, a Spatial Error Linear Model was fitted with the same predictors as for the LM and the results compared. 
+The spatial autocorrelation of all the predictors were determined by computing Moran’s I (see details in [Supplementary 4](https://camilmc.github.io/TOC_trend_1995/Supp4_effect_size.html)). All variables were spatially autocorrelated. To take this into account, a Spatial Error Linear Model was fitted with the same predictors as for the LM and the results compared. 
 
 The LM and SELM models are fitted and estimates (i.e., slope “a” as in the simple model $y=ax+b$) evaluated both on scaled and unscaled variables. The scaled estimates (computed with centered and normalized variables) were used to compare the impact of the predictor variables on a standard deviation scale, while the unscaled estimates were used to compute the effect sizes. The equations used to calculate the effect size for each pair response/predictor variable are explained in [Supplementary 4](https://camilmc.github.io/TOC_trend_1995/Supp4_effect_size.html).
 
 ## Test of the Spatial Model on 1000-lakes-survey (2019) data
 
-In 2019, a large survey covering 1000 Norwegian lakes was realized by the Norwegian Institute for Water Research [@NIVA2020]. The same lakes as in 1995 were sampled again and TOC concentration measured. Catchment polygons were computed with an elevation model. Land-cover data come from the Norwegian mapping service [@Kartverket]. Nitrogen and Sulfur deposition are EMEP data compiled by the Norwegian Institute for Air Research [@NILU2012]. Precipitation and Temperature data were extracted from the European Centre for Medium-Range Weather Forecasts (ECMWF, ERA5 dataset [@ECMWF2019]). NDVI data was also extracted from GIMMS database [@TheNationalCenterforAtmosphericResearch2018] for the purpose of this study. Details about the data from NIVA is available in Supplementary 3. 
+In 2019, a large survey covering 1000 Norwegian lakes was realized by the Norwegian Institute for Water Research [@NIVA2020]. The same lakes as in 1995 were sampled again and TOC concentration measured. Catchment polygons were computed with an elevation model. Land-cover data come from the Norwegian mapping service [@Kartverket]. Nitrogen and Sulfur deposition are EMEP data compiled by the Norwegian Institute for Air Research [@NILU2012]. Precipitation and Temperature data were extracted from the European Centre for Medium-Range Weather Forecasts (ECMWF, ERA5 dataset [@ECMWF2019]). NDVI data was also extracted from GIMMS database [@NCAR2018] for the purpose of this study. Details about the data from NIVA is available in [Supplementary 2](https://camilmc.github.io/TOC_trend_1995/Supp2_NIVA_model.html). 
 
 
 ## Forecast of TOC prediction in sea watersheds
@@ -137,15 +139,15 @@ TN is also not modelled for the future and depend on the SSP chosen. Between 200
 
 Spatial distribution of the mean values of NDVI, Runoff, Precip, Temp, Bogs, Arable, Forest, TNdep and TSdep, describing each of the `r dim(fennoscandia)[1]` lake catchments are shown in (`r fig_nums("insert-maps", display = "c")`).
 
-```{r insert-maps, fig.dim = c(30,48), fig.align = "center"}
+```{r insert-maps, fig.dim = c(30,36), fig.align = "center"}
 listgrob <- list("map.ndvi.png","map.Runoff.png","map.Precip.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 #grid.arrange(grobs = listgrob, ncol = 3)
-all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)"), label_size = 20)
+all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)"), label_size = 25)
 save_plot("predictor.maps.png",all.map, ncol = 3, nrow = 3, base_height = 8, base_width = 6)
 print(all.map)
 ```
 
-<div align = 'center'>*`r fig_nums("insert-maps", "Maps of the predictor variables: NDVI (a), mean runoff intensity (Runoff, b), temperature (Temp, c), precipitation intensity (Precip, d), proportion of peat (Bog, e), proportion of forest (Forest, f), proportion of arable land (Arable, g), total nitrogen deposition (TNdep, h) and total sulfur deposition (TSdep, i) in the studied catchments")`*</div>
+`r fig_nums("insert-maps", "Maps of the predictor variables: NDVI (a), mean runoff intensity (Runoff, b), temperature (Temp, c), precipitation intensity (Precip, d), proportion of peat (Bog, e), proportion of forest (Forest, f), proportion of arable land (Arable, g), total nitrogen deposition (TNdep, h) and total sulfur deposition (TSdep, i) in the studied catchments")`
 
 ### Pearson Correlation coefficient, autocorrelation and Variance Inflation Factor
 
@@ -169,42 +171,46 @@ moran.vif.df <- moran.vif.df[,-3]
 
 Predictor variables that are too strongly correlated (multi-collinear) reduce the robustness of linear models and the precision of their estimates [@Vittinghoff2012]. Here, we investigate the Pearson Correlation coefficients for each pair of variables (response and predictor), shown in `r table_nums("corrplot", display = "c")`. In addition, the Moran's I of each variable was calculated (`r table_nums("moran-vif-table", display = "c")`). to estimate the spatial autocorrelation of each variable. Considering the large number of observations, the maximum Moran’s I value for a non-autocorrelated variable would be `r format(moran.limit,scientific = T, digits = 2)`. All variables in this study had a Moran’s I above this limit, indicating a high degree of autocorrelation. Finally, the Variance Inflation Factor (VIF), indicating the severity of multi-collinearity due to a single predictor, was computed and presented in `r table_nums("moran-vif-table", display = "c")`. 
 
-<div align = 'center'>*`r table_nums("corrplot", "Correlation plot for predictor variables")`*</div>
+`r table_nums("corrplot", "Correlation plot for predictor variables")`
 
-```{r corrplot, fig.dim=c(4,4)}
+```{r corrplot, fig.dim=c(4,4), eval = F}
 png("corrplot.png", width = 12, height = 12, units= "cm", res = 120)
 corrplot::corrplot(cor.mat, method = "number",type = "lower", number.cex = 0.7, tl.col = "black", tl.cex = 0.7, cl.cex = 0.7, order = "hclust")
 dev.off()
 ```
 
+`r knitr::include_graphics("corrplot.png")`
 
-```{r moran-vif-print}
+```{r moran-vif-print, eval = F}
 moran.vif.df %>% arrange(desc(moran.I)) %>%
   dplyr::mutate(VIF = cell_spec(VIF,color = ifelse(VIF > 3,"red", "black"), bold = ifelse(VIF > 5, T, F)),
-    moran.I = cell_spec(moran.I,bold = ifelse(moran.I > 0.8, T, F),color = ifelse(moran.I > 0.8, "red","black")),
-    Cor.toc = cell_spec(Cor.toc,bold = ifelse(abs(Cor.toc) > 0.5, T, F),color = ifelse(abs(Cor.toc) > 0.5, "red","black"))) %>%
+                moran.I = cell_spec(moran.I,bold = ifelse(moran.I > 0.8, T, F),color = ifelse(moran.I > 0.8, "red","black")),
+                Cor.toc = cell_spec(Cor.toc,bold = ifelse(abs(Cor.toc) > 0.5, T, F),color = ifelse(abs(Cor.toc) > 0.5, "red","black"))) %>%
   knitr::kable(digits = 2, 
-    caption = table_nums("moran-vif-table",paste("Moran’s I (i.e., spatial autocorrelation) and Variance Inflation Factor (VIF) (i.e., multicollinearity in the correlation) of predictor and predictor variable (Moran’s I limit = ", format(moran.limit,scientific = T, digits = 2),")",sep = "")),
-    label = NA,
-    escape = F,
-    col.names = c("Predictor","Moran's I","VIF","Correlation coefficient with logTOC")) %>%    
-  kable_styling(bootstrap_options = "bordered", position = "center", full_width = F) %>% save_kable(file = "moran.vif.table.png", density = 500, bs_theme = "cosmo")
+              caption = paste("Moran’s I (i.e., spatial autocorrelation) and Variance Inflation Factor (VIF) (i.e., multicollinearity in the correlation) of predictor and predictor variable (Moran’s I limit = ", format(moran.limit,scientific = T, digits = 2),")",sep = ""),
+              label = NA,
+              escape = F,
+              col.names = c("Predictor","Moran's I","VIF","Correlation coefficient with logTOC")) %>%    
+  kable_styling(bootstrap_options = "bordered", 
+                position = "center", 
+                full_width = F) %>% 
+  save_kable(file = "moran.vif.table.png", density = 500, bs_theme = "cosmo")
 ```
 
-```{r moran-fig}
+```{r moran-fig, fig.dim = c(20,12)}
 list.grob <- c("map.TOC.png", "moran.vif.table.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 moran.map <- plot_grid(plotlist = list.grob, nrow= 1, ncol = 2)
-save_plot(filename = "moran.table.map.png", moran.map, nrow = 1, ncol = 2, base_height = 8, base_width = 6)
+save_plot(filename = "moran.table.map.png", moran.map, nrow = 1, ncol = 2)
 print(moran.map)
 ```
 
-<div align = 'center'>*`r fig_nums("toc-map", "Map of TOC concentration in Fennoscandian catchments, mg/L")`*</div>
+`r fig_nums("toc-map", "Map of TOC concentration in Fennoscandian catchments, mg/L")`
 
 The Pearson correlation coefficient matrix in `r table_nums("moran-vif-table", display = "c")` highlights several groups of predictors.  
 
 TNdep, TSdep and Temp were closely correlated, in particular TNdep and TSdep with r =  `r round(cor(fennoscandia$TNdep,fennoscandia$TSdep),2)`. The correlation coefficient between TNdep and Temp is `r round(cor(fennoscandia$Temp,fennoscandia$TNdep),2)` and the correlation coefficient between TSdep and Temp is `r round(cor(fennoscandia$Temp,fennoscandia$TSdep),2)`. This is because both N and S deposition are mainly from long-range transported NOx and SO2 emissions in Europe. The nitrate and sulphate deposition is thus higher in the southern regions of Fennoscandia where the temperature is also higher. Additionally, the extremely high correlation is also because both S and N deposition are based on emission inventories and are calculated with the same meteorological model. TSdep also has the highest VIF (VIF = `r round(lm.vif["TSdep",],2)`), followed by TNdep (VIF = `r round(lm.vif["TNdep",],2)`). Temp, TNdep and TSdep have a very high Moran's I too (all around 0.9) showing a very strong spatial pattern. Because of the interaction between these three predictors, only one can be used in the model. Even though TSdep has been highlighted by several studies as the main predictor of TOC concentration [@Monteith2007], we chose to keep TNdep as a predictor for atmospheric deposition in this study, considering that biologic relevance of N as generally the limiting factor for terrestrial primary production.  The effect of temperature is partly captured by NDVI, so Temp was not chosen either to represent this group of variables.  
 
-Forest and NDVI were also closely correlated (r =  `r round(cor(fennoscandia$Forest,fennoscandia$NDVI),2)`), even if they do not match as closely as could be effected. Even if the resolution of the Corine Land Cover dataset is finer than the NDVI dataset, NDVI is slighly more closely correlated to logTOC (r =  `r round(cor(fennoscandia$logTOC,fennoscandia$NDVI),2)`) than Forest (r =  `r round(cor(fennoscandia$logTOC,fennoscandia$Forest),2)`). Even though the spatial resolution of Forest cover from the Corine Land Cover dataset is finer than that of the NDVI dataset, the latter taking into account all types of vegetation. Moreover, it reflects the density of the vegetation, and is thus likely a better indicator for total standing biomass. Also, NDVI will better reflect the photosynthetic activity of plants by representing greenness. Finally, theVIF of NDVI was lower than that of of Forest (`r round(lm.vif["NDVI",],2)` compared to `r round(lm.vif["Forest",],2)`), showing that it is less correlated to the other predictor variables. Therefore, NDVI was kept as a vegetation biomass proxy in this study. Bog and Arable proportion were not highly correlated to any other variable and both had low VIF and Moran’s I. Therefore, both were kept in the model as predictors. 
+Forest and NDVI were also closely correlated (r =  `r round(cor(fennoscandia$Forest,fennoscandia$NDVI),2)`), even if they do not match as closely as could be effected. Even if the resolution of the Corine Land Cover dataset is finer than the NDVI dataset, NDVI is slighly more closely correlated to logTOC (r =  `r round(cor(fennoscandia$logTOC,fennoscandia$NDVI),2)`) than Forest (r =  `r round(cor(fennoscandia$logTOC,fennoscandia$Forest),2)`). Even though the spatial resolution of Forest cover from the Corine Land Cover dataset is finer than that of the NDVI dataset, the latter taking into account all types of vegetation. Moreover, it reflects the density of the vegetation, and is thus likely a better indicator for total standing biomass. Also, NDVI will better reflect the photosynthetic activity of plants by representing greenness. Finally, the VIF of NDVI was lower than that of of Forest (`r round(lm.vif["NDVI",],2)` compared to `r round(lm.vif["Forest",],2)`), showing that it is less correlated to the other predictor variables. Therefore, NDVI was kept as a vegetation biomass proxy in this study. Bog and Arable proportion were not highly correlated to any other variable and both had low VIF and Moran’s I. Therefore, both were kept in the model as predictors. 
 
 LogRunoff and LogPrecip were also highly positively correlated (r =  `r round(cor(fennoscandia$Forest,fennoscandia$NDVI),2)`). LogPrecip had a highest VIF than logRunoff (`r round(lm.vif["logPrecip",],2)` compared to `r round(lm.vif["logRunoff",],2)`), showing more general correlation to the other predictors, but a lower Moran's I (`r round(moran.df[which(moran.df$parameter == "logPrecip"),2],2)` compared to `r round(moran.df[which(moran.df$parameter == "logRunoff"),2],2)`). Conceptually, surface runoff is a more relevant predictor for TOC export from catchment to surface waters than precipitation: a part of the precipitation volume evapotranspirates or infiltrates into ground reservoirs and does not reach the water bodies. Moreover, logRunoff is stronger correlated to logTOC (r =  `r round(cor(fennoscandia$logTOC,fennoscandia$logRunoff),2)`) than logPrecip (r =`r round(cor(fennoscandia$logTOC,fennoscandia$logPrecip),2)`). LogRunoff intensity was therefore selected as the preferred transport related predictor in the model. 
 
@@ -252,15 +258,15 @@ The SELM model had a lowest AIC (Aikaike Information Criteria) than the LM model
 The 2019 dataset of the 1000-lakes-survey, provided by NIVA, was used to perform a real-size test of the space-for-time model. The model fitted on the Fennoscandic 1995 data was used to predict the TOC concentration value in the 1000 lakes in 2019, and the results were compared with the actual observations. Data manipulation and predictions are presented in [Supplementary 3](https://camilmc.github.io/TOC_trend_1995/Supp3_wr_model.html). 
 
 ```{r niva-test-results, fig.dim = c(16,10)}
-listgrob <- list("NIVA_test/comparison_1995_2019.png","NIVA_test/niva-test-result.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+listgrob <- list("NIVA_test/compare.toc.png","NIVA_test/niva-test-result.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 niva <- plot_grid(plotlist = listgrob, ncol= 2, nrow = 1, align = "v", greedy = T, labels = c("a)","b)"))
 save_plot("niva.test.png",niva, ncol = 2, nrow = 1, base_height = 6, base_width = 8)
 print(niva)
 ```
 
-`r  readPNG("NIVA_test/diff.niva.png") %>% rasterGrob() %>% plot_grid(label = "c)", align = "v")`
+`r knitr::include_graphics("NIVA_test/diff.niva.sub.png")`
 
-<div align = 'center'>*`r fig_nums(name = "niva-test-result",caption = "Real-data test of the SELM model, a) TOC concentration in 1995 and in 2019, b) predicted vs sampled log(TOC); c) map of the difference between observed and fitted log(TOC)", display = "f")`*</div>
+`r fig_nums(name = "niva-test-result",caption = "Real-data test of the SELM model, a) TOC concentration in 1995 and in 2019, b) predicted vs sampled log(TOC); c) map of the difference between observed and fitted log(TOC)", display = "f")`
 
 The results show that the SELM model fitted with the 5 selected predictors gives satisfactory results, with a correlation between observed and fitted log(TOC) of 0.84. However, the model tends to under-estimate the TOC concentration in lakes with high initial TOC concentration, particularly in the south-eastern part of Norway, and over-estimate the TOC concentration in lakes with a low initial TOC concentration (`r fig_nums(name = "niva-test-result",display = "c")`).  
 
@@ -285,7 +291,7 @@ save_plot("ssp.toc.png",ssp, ncol = 2, nrow = 2, base_height = 4, base_width = 3
 print(ssp)
 ```
 
-<div align = 'center'>*`r fig_nums("ssp-toc","Forecast of TOC concentration under SSP 1-2.6 and SSP 3.7-0 (mg/L)")`*</div>
+`r fig_nums("ssp-toc","Forecast of TOC concentration under SSP 1-2.6 and SSP 3.7-0 (mg/L)")`
 
 The forecasts of average TOC concentration in all the coastal drainage basins, under both scenarios, show an increase in most of Fennoscandia, with a stronger increase in the South-East of Sweden and South-West of Finland. The pattern of the change is similar for SSP 1-2.6 and for SSP 3-7.0, the latter representing the more extreme changes.  
 
@@ -308,7 +314,7 @@ TOC concentrations (past and future) were obtained by back transforming the resu
 knitr::include_graphics("WR/TOC_export.png")
 ```
 
-<div align = 'center'>*`r fig_nums("coastal-darkening","Forecast of TOC export to coastal waters under SSP 1-2.6 and SSP 3.7-0 (Tg); above: absolute export, below: relative export compared to 1995.")`*</div>
+`r fig_nums("coastal-darkening","Forecast of TOC export to coastal waters under SSP 1-2.6 and SSP 3.7-0 (Tg); above: absolute export, below: relative export compared to 1995.")`
 
 The Baltic Sea outflow contributes 50% to the freshwater in the Norwegian Coastal Current, while freshwater runoff from Norway contributes to 40% (Sætre 2007). Under the SSP 1-2.6 scenario, the export of TOC into the Baltic Sea will increase by 5 Tg by 2050 compared to 1995, and by 8 Tg in 2100. Under the SSP 3-7.0 scenario, the total TOC import into the Norwegian Coastal Current will first increase by 7 Tg in the forecast for 2041-2060, and by 17,5 Tg for the period 2081-2100. Swedish coastal drainage basins would contribute the most to these increases. Associated with higher surface temperature, this browning of coastal water could lead to later spring bloom and spawning time. 
 
@@ -316,7 +322,7 @@ The Baltic Sea outflow contributes 50% to the freshwater in the Norwegian Coasta
 
 This study demonstrates the relevance of using space-for-time models in order to forecast future regional environmental changes in TOC concentration in freshwater. The TOC concentration was best predicted by a spatial error linear model, with catchment characteristics as predictors. Long-term processes working on the catchment characteristics are not taken into account in the space-for-time approach. Nevertheless, the simulated changes from 1995 to 2019 were in good agreement with measured values (r = 0.84). NDVI, being a good proxy for the amount of biomass in the catchment, is a major predictor for TOC concentration. Runoff intensity was also a significant predictor with a negative effect on TOC concentration. The proportion of bogs on the catchment was also a good spatial predictor for TOC concentration in lakes, while the proportion of arable land had almost no effect. Finally, atmospheric deposition of nitrogen has significant positive effects on the TOC concentration in lakes. 
 
-The forecast of TOC changes in the next century shows that the current browning is likely to increase further in the SSP3-7.0 scenario. In the SSP1-2.6 scenario, the effects of the various predictors compensate each other in several of the coastal drainage basins and the browning trend could even be reversed in some of them. The forecast for the TOC concentration in sea watershed also allowed us to realize a raw estimation of expected coastal darkening in the next century, indicating a decrease of TOC export in the SSP1-2.6 scenario and a relatively strong increase in the SSP 3-7.0 scenario. 
+The forecast of TOC changes in the next century shows that the current browning is likely to increase further in both SSP 1-2.6 and 3-7.0 scenarios, with a strong increase in the South of Fennoscandia in the latter. In the SSP1-2.6 scenario, the effects of the various predictors compensate each other in several of the coastal drainage basins. In particular, the decrease of nitrogen deposition would compensate the increase in biomass in Southern Norway. The forecast for the TOC concentration in sea coastal drainage basins also allowed us to realize a raw estimation of expected coastal darkening in the next century, indicating an increase of total TOC export in the SSP1-2.6 scenario (+7,9 Tg in 2100) and an even more drastic one in  the SSP 3-7.0 scenario (+17,2 Tg).  
 
 # Supplementaries
 
