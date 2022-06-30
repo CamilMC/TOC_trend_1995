@@ -5,6 +5,8 @@ This website supports the supplementary information for the article "Spatial pre
 
 ## Abstract
 
+In boreal lakes, the browning of freshwater is raising concerns about the quality of drinking water and potential ecosystem disturbances. The reduced sulphur deposition and warmer climate, together with the abandonment of pastures and the growing forestry industry, result in an increased flux of TOC from catchments to freshwater, and, subsequently, to coastal waters. In this article, we investigate the impact of several catchment characteristics on the TOC concentration in 4000 lakes sampled in 1995. We find that the amount of biomass on the catchment (with NDVI as a proxy), the proportion of peatland and arable land, the runoff and the nitrogen deposition are the main explanatory predictors. This model is then extended to coastal drainage basins in 2050 and 2100, using the forecasts of climatic variables as expected in two of the Share Socio-economic Pathways: 1-2.6 (+2°C) and 3-7.0 (+4,5°C). Both scenarios result in an increased export of TOC from land to coastal waters, with SSP 3-7.0 leading to the most significant increase of TOC in freshwater.
+
 ## Supplementary information
 
 [Supplementary 1 : Data preparation](https://camilmc.github.io/TOC_trend_1995/Supp1_nsf_model.html)
