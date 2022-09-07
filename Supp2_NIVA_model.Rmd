@@ -86,6 +86,8 @@ ggsave(plot = map, filename = "NIVA_test/map.TOC.2019.png", dpi = "retina", widt
 compare <- ggplot(niva.poly)+geom_point(aes(x=TOC,y=toc_2019, col = latitude), size = 1)+ 
   scale_color_continuous_divergingx(palette = "RdYlBu", name = "Latitude", mid = 65)+
   labs(x = "TOC concentration in lakes,\n 1995 (mg/L)", y = "TOC concentration in lakes, 2019 (mg/L)")+
+  geom_abline(slope  = 1, intercept = 0, col = "black")+
+  annotate(geom = "text", label = "1:1", x = 12, y = 11, size = 3)+
   theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 ggsave(plot = compare, filename = "NIVA_test/compare.toc.png", dpi = "retina", width = 10, height = 12, units = "cm")
 ```
@@ -385,9 +387,10 @@ niva_predict <- readRDS("NIVA_test/niva_predict.rds")
 
 ggplot(niva_predict) + geom_point(aes(y = log(toc_2019), x = fit, col = latitude), size = 1)+
   scale_color_continuous_divergingx(palette = "RdYlBu", aesthetics = c("col"), mid = 65, name = "Latitude")+
-  labs(y = "log(TOC 2019)", x = "Predicted log(TOC)")+
+  labs(y = "logTOC 2019", x = "Predicted logTOC")+
   annotate(geom = "label", label = paste("r = ", round(cor(log(niva_predict$toc_2019),niva_predict$fit),2)), x = 2, y = -1.5, size = 3)+
   geom_abline(slope  = 1, intercept = 0, col = "black")+
+  annotate(geom = "text", label = "1:1", x = 2.5, y = 2.2, size = 3)+
   theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 ggsave(filename = "NIVA_test/niva-test-result.png", dpi = "retina", width = 10, height = 12, units = "cm")
 ```
@@ -402,7 +405,7 @@ lims.toc <- c(min(c(log(niva_predict$toc_2019), niva_predict$fit)), max((c(log(n
   
 diff.niva <- ggplot() + geom_sf(data = nor, fill = "white", col = "black", size = 0.1)+
   geom_sf(data = niva_predict, aes(fill = diffLogTOC, col = diffLogTOC)) + 
-   scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="Difference between\nobserved and predicted log(TOC)\nwith NDVI, Bog, Arable, logRunoff and TNdep", mid = 0, limits = lims.toc, rev = F) +
+   scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="Difference between\nobserved and predicted logTOC\nwith NDVI, Bog, Arable, logRunoff and TNdep", mid = 0, limits = lims.toc, rev = F) +
   labs(x = "", y = "") +
   theme_minimal(base_size = 10) +
   theme(legend.position = "bottom")
@@ -410,7 +413,7 @@ ggsave(plot = diff.niva, filename = "NIVA_test/diff.niva.png", dpi = "retina", w
 
 diff.niva.sub <- ggplot() + geom_sf(data = nor, fill = "white", col = "black", size = 0.1)+
   geom_sf(data = niva_predict, aes(fill = diffLogTOC, col = diffLogTOC)) + 
-   scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="Difference between\nobserved and predicted log(TOC)\nwith NDVI, Bog, Arable, logRunoff and TNdep", mid = 0, limits = lims.toc, rev = F) +
+   scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="Difference between\nobserved and predicted logTOC\nwith NDVI, Bog, Arable, logRunoff and TNdep", mid = 0, limits = lims.toc, rev = F) +
   labs(x = "", y = "", subtitle = "c)") +
   theme_minimal(base_size = 10) +
   theme(legend.position = "bottom")
@@ -423,7 +426,7 @@ listgrob <- list("NIVA_test/niva-test-result.png","NIVA_test/diff.niva.png") %>%
 plot_grid(plotlist = listgrob,ncol = 2, nrow = 1, labels = c("a)","b)"), label_size = 20)
 ```
 
-<div align = 'center'>*`r fig_nums("niva-predict","Results of the TOC prediction. a) Observed vs. fitted log(TOC), b) Map of residuals (observed- fitted)")`*</div>
+<div align = 'center'>*`r fig_nums("niva-predict","Results of the TOC prediction. a) Observed vs. fitted logTOC, b) Map of residuals (observed- fitted)")`*</div>
 
 
 
@@ -452,7 +455,7 @@ saveRDS(niva_predict,"NIVA_test/niva_predict_lm.rds")
 niva_predict <- readRDS("NIVA_test/niva_predict_lm.rds")
 
 ggplot(niva_predict) + geom_point(aes(x = log(toc_2019), y = niva_fit, col = latitud))+
-  labs(x = "log(TOC 2019)", y = "Predicted log(TOC)")+
+  labs(x = "log(TOC 2019)", y = "Predicted logTOC")+
   scale_color_continuous_divergingx(palette = "RdYlBu", name = "Latitude", mid = median(niva_predict$latitud))+
   annotate(geom = "label", label = paste("r = ", round(cor(log(niva_predict$toc_2019),niva_predict$niva_fit),2)), x = 2, y = -0.2)+
   geom_abline(slope  = 1, intercept = 0, col = "red")+
@@ -469,7 +472,7 @@ lims.toc <- c(min(c(log(niva_predict$toc_2019), niva_predict$fit)), max((c(log(n
   
 diff.niva <- ggplot() + geom_sf(data = nor, fill = "white", col = "lightgray")+
   geom_sf(data = niva_predict, aes(fill = diffLogTOC, col = diffLogTOC)) + 
-  scale_color_continuous_divergingx(palette = "RdYlBu", mid = 0, name = "Difference between\nobserved and predicted log(TOC)\nwith NDVI, Bogs, Arable, logRunoff and TNdep ", aesthetics = c("fill","col"))+
+  scale_color_continuous_divergingx(palette = "RdYlBu", mid = 0, name = "Difference between\nobserved and predicted logTOC\nwith NDVI, Bogs, Arable, logRunoff and TNdep ", aesthetics = c("fill","col"))+
   labs(x = "", y = "")+
   theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
@@ -480,6 +483,6 @@ ggsave(plot = diff.niva, filename = "NIVA_test/diff.niva.lm.png", dpi = "retina"
 listgrob <- list("NIVA_test/niva-lm-result.png", "NIVA_test/diff.niva.lm.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 grid.arrange(grobs = listgrob, ncol = 2, nrow = 1, labels = c("a)","b)"))
 ```
-<div align = 'center'>*`r fig_nums("niva-predict-lm","Results of the TOC prediction with Linear Model. a) Observed vs. fitted log(TOC), b) Map of residuals (observed- fitted)")`*</div>
+<div align = 'center'>*`r fig_nums("niva-predict-lm","Results of the TOC prediction with Linear Model. a) Observed vs. fitted logTOC, b) Map of residuals (observed- fitted)")`*</div>
 
 # References

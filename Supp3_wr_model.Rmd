@@ -1304,28 +1304,28 @@ diffs <- c("diffTOC","diff.log", "exp.diff.log")
 
 g <- ggplot(list.sf[["SSP126.2050"]])+
     geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
-    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Difference log(TOC)\n SSP 1-2.6 - 2050", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Difference logTOC\n SSP1-2.6 - 2050", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
     theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 
 ggsave(plot = g, filename = "WR/SSP126.2050.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
 
 g <- ggplot(list.sf[["SSP126.2100"]])+
     geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
-    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="b) Difference log(TOC)\n SSP 1-2.6 - 2100", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="b) Difference logTOC\n SSP1-2.6 - 2100", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
     theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 
 ggsave(plot = g, filename = "WR/SSP126.2100.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
 
 g <- ggplot(list.sf[["SSP370.2050"]])+
     geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
-    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="c) Difference log(TOC)\n SSP 3-7.0 - 2050", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="c) Difference logTOC\n SSP3-7.0 - 2050", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
     theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 
 ggsave(plot = g, filename = "WR/SSP370.2050.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
 
 g <- ggplot(list.sf[["SSP370.2100"]])+
     geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
-    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="d) Difference log(TOC)\n SSP 3-7.0 - 2100", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="d) Difference logTOC\n SSP3-7.0 - 2100", mid = 0, limits = c(min.lim[3],max.lim[3]), rev = T) +
     theme_minimal(base_size = 10)+theme(legend.position = "bottom")
 
 ggsave(plot = g, filename = "WR/SSP370.2100.diff.log.png",dpi = "retina", width = 12, height = 16, units = "cm")
