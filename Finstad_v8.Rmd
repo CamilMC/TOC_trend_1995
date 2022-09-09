@@ -63,6 +63,14 @@ fig_nums <- captioner()
 table_nums <- captioner(prefix = "Table")
 ```
 
+`r fig_nums("insert-maps", display = F)`
+`r fig_nums("toc-map", display = F)`
+`r fig_nums(name = "compare-plots-5", display = F)`
+`r fig_nums(name = "niva-test-result", display = F)`
+`r fig_nums("ssp-toc", display = F)`
+`r fig_nums("coastal-darkening", display = F)`
+
+
 # Keywords
 
 TOC; boreal lakes, catchment characteristics; forecast; coastal darkening
@@ -104,7 +112,7 @@ The aim of the study is to test two distinct hypotheses: 1) that a space-for-tim
 
 ## Data preparation 
 
-The main water chemistry dataset used in this study (training dataset) comprised the data from `r dim(fennoscandia)[1]` lakes sampled during the Northern European Lake Survey in 1995 [@Henriksen1998]. The TOC concentration in each lake, as well as the catchment polygons defined with a digital elevation model, were downloaded from the NOFA database. Nine explanatory parameters, describing each of the lake catchments, were compiled as predictor variables: NDVI; Forest, Arable and Bog; Runoff, Precip and Temp; TNdep and TSdep. These are shortly described below. The complete procedure for preparation, extraction, compilation, and sources of data is described in [Supplementary 1](https://camilmc.github.io/TOC_trend_1995/Supp1_nsf_model.html).
+The main water chemistry dataset used in this study (training dataset) comprised the data from `r dim(fennoscandia)[1]` lakes sampled during the Northern European Lake Survey in 1995 [@Henriksen1998]. The TOC concentration in each lake, as well as the catchment polygons defined with a digital elevation model, were downloaded from the NOFA database [@ninanor]. Nine explanatory parameters, describing each of the lake catchments, were compiled as predictor variables: NDVI; Forest, Arable and Bog; Runoff, Precip and Temp; TNdep and TSdep. These are shortly described below. The complete procedure for preparation, extraction, compilation, and sources of data is described in [Supplementary 1](https://camilmc.github.io/TOC_trend_1995/Supp1_nsf_model.html).
 
 The test dataset, provided by the Norwegian Institute for Water Research, comprised 1001 lakes sampled in 2019 [@Hindar2020]. Each lake of the test dataset was matched with the corresponding lake of the training dataset, in order to use the same catchment polygons, from the NOFA database (see [Supplementary 2](https://camilmc.github.io/TOC_trend_1995/Supp2_NIVA_model.html)).
 
@@ -122,10 +130,6 @@ The test dataset, provided by the Norwegian Institute for Water Research, compri
 *	Total reactive nitrogen deposition (TNdep) in mg N/m2 and total sulfur deposition (TSdep) data in ug S/m2 (`r fig_nums("insert-maps", display = "c")`h and i, respectively) were extracted from EMEP models as the sum of dry and wet deposition [@EMEP; @EMEP2012]. Data from 2000 was used as these were the earliest available data, resulting in a slight underestimation of TNdep and TSdep since deposition has decreased since the 90s. For the 2019 dataset, EMEP data from 2019 was used.
 
  
-  
-
-
-
 ## Spatial TOC models
 
 @Larsen2011b used a Multiple Linear regression model (LM) to predict the effect of climate change on the spatial distribution of TOC concentration in 1 000 Norwegian lakes. In the present study, including in addition almost 4 000 lakes in Sweden and Finland, a similar linear model is reproduced to investigate the explanatory value of the three predictors selected by Larsen et al., (i.e., NDVI, Bog and Runoff) along with other conceptually relevant predictors, for explaining the spatial differences in TOC levels in Fennoscandian lakes.
@@ -133,7 +137,7 @@ The test dataset, provided by the Norwegian Institute for Water Research, compri
 
 The spatial autocorrelation of all the predictors were determined by computing Moran’s I (see details in [Supplementary 4](https://camilmc.github.io/TOC_trend_1995/Supp4_effect_size.html)). All the assessed variables were found to be spatially autocorrelated. To take this into account, a Spatial Error Linear Model (SELM) was fitted with the same predictors as for the LM and the results compared. The Akaike Information Criteria was used to compare the performances of the models. 
 
-The SELM and LM models are fitted on the 1995 data and slope estimates (i.e., slope $\beta$ as in the simple model $y\hspace{1pt}=\hspace{1pt}\beta x\hspace{1pt}+\hspace{1pt}c$) were evaluated both on scaled and unscaled variables. The scaled estimates (i.e., computed with centered and normalized variables) were used to compare the impact of the predictor variables on a standard deviation scale ($\beta$ expressing the relative impact of the predictor on the response variable), while the unscaled estimates were used to compute effect sizes (expressing how much will the response variable vary for a given change in the predictor). Equations used to calculate effect size for each pair of response/predictor variables are explained in [Supplementary 4](https://camilmc.github.io/TOC_trend_1995/Supp4_effect_size.html).
+The SELM and LM models are fitted on the 1995 data and slope estimates (i.e., slope $\beta$ as in the simple model $y\hspace{1pt}=\hspace{1pt}\beta x\hspace{1pt}+\hspace{1pt}c$) were evaluated both on scaled and unscaled variables. The scaled estimates $beta$ (i.e., computed with centered and normalized variables) expresses the response variable change in standard deviation units per unit standard deviation change in the predictor variable, while the unscaled estimates were used to compute effect sizes (expressing how much will the response variable vary for a given change in the predictor). Equations used to calculate effect size for each pair of response/predictor variables are explained in [Supplementary 4](https://camilmc.github.io/TOC_trend_1995/Supp4_effect_size.html).
 
 
 ## Test of the Spatial Model on 1000-lakes-survey (2019) data
@@ -165,7 +169,8 @@ save_plot("predictor.maps.png",all.map, ncol = 3, nrow = 3, base_height = 8, bas
 print(all.map)
 ```
 
-<div align = 'center'>*`r fig_nums("insert-maps", "Maps of the predictor variables: NDVI (a), mean runoff intensity (Runoff, b), temperature (Temp, c), precipitation intensity (Precip, d), proportion of peat (Bog, e), proportion of forest (Forest, f), proportion of arable land (Arable, g), total nitrogen deposition (TNdep, h) and total sulfur deposition (TSdep, i) in the studied catchments")`*</div>
+*`r fig_nums("insert-maps", "Maps of the predictor variables: NDVI (a), mean runoff intensity (Runoff, b), temperature (Temp, c), precipitation intensity (Precip, d), proportion of peat (Bog, e), proportion of forest (Forest, f), proportion of arable land (Arable, g), total nitrogen deposition (TNdep, h) and total sulfur deposition (TSdep, i) in the studied catchments")`*
+
 
 ### Pearson Correlation coefficient, autocorrelation and Variance Inflation Factor
 
@@ -205,25 +210,25 @@ moran.vif.df %>% arrange(desc(moran.I)) %>%
                 moran.I = cell_spec(moran.I,bold = ifelse(moran.I > 0.8, T, F),color = ifelse(moran.I > 0.8, "red","black")),
                 Cor.toc = cell_spec(Cor.toc,bold = ifelse(abs(Cor.toc) > 0.5, T, F),color = ifelse(abs(Cor.toc) > 0.5, "red","black"))) %>%
   knitr::kable(digits = 2, 
-              caption = paste("Moran’s I (i.e., spatial autocorrelation), Variance Inflation Factor (VIF) (i.e., multicollinearity in the correlation) of predictor and predictor variable (Moran’s I limit = ", format(moran.limit,scientific = T, digits = 2),"), and correlation coefficient with logTOC",sep = ""),
               label = NA,
               escape = F,
-              col.names = c("Predictor","Moran's I","VIF","Pearson's r")) %>%    
+              col.names = c("Predictor","Moran's I","VIF","Pearson's r"),
+              caption = "",
+              format = "html") %>%    
   kable_styling(bootstrap_options = "bordered", 
                 position = "center", 
                 full_width = F) %>% 
-  save_kable(file = "moran.vif.table.png", density = 500, bs_theme = "cosmo")
+  save_kable(file = "moran.vif.table.png", density = 500, bs_theme = "cosmo", zoom = 2)
 ```
 
 ```{r moran-fig, fig.dim = c(20,12)}
 list.grob <- c("map.TOC.png", "moran.vif.table.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-moran.map <- plot_grid(plotlist = list.grob, nrow= 1, ncol = 2)
+moran.map <- plot_grid(plotlist = list.grob, nrow= 1, ncol = 2, labels = c("a)","b)"), label_size = 25)
 save_plot(filename = "moran.table.map.png", moran.map, nrow = 1, ncol = 2)
 print(moran.map)
 ```
 
-<div align = 'center'>*`r fig_nums("toc-map", "Map of TOC concentration in Fennoscandian catchments, mg C/L. Moran’s I higher than 0.8, VIF higher than 5 (indicating high level of multicollinearity) and Person correlation coefficients (r) higher than 0.5 are highlighted in red")`*</div>
-
+*`r fig_nums("toc-map", "a) Map of TOC concentration in Fennoscandian catchments, mg C/L. b) Moran’s I (i.e., spatial autocorrelation), Variance Inflation Factor (VIF) (i.e., multicollinearity in the correlation) of predictor and predictor variable, and Pearson correlation coefficient with logTOC. Moran’s I higher than 0.8, VIF higher than 5 and r higher than 0.5 are highlighted in red")`*
 
 The Pearson correlation coefficient matrix in `r table_nums("corrplot", display = "c")` highlights several groups of predictors that are strongly correlated. TNdep, TSdep and Temp are closely correlated, especially TNdep and TSdep with r = `r round(cor(fennoscandia$TNdep,fennoscandia$TSdep),2)`. The correlation coefficient between TNdep and Temp is `r round(cor(fennoscandia$Temp,fennoscandia$TNdep),2)`, and the correlation coefficient between TSdep and Temp is `r round(cor(fennoscandia$Temp,fennoscandia$TSdep),2)`. This is because both N and S deposition are mainly from long-range transported atmospheric pollution in Europe located to the south. The deposition of nitrate and sulfate is thus higher in the southern regions of Fennoscandia where also the temperature is higher. Additionally, the high correlation is also due to that both S and N deposition are based on emission inventories that are calculated using the same meteorological model. TSdep also has the highest VIF (`r round(lm.vif["TSdep",],2)`), followed by TNdep (`r round(lm.vif["TNdep",],2)`). Likewise, Temp, TNdep and TSdep have a remarkably high Moran’s I (all around 0.9), reflecting their similar spatial pattern. Because of the strong interaction between these three predictors, only one can be used in the model. Although the decrease in TSdep has been highlighted by several studies as the main driver for the temporal increase in TOC concentration [@Monteith2007], we chose instead to keep TNdep as a predictor for atmospheric deposition in this study. This is based on that TSdep is not conceived to change much in the future and that reactive N is biological relevant, being generally the limiting factor for terrestrial primary production. 
 
@@ -241,7 +246,7 @@ The proportions of Bog and Arable land were not strongly correlated to any other
 
 A multiple Linear Model (LM) and a multiple Spatial Error Linear Model (SELM) were fitted for the log of TOC on the 5 predictors selected in the previous section. The SELM takes into account the spatial autocorrelation of the predictor variables in the error term of the regression. To compare the two models, the Akaike Information Criterion (AIC) was calculated. The AIC for each model is presented in [Supplementary 1](https://camilmc.github.io/TOC_trend_1995/Supp1_nsf_model.html).
 
-Both models were fitted without and with scaled variables. This allows a comparison of scaled estimates with the actual effect size for each predictor variable (`r fig_nums("compare-plots-5", display = "c")`). Centered and scaled estimates (hereafter referred to as $\beta$), fitted on response and predictors variables, show the degree of contribution of each predictor to the response variable value, but not the extent of this impact on the real scale. The effect sizes are instead expressed as percent change in TOC concentration caused by a 1% relative change, as explained in [Supplementary 4](https://camilmc.github.io/TOC_trend_1995/Supp4_effect_size.html): 1% increase in summer NDVI (0.01 on the NDVI index); 0.01 increase in logRunoff (corresponding to 1% increase of the original runoff); 1% increase in either Forest, Bog or Arable land coverage proportion; and 25 µg/m2 increase of nitrogen deposition (1% of the range of TNdep). These relative changes of 1% are arbitrarily chosen to represent the relative impact of each predictor variable on a comparable basis. This means that a  $1 \%$ change of the predictor $x$, with an effect size $\delta x$ in catchment A with initial TOC concentration  $TOC_{A}$ would result in a final TOC concentration of $TOC_{A}+\delta x∗TOC_{A}$ where $TOC_{A}$.
+Both models were fitted without and with scaled variables. This allows a comparison of scaled estimates with the actual effect size for each predictor variable (`r fig_nums("compare-plots-5", display = "c")`). Centered and scaled estimates (hereafter referred to as $\beta$), fitted on response and predictors variables, show the degree of contribution of each predictor to the response variable value, but not the extent of this impact on the real scale. The effect sizes are instead expressed as percent change in TOC concentration caused by a 1% relative change, as explained in [Supplementary 4](https://camilmc.github.io/TOC_trend_1995/Supp4_effect_size.html): 1% increase in summer NDVI (0.01 on the NDVI index); 1% increase of runoff; 1% increase in either Forest, Bog or Arable land coverage proportion; and 25 µg/m2 increase of nitrogen deposition (1% of the range of TNdep). These relative changes of 1% are arbitrarily chosen to represent the relative impact of each predictor variable on a comparable basis. This means that a  $1 \%$ change of the predictor $x$, with an effect size $\delta x$ in catchment A with initial TOC concentration  $TOC_{A}$ would result in a final TOC concentration of $TOC_{A}+\delta x∗TOC_{A}$ where $TOC_{A}$.
 
 ```{r load-tables-5}
 s.lm.coef.5 <- readRDS("s.lm.coef.5.rds")
@@ -254,7 +259,7 @@ sem.effectsize.5 <- readRDS("sem.effectsize.5.rds")
 knitr::include_graphics("compare.lm.selm.5.png")
 ```
 
-<div align = 'center'>*`r fig_nums(name = "compare-plots-5",caption = "Comparison of scaled estimates (left, s. indicating scaled variable) and effect sizes for a 1% increase in the predictor variables (right) using LM and SELM models, based on the Fennoscandian dataset with the 5 selected predictors.", display = "f")`*</div>
+*`r fig_nums(name = "compare-plots-5",caption = "Comparison of scaled estimates and effect sizes for a 1% increase in the predictor variables using LM and SELM models, based on the Fennoscandian dataset with the 5 selected predictors. The s. prefix indicates that the variable is centered and scaled.", display = "f")`*
 
 Summer NDVI is the strongest predictor for logTOC in both LM and SELM. LM gives a higher impact to NDVI, with an estimate of `r round(s.lm.coef.5[which(s.lm.coef.5$Parameter == "s.NDVI"), which(names(s.lm.coef.5) == "Estimate")],2)` and an effect size of `r round(lm.effectsize.5[which(lm.effectsize.5$Parameter == "NDVI"), which(names(lm.effectsize.5) == "Percent")],2)`%, while SELM gave a scaled estimate of `r round(s.sem.coef.5[which(s.sem.coef.5$Parameter == "s.NDVI"), which(names(s.sem.coef.5) == "Estimate")],2)` and an effect size of `r round(sem.effectsize.5[which(sem.effectsize.5$Parameter == "NDVI"), which(names(sem.effectsize.5) == "Percent")],2)`% (`r fig_nums("compare-plots-5", display = "c")`).
 
@@ -281,7 +286,7 @@ print(niva)
 
 `r knitr::include_graphics("NIVA_test/diff.niva.sub.png")`
 
-<div align = 'center'>*`r fig_nums(name = "niva-test-result",caption = "Real-data test of the SELM model, a) TOC concentration (in mg C/L) in 1995 and in 2019, b) predicted vs. measured logTOC; c) map of the spatial distribution of the difference between measured and fitted logTOC.", display = "f")`*</div>
+*`r fig_nums(name = "niva-test-result",caption = "Real-data test of the SELM model, a) TOC concentration (in mg C/L) in 1995 and in 2019, b) predicted vs. measured logTOC; c) map of the spatial distribution of the difference between measured and fitted logTOC.", display = "f")`*
 
 The results of the real-size test of the space-for-time model show that the SELM model fitted with data from 1995 of the five selected predictors gives satisfactory results, with a correlation coefficient between observed 2019 data and fitted logTOC of 0.84. However, the model tends to over-estimate the TOC concentration in lakes with a low initial TOC concentration, generally found in the mountains, and under-estimate the TOC concentration in lakes with high initial TOC concentration, particularly in the south-eastern part of Norway (`r fig_nums(name = "niva-test-result",display = "c")`b).
 
@@ -307,7 +312,7 @@ save_plot("ssp.toc.png",ssp, ncol = 2, nrow = 2, base_height = 4, base_width = 3
 print(ssp)
 ```
 
-<div align = 'center'>*`r fig_nums("ssp-toc","Forecast of changes in logTOC concentration (mg C/L) under SSP1-2.6 and SSP3-7.0 climate scenarios. ")`*</div>
+*`r fig_nums("ssp-toc","Forecast of changes in logTOC concentration (mg C/L) under SSP1-2.6 and SSP3-7.0 climate scenarios. ")`*
 
 The forecasts of changes in average TOC concentration show an increase in most of Fennoscandia under both climate scenarios, with a stronger increase in the south-east of Sweden and south-west of Finland. The pattern of change is similar for SSP1-2.6 and for SSP3-7.0, with the latter representing more extreme changes. 
 
@@ -332,7 +337,7 @@ Past and future TOC concentrations ($mgC.L^{-1}$) were obtained by taking the an
 knitr::include_graphics("WR/TOC_export.png")
 ```
 
-<div align = 'center'>*`r fig_nums("coastal-darkening","Forecast of TOC export to coastal waters under SSP 1-2.6 and SSP 3.7-0 (Tg); above: absolute export, below: relative export compared to 1995.")`*</div>
+*`r fig_nums("coastal-darkening","Forecast of TOC export to coastal waters under SSP 1-2.6 and SSP 3.7-0 (Tg); above: absolute export, below: relative export compared to 1995.")`*
 
 Under the SSP 1-2.6 scenario, the export of TOC into the NCC will increase by 5 Tg by 2050 compared to 1995, and by 8 Tg in 2100. Under the SSP 3-7.0 scenario, the total TOC import into the NCC will first increase by 7 Tg in the forecast for 2041-2060, and by 17,5 Tg for the period 2081-2100. Swedish coastal drainage basins would contribute the most to these increases. Associated with higher surface temperature, this browning of coastal water could lead to later spring bloom and spawning time. 
 
