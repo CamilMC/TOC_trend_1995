@@ -429,7 +429,6 @@ plot_grid(plotlist = listgrob,ncol = 2, nrow = 1, labels = c("a)","b)"), label_s
 <div align = 'center'>*`r fig_nums("niva-predict","Results of the TOC prediction. a) Observed vs. fitted logTOC, b) Map of residuals (observed- fitted)")`*</div>
 
 
-
 # TOC prediction with LM
 
 For comparison, we try to model current TOC concentration based on a linear model. The results are shown below. The difference between model results and observations is computed as $ln([TOC]_{obs})-ln([TOC]_{fit})$. 

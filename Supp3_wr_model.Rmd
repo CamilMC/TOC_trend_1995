@@ -475,6 +475,25 @@ for(i in m){
 
 ```
 
+```{r summary of variables}
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds") %>% st_drop_geometry()
+
+wr.sf.95$area_km2 <- wr.sf.95$area * 10^(-6)
+
+wr.min <- lapply(wr.sf.95, min) %>% as.data.frame() 
+wr.max <- lapply(wr.sf.95, max) %>% as.data.frame() 
+wr.median <- lapply(wr.sf.95, median) %>% as.data.frame()
+wr.mean <- lapply(wr.sf.95, mean) %>% as.data.frame()
+wr.sd <- lapply(wr.sf.95, sd) %>% as.data.frame()
+
+wr.sum <- rbind(wr.min, wr.max, wr.median, wr.mean, wr.sd)
+rownames(wr.sum) <- c("Min","Max","Median","Mean","Sd")
+
+wr.sum %>% dplyr::select(c("NDVI", "Forest", "Arable","Temp","Precip","TNdep","Runoff","area_km2")) %>% kable(digits = 2) %>% 
+  kable_styling(bootstrap_options = "bordered")
+
+```
+
 # Model prediction 1995
 
 We model the mean TOC concentration in all the water region in 1995 based on the simple SEM model of the previous section, using NDVI, bogs and runoff as predictors.
@@ -484,6 +503,7 @@ We model the mean TOC concentration in all the water region in 1995 based on the
 The neighbor matrix of the coastal drainage basins polygons were computed using their centroids. 
 
 ```{r wr-km, eval = F}
+wr.sf.95 <- readRDS("wr.sf.95.rds")
 wr.centroid <- st_centroid(wr.sf.95, of_largest_polygon = T)
 
 wr.neigh.set <- knearneigh(wr.centroid, k = 100)
@@ -1268,7 +1288,11 @@ ggsave("WR/compare.ssp.png", width = 10, height = 20, units = "cm", dpi = "retin
 
 ```
 
-```{r plots-forecast-toc, eval = F}
+```{r map-fit-toc-95-bis}
+knitr::include_graphics("WR/wr.log.toc.png")
+```
+
+```{r plots-forecast-toc, eval = T, fig.dim= c(12,16)}
 wr.ssp126.2050 <- readRDS("WR/wr.ssp126.2050.rds")
 wr.ssp370.2050 <- readRDS("WR/wr.ssp370.2050.rds")
 wr.ssp126.2100 <- readRDS("WR/wr.ssp126.2100.rds")
@@ -1285,11 +1309,11 @@ for(i in names(list.sf)){
 
 all.diff <- data.frame(gid = c(wr.ssp126.2050$gid, wr.ssp370.2050$gid, wr.ssp126.2100$gid, wr.ssp370.2100$gid))
 
-for(x in c("diffTOC","diff.log","exp.diff.log")){
+for(x in c("fit","diffTOC","diff.log","exp.diff.log")){
   all.vec <- c()
   
   for(i in names(list.sf)){
-  vec <- select(st_drop_geometry(list.sf[[i]]),all_of(x))
+  vec <- dplyr::select(st_drop_geometry(list.sf[[i]]),all_of(x))
   all.vec <<- rbind(all.vec,vec)
   }
   all.diff <- cbind(all.diff, all.vec)
@@ -1301,6 +1325,45 @@ min.lim <- apply(all.diff, 2, min, na.rm = T)
 legends <- c("Difference TOC (mg/L)","Difference log(TOC)", "exp(difference log(TOC)")
 
 diffs <- c("diffTOC","diff.log", "exp.diff.log")
+
+t1 <- ggplot(list.sf[["SSP126.2050"]])+
+    geom_sf(aes(fill=fit, col= fit), size= 0.05)+
+   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[2],max.lim[2]),
+                       name = "a) Forecast logTOC\n SSP1-2.6 - 2050")+
+   theme_minimal(base_size = 10)+
+  theme(legend.position = "bottom")
+#    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Forecast logTOC\n SSP1-2.6 - 2050", mid = (max.lim[2]-min.lim[2])/2, limits = c(min.lim[2],max.lim[2]), rev = T) +
+#    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+
+t2 <- ggplot(list.sf[["SSP126.2100"]])+
+    geom_sf(aes(fill=fit, col= fit), size= 0.05)+
+     scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[2],max.lim[2]),
+                       name = "b) Forecast logTOC\n SSP1-2.6 - 2100")+
+   theme_minimal(base_size = 10)+
+  theme(legend.position = "bottom")
+
+
+t3 <- ggplot(list.sf[["SSP370.2050"]])+
+   geom_sf(aes(fill=fit, col= fit), size= 0.05)+
+   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[2],max.lim[2]),
+                       name = "c) Forecast logTOC\n SSP3-7.0 - 2050")+
+   theme_minimal(base_size = 10)+
+   theme(legend.position = "bottom")
+
+
+t4 <- ggplot(list.sf[["SSP370.2100"]])+
+   geom_sf(aes(fill=fit, col= fit), size= 0.05)+
+   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[2],max.lim[2]),
+                       name = "d) Forecast logTOC\n SSP3-7.0 - 2100")+
+   theme_minimal(base_size = 10)+
+   theme(legend.position = "bottom")
+
+
+library(gridExtra)
+grid.arrange(t1, t2, t3, t4, ncol = 2, nrow = 2)
+```
+
+```{r map-diff-toc, eval = F}
 
 g <- ggplot(list.sf[["SSP126.2050"]])+
     geom_sf(aes(fill=diff.log, col= diff.log), size= 0.05)+
