@@ -784,11 +784,19 @@ knitr::kable(summary.table.lm.5,digits = 3, caption = "LM with 5 selected predic
 The residuals are plotted below.
 
 ```{r residuals-lm5}
+fennoscandia.33 <- readRDS("fennoscandia.33.rds")
 s.lm.fennoscandia.5 <- readRDS("s.lm.fennoscandia.5.rds")
 lm.fennoscandia.5 <- readRDS("lm.fennoscandia.5.rds")
 
 f_plotspatial(data = fennoscandia,var = s.lm.fennoscandia.5$residuals, plottitle = "a) Residuals for scaled LM")
 f_plotspatial(data = fennoscandia,var = lm.fennoscandia.5$residuals, plottitle = "b) Residuals for unscaled LM")
+
+qplot(y = s.lm.fennoscandia.5$residuals, x = as.numeric(fennoscandia.33$area))+
+  labs(y ="Scaled LM residuals, 5 predictors", x = "Catchment area, m2")+
+  theme_minimal()
+qplot(y = lm.fennoscandia.5$residuals, x = as.numeric(fennoscandia.33$area))+
+  labs(y ="SELM residuals, 5 predictors", x = "Catchment area, m2")+
+  theme_minimal()
 ```
 
 <div align = 'center'>*`r fig_nums("residuals-lm-5","Residuals for linear model, a) with scaled variables, b) with unscaled variables")`*</div>
@@ -869,11 +877,20 @@ knitr::kable(summary.table.sem.5,digits = 3, caption = "SELM with 5 selected pre
 The residuals for scaled and unscaled models are presented in `r fig_nums("sem-residuals",display = "c")`
 
 ```{r residuals-sem5}
+fennoscandia.33 <- readRDS("fennoscandia.33.rds")
+
 s.sem.fennoscandia.5 <- readRDS("s.sem.fennoscandia.5.rds")
 sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.rds")
 
 f_plotspatial(data = fennoscandia,var = s.sem.fennoscandia.5$residuals, plottitle = "a) Residuals for scaled SELM")
 f_plotspatial(data = fennoscandia,var = sem.fennoscandia.5$residuals, plottitle = "b) Residuals for unscaled SELM")
+
+qplot(y = s.sem.fennoscandia.5$residuals, x = as.numeric(fennoscandia.33$area))+
+  labs(y ="Scaled SELM residuals, 5 predictors", x = "Catchment area, m2")+
+  theme_minimal()
+qplot(y = sem.fennoscandia.5$residuals, x = as.numeric(fennoscandia.33$area))+
+  labs(y ="SELM residuals, 5 predictors", x = "Catchment area, m2")+
+  theme_minimal()
 ```
 
 <div align = 'center'>*`r fig_nums("sem-residuals","Map of residuals for a) scaled and b) unscaled SELM")`*</div>
@@ -894,7 +911,7 @@ scaled.df.5$Parameter <- factor(scaled.df.5$Parameter, levels = c("s.TNdep","s.A
 scaled.plot.5 <- ggplot(scaled.df.5, aes(group = Model))+geom_col(aes(x=Estimate,y=Parameter, fill = Model), position = "dodge", width = 0.5)+
   scale_fill_manual(values = c("#d73027","#4575b4"))+
   geom_errorbar(aes(y=Parameter,xmin = Estimate-std.error,xmax=Estimate+std.error), position = "dodge", width = 0.5)+
-  labs(x = "Scaled Estimate", y = "Model with 6 predictors")+
+  labs(x = "Scaled Estimate", y = "Model with 5 predictors")+
   theme_bw(base_size = 8)+theme(legend.position = "bottom")
 ```
 

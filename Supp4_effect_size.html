@@ -1665,11 +1665,11 @@ y_i = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + ... + \varepsilon_i
 <li><span class="math inline">\(\hat{\theta}\)</span> is the regression coefficient estimate</li>
 <li><span class="math inline">\(h(\hat{\theta})\)</span> is the effect size</li>
 </ul>
-<p>For the non-transformed independent variables (NDVI,percentage of bogs and arable land, N-deposition), the effect size was calculated taking into account that the dependent variable was logged.</p>
-<p><span class="math inline">\(\ln ([TOC]_1) = \hat{\theta} x_1\)</span></p>
-<p><span class="math inline">\(\ln ([TOC]_2) = \hat{\theta} x_2\)</span></p>
-<p><span class="math inline">\(\ln ([TOC]_2) - \ln ([TOC]_1) = \hat{\theta} (x_2 - x_1)\)</span></p>
-<p><span class="math inline">\(\ln \frac{[TOC]_2}{[TOC]_1} = \hat{\theta} \Delta x\)</span></p>
+<p>For the non-transformed independent variables (NDVI,percentage of bogs and arable land, N-deposition), the effect size was calculated taking into account that the dependent variable was logged, using <em>natural log</em> (here noted as “log”).</p>
+<p><span class="math inline">\(\log([TOC]_1) = \hat{\theta} x_1\)</span></p>
+<p><span class="math inline">\(\log([TOC]_2) = \hat{\theta} x_2\)</span></p>
+<p><span class="math inline">\(\log([TOC]_2) - \ln ([TOC]_1) = \hat{\theta} (x_2 - x_1)\)</span></p>
+<p><span class="math inline">\(\log\frac{[TOC]_2}{[TOC]_1} = \hat{\theta} \Delta x\)</span></p>
 <p><span class="math inline">\(\frac{[TOC]_2}{[TOC]_1} = exp({\hat{\theta} \Delta x })\)</span></p>
 <p>The delta used for NDVI, bogs and arable land was 0.1 (NDVI is indicated on a scale from 0 to 1 and “bogs”, “arable” and “forest” are proportions):</p>
 <p><span class="math inline">\(h(\hat{\theta}) = exp({\hat{\theta} \times 0.1})\)</span></p>
@@ -1692,8 +1692,17 @@ y_i = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + ... + \varepsilon_i
 <p><span class="math inline">\(\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = ln(1.1) \ times 1.1^{\hat{\theta}}\)</span></p>
 <p><span class="math inline">\(Std(h(\hat{\theta})) = ln(1.1) \times 1.1^{\hat{\theta}} \times Std(\hat{\theta})\)</span></p>
 </div>
-<div id="references" class="section level1" number="4">
-<h1><span class="header-section-number">4</span> References</h1>
+<div id="interpretation-of-forecast" class="section level1" number="4">
+<h1><span class="header-section-number">4</span> Interpretation of forecast</h1>
+<p>The space-for-time forecast, based on the Spatial Error Linear Model, predict the future log(TOC). Therefore, the maps showing the difference of log in the future show the %change of TOC between 1995 and the given SSP:</p>
+<p><span class="math inline">\(Difference \; log([TOC]) = log([TOC]_{forecast})-log([TOC]_{initial}) = log(\frac{[TOC]_{forecast}}{[TOC]_{initial}})\)</span></p>
+<p>and</p>
+<p><span class="math inline">\(exp(log([TOC]_{forecast})-log([TOC]_{initial})) = \frac{[TOC]_{forecast}}{[TOC]_{initial}}\)</span></p>
+<p>Therefore:</p>
+<p><span class="math inline">\([TOC]_{forecast} = [TOC]_{initial} \times exp(difference \; log([TOC]))\)</span></p>
+</div>
+<div id="references" class="section level1" number="5">
+<h1><span class="header-section-number">5</span> References</h1>
 <pre class="r"><code>knitr::knit_exit()</code></pre>
 <div id="refs" class="references csl-bib-body hanging-indent">
 <div id="ref-Bivand2019" class="csl-entry">

@@ -81,15 +81,15 @@ The effect size of each independent variable is expressed as the relative change
 * $h(\hat{\theta})$ is the effect size
 
 
-For the non-transformed independent variables (NDVI,percentage of bogs and arable land, N-deposition), the effect size was calculated taking into account that the dependent variable was logged. 
+For the non-transformed independent variables (NDVI,percentage of bogs and arable land, N-deposition), the effect size was calculated taking into account that the dependent variable was logged, using *natural log* (here noted as "log"). 
 
-$\ln ([TOC]_1) = \hat{\theta} x_1$
+$\log([TOC]_1) = \hat{\theta} x_1$
 
-$\ln ([TOC]_2) = \hat{\theta} x_2$
+$\log([TOC]_2) = \hat{\theta} x_2$
 
-$\ln ([TOC]_2) - \ln ([TOC]_1) = \hat{\theta}  (x_2 - x_1)$
+$\log([TOC]_2) - \ln ([TOC]_1) = \hat{\theta}  (x_2 - x_1)$
 
-$\ln \frac{[TOC]_2}{[TOC]_1} = \hat{\theta} \Delta x$
+$\log\frac{[TOC]_2}{[TOC]_1} = \hat{\theta} \Delta x$
 
 $\frac{[TOC]_2}{[TOC]_1} = exp({\hat{\theta} \Delta x })$
 
@@ -135,6 +135,21 @@ $Std(h(\hat{\theta})) = \frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} \time
 $\frac{\delta h(\hat{\theta})}{\delta \hat{\theta}} = ln(1.1) \ times 1.1^{\hat{\theta}}$
 
 $Std(h(\hat{\theta})) = ln(1.1) \times 1.1^{\hat{\theta}} \times Std(\hat{\theta})$
+
+# Interpretation of forecast
+
+The space-for-time forecast, based on the Spatial Error Linear Model, predict the future log(TOC). Therefore, the maps showing the difference of log in the future show the %change of TOC between 1995 and the given SSP: 
+
+$Difference \; log([TOC]) = log([TOC]_{forecast})-log([TOC]_{initial}) = log(\frac{[TOC]_{forecast}}{[TOC]_{initial}})$
+
+and 
+ 
+$exp(log([TOC]_{forecast})-log([TOC]_{initial})) = \frac{[TOC]_{forecast}}{[TOC]_{initial}}$
+
+Therefore:
+
+$[TOC]_{forecast} = [TOC]_{initial} \times exp(difference \; log([TOC]))$
+
 
 
 # References
