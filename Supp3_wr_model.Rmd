@@ -1643,12 +1643,12 @@ highchangeid <- subset(list.sf$SSP370.2100, exp.diff.log > 25)$gid
 
 p1 <- ggplot(list.sf[["SSP126.2050"]])+
     geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
-   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
-                       name = "a) Forecasted percent increase in [TOC]\n SSP1-2.6 - 2050")+
-   theme_minimal(base_size = 10)+
-  theme(legend.position = "bottom")
-#    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Forecast logTOC\n SSP1-2.6 - 2050", mid = (max.lim[2]-min.lim[2])/2, limits = c(min.lim[2],max.lim[2]), rev = T) +
-#    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+   # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
+   #                     name = "a) Forecasted percent increase in [TOC]\n SSP1-2.6 - 2050")+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Forecast [TOC] increase in %\n SSP1-2.6 - 2050", mid = (max.lim[5]-min.lim[5])/2, limits = c(min.lim[5],max.lim[5]), rev = T) +
+     theme_minimal(base_size = 10)+
+    theme(legend.position = "bottom")
+
 
 pp1 <- ggplot()+
     geom_sf(data = subset(list.sf[["SSP126.2050"]], exp.diff.log < 20), aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
@@ -1660,8 +1660,9 @@ pp1 <- ggplot()+
 
 p2 <- ggplot(list.sf[["SSP126.2100"]])+
     geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
-     scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
-                       name = "b) Forecasted percent change TOC\n SSP1-2.6 - 2100")+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="b) Forecast [TOC] increase in %\n SSP1-2.6 - 2100", mid = (max.lim[5]-min.lim[5])/2, limits = c(min.lim[5],max.lim[5]), rev = T) +
+       # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
+       #                 name = "b) Forecasted percent change TOC\n SSP1-2.6 - 2100")+
    theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
 
@@ -1676,8 +1677,9 @@ pp2 <- ggplot()+
 
 p3 <- ggplot(list.sf[["SSP370.2050"]])+
    geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
-   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
-                       name = "c) Forecasted percent change TOC\n SSP3-7.0 - 2050")+
+        scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="c) Forecast [TOC] increase in %\n SSP3-7.0 - 2050", mid = (max.lim[5]-min.lim[5])/2, limits = c(min.lim[5],max.lim[5]), rev = T) +
+   # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
+   #                     name = "c) Forecasted percent change TOC\n SSP3-7.0 - 2050")+
    theme_minimal(base_size = 10)+
    theme(legend.position = "bottom")
 
@@ -1692,8 +1694,9 @@ pp3 <- ggplot()+
 
 p4 <- ggplot(list.sf[["SSP370.2100"]])+
    geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
-   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
-                       name = "d) Forecasted percent change TOC\n SSP3-7.0 - 2100")+
+      scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="d) Forecast [TOC] increase in %\n SSP3-7.0 - 2100", mid = (max.lim[5]-min.lim[5])/2, limits = c(min.lim[5],max.lim[5]), rev = T) +
+   # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
+   #                     name = "d) Forecasted percent change TOC\n SSP3-7.0 - 2100")+
    theme_minimal(base_size = 10)+
    theme(legend.position = "bottom")
 
