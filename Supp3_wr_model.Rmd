@@ -732,8 +732,9 @@ Using a SELM model for NDVI, we notice that high residuals are observed in catch
 
 Several models were tested to model the NDVI: a linear model, a spatial error linear model, a polynomial model, and a polynomial model combined with a binomial model.  The NDVI was fitted on the 1995 data from the Northern Lakes Survey and tested on on the coastal drainage basins.
 
-```{r ndvi-model-test, fig.dim = c(10,10)}
+```{r ndvi-model-test, fig.dim = c(10,8)}
 library(betareg)
+library(mgcv)
 library(VGAM)
 
 wr.kmat <- readRDS("WR/wr.kmat.rds")
@@ -759,11 +760,12 @@ summary(m1 <- step(m1))
 plot(predict(m1),  fennoscandia$NDVI, pch = ".", main="a ) NDVI - LM", ylab="Observed NDVI", xlab="Predicted",abline(0,1))
 text(x = 0.8, y = 0.4, label = paste("r2 =", round(summary(m1)$adj.r.squared,2), sep= ""))
 
-# SELM
-# ndvi.model <- errorsarlm(formula = NDVI~Temp+log(Precip), data = fennoscandia, listw = fen.kmat)
-# saveRDS(ndvi.model, "WR/selm.ndvi.rds")
+#SELM
+fen.kmat <- readRDS("k.neigh.w.rds")
+selm.model <- errorsarlm(formula = NDVI~Temp+logPrecip, data = fennoscandia, listw = fen.kmat)
+saveRDS(selm.model, "WR/selm.ndvi.rds")
 
-ndvi.model <- readRDS("WR/selm.ndvi.rds")
+selm.model <- readRDS("WR/selm.ndvi.rds")
 AIC <- 2*(3-1)-2*ndvi.model$LL
 plot(ndvi.model$fitted.value,  fennoscandia$NDVI, pch = ".", main="b) NDVI - SELM", ylab="Observed", xlab="Predicted",abline(0,1))
 text(x = 0.8, y = 0.5, label = paste("r2 =", round(cor(ndvi.model$fitted.values, fennoscandia$NDVI)^2,2), sep= ""))
@@ -784,13 +786,17 @@ text(x = 0.7, y = 0.4, label = paste("r2 =", round(summary(m3)$adj.r.squared,2),
 saveRDS(m3,"WR/poly.ndvi.rds")
 
 # glm
-library(mgcv)
+
 summary(m4 <- glm(NDVI ~ poly(cbind(Temp, logPrecip), degree = 2), data = fennoscandia, family = "quasibinomial"))
 #summary(m4 <- step(m4))
 plot(predict(m4, type = "response"),  fennoscandia$NDVI, pch = ".", main="e) NDVI - glm ", ylab="Observed", xlab="Predicted",abline(0,1))
 text(x = 0.7, y = 0.4, label = paste("r =", cor(fennoscandia$NDVI, m4$fitted.values), sep= ""))
 saveRDS(m4, "WR/glm.ndvi.rds")
 
+#betareg
+summary(m5 <- betareg(NDVI ~ poly(cbind(Temp, logPrecip), degree = 2), data = fennoscandia, link = "logit"))
+plot(predict(m5, type = "response"),  fennoscandia$NDVI, pch = ".", main="e) NDVI - glm ", ylab="Observed", xlab="Predicted",abline(0,1))
+saveRDS(m5, "WR/betareg.ndvi.rds")
 ```
 
 <div align = 'center'>*`r fig_nums("ndvi-model-test","Test of 4 NDVI models, a) linear model, b) spatial error linear model, c) quadratic model, d) polynomial model")`*</div>
@@ -803,9 +809,7 @@ fennoscandia <- readRDS("fennoscandia.rds")
 fennoscandia.33 <- readRDS("fennoscandia.33.rds")
 
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
-nor <- st_read("Country_shapefile/norway.shp")
-swe <- st_read("Country_shapefile/sweden.shp")
-fin <- st_read("Country_shapefile/finland.shp") 
+wr.sf.95$logPrecip <- log(wr.sf.95$Precip)
 
 selm.ndvi <- readRDS("WR/selm.ndvi.rds")
 
@@ -816,19 +820,19 @@ wr.selm.ndvi.model$area <- st_area(wr.selm.ndvi.model) %>% as.numeric()
 ggplot(wr.selm.ndvi.model) + geom_point(aes(y = ndvi.fit, x = NDVI, col = Latitude), size = 1)+
    scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
    labs(x = "NDVI", y = "Predicted NDVI")+
-   annotate(geom = "label", label = paste("r = ", round(cor(wr.selm.ndvi.model$NDVI,wr.selm.ndvi.model$ndvi.fit)^2,2)), x = 0.75, y = 0.3, size = 2)+
+   annotate(geom = "label", label = paste("r = ", round(cor(wr.selm.ndvi.model$NDVI,wr.selm.ndvi.model$ndvi.fit)^2,2)), x = 0.25, y = 0.5, size = 2)+
    geom_abline(slope  = 1, intercept = 0, col = "red")+
   labs(title = "Observed vs predicted NDVI for SELM")+
    theme_minimal(base_size = 6)
-ggsave(filename = "WR/wr.ndvi.selm.results.png", dpi = "retina", width = 6, height = 8, units = "cm")
+ggsave(filename = "WR/wr.ndvi.selm.results.png", dpi = "retina", width = 10, height = 8, units = "cm")
 
 wr.residuals.selm <- ggplot()+
   geom_sf(data = wr.selm.ndvi.model, aes(fill = ndvi.residuals, col = ndvi.residuals))+
   scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, aesthetics = c("fill", "col"), name = "SELM residuals")+
-  theme_minimal(base_size = 6)+theme(legend.position = "bottom")+
+  theme_minimal(base_size = 10)+theme(legend.position = "bottom")+
   labs(title = "Map of residuals for SELM")
 
-ggsave(plot = wr.residuals.selm, filename = "WR/wr.selm.ndvi.residuals.png",dpi = "retina", width = 6, height = 8, units = "cm")
+ggsave(plot = wr.residuals.selm, filename = "WR/wr.selm.ndvi.residuals.png",dpi = "retina", width = 12, height = 16, units = "cm")
 ```
 
 ```{r poly-ndvi-model-plot, eval = F}
@@ -843,18 +847,18 @@ wr.poly.ndvi.model <- wr.sf.95 %>% mutate(ndvi.fit = poly.ndvi.wr, ndvi.residual
 ggplot(wr.poly.ndvi.model) + geom_point(aes(y = ndvi.fit, x = NDVI, col = Latitude), size = 1)+
    scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
    labs(x = "NDVI", y = "Predicted NDVI")+
-   annotate(geom = "label", label = paste("r = ", round(cor(wr.poly.ndvi.model$NDVI,wr.poly.ndvi.model$ndvi.fit),2)), x = 0.75, y = 0.3, size = 2)+
+   annotate(geom = "label", label = paste("r = ", round(cor(wr.poly.ndvi.model$NDVI,wr.poly.ndvi.model$ndvi.fit),2)), x = 0.75, y = 0.4, size = 2)+
    geom_abline(slope  = 1, intercept = 0, col = "red")+
   labs(title = "Observed vs predicted NDVI for polynomial model")+
-   theme_minimal(base_size = 6)+
-  labs(title = "Map of residuals for Polynomial model")
-ggsave(filename = "WR/wr.ndvi.poly.results.png", dpi = "retina", width = 6, height = 8, units = "cm")
+   theme_minimal(base_size = 6)
+ggsave(filename = "WR/wr.ndvi.poly.results.png", dpi = "retina", width = 10, height = 8, units = "cm")
 
 wr.residuals <- ggplot()+
   geom_sf(data = wr.poly.ndvi.model, aes(fill = ndvi.residuals, col = ndvi.residuals))+
   scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, aesthetics = c("fill", "col"), name = "Polynomial residuals")+
-  theme_minimal(base_size = 6)+theme(legend.position = "bottom")
-ggsave(plot = wr.residuals, filename = "WR/wr.poly.ndvi.residuals.png",dpi = "retina", width = 6, height = 8, units = "cm")
+  theme_minimal(base_size = 10)+theme(legend.position = "bottom")+
+  labs(title = "Map of residuals for Polynomial model")
+ggsave(plot = wr.residuals, filename = "WR/wr.poly.ndvi.residuals.png",dpi = "retina", width = 12, height = 16, units = "cm")
 
 ```
 
@@ -870,71 +874,130 @@ wr.glm.ndvi.model <- wr.sf.95 %>% mutate(ndvi.fit = glm.ndvi.wr, ndvi.residuals 
 ggplot(wr.glm.ndvi.model) + geom_point(aes(y = ndvi.fit, x = NDVI, col = Latitude), size = 1)+
    scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
    labs(x = "NDVI", y = "Predicted NDVI")+
-   annotate(geom = "label", label = paste("r = ", round(cor(wr.glm.ndvi.model$NDVI,wr.glm.ndvi.model$ndvi.fit),2)), x = 0.25, y = 0.5, size = 2)+
+   annotate(geom = "label", label = paste("r = ", round(cor(wr.glm.ndvi.model$NDVI,wr.glm.ndvi.model$ndvi.fit),2)), x = 0.8, y = 0.3, size = 2)+
    geom_abline(slope  = 1, intercept = 0, col = "red")+
   labs(title =  "Observed vs predicted NDVI for binomial model")+
    theme_minimal(base_size = 6)
-ggsave(filename = "WR/wr.ndvi.glm.results.png", dpi = "retina", width = 6, height = 8, units = "cm")
+ggsave(filename = "WR/wr.ndvi.glm.results.png", dpi = "retina", width = 10, height = 8, units = "cm")
 
 wr.residuals <- ggplot()+
   geom_sf(data = wr.glm.ndvi.model, aes(fill = ndvi.residuals, col = ndvi.residuals))+
   scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, aesthetics = c("fill", "col"), name = "glm residuals")+
-  theme_minimal(base_size = 6)+theme(legend.position = "bottom")+
+  theme_minimal(base_size = 10)+theme(legend.position = "bottom")+
     labs(title = "Map of residuals for Binomial model")
-ggsave(plot = wr.residuals, filename = "WR/wr.glm.ndvi.residuals.png",dpi = "retina", width = 6, height = 8, units = "cm")
+ggsave(plot = wr.residuals, filename = "WR/wr.glm.ndvi.residuals.png",dpi = "retina", width = 12, height = 16, units = "cm")
+```
+```{r betareg-NDVI-model-plot, eval = F}
+
+betareg.ndvi <- readRDS("WR/betareg.ndvi.rds")
+wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
+wr.sf.95$logPrecip <- log(wr.sf.95$Precip)
+
+betareg.ndvi.wr <-  predict(betareg.ndvi,wr.sf.95, type = "response")
+wr.betareg.ndvi.model <- wr.sf.95 %>% mutate(ndvi.fit = betareg.ndvi.wr, ndvi.residuals = wr.sf.95$NDVI - betareg.ndvi.wr) 
+
+ggplot(wr.betareg.ndvi.model) + geom_point(aes(y = ndvi.fit, x = NDVI, col = Latitude), size = 1)+
+   scale_color_distiller(type = "div", palette = "RdYlBu", direction = 1, aesthetics = c("col"))+
+   labs(x = "NDVI", y = "Predicted NDVI")+
+   annotate(geom = "label", label = paste("r = ", round(cor(wr.betareg.ndvi.model$NDVI,wr.betareg.ndvi.model$ndvi.fit),2)), x = 0.8, y = 0.3, size = 2)+
+   geom_abline(slope  = 1, intercept = 0, col = "red")+
+  labs(title =  "Observed vs predicted NDVI for binomial model")+
+   theme_minimal(base_size = 6)
+ggsave(filename = "WR/wr.ndvi.betareg.results.png", dpi = "retina", width = 10, height = 8, units = "cm")
+
+wr.residuals <- ggplot()+
+  geom_sf(data = wr.betareg.ndvi.model, aes(fill = ndvi.residuals, col = ndvi.residuals))+
+  scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0, aesthetics = c("fill", "col"), name = "betareg residuals")+
+  theme_minimal(base_size = 10)+theme(legend.position = "bottom")+
+    labs(title = "Map of residuals for Binomial model")
+ggsave(plot = wr.residuals, filename = "WR/wr.betareg.ndvi.residuals.png",dpi = "retina", width = 12, height = 16, units = "cm")
 ```
 
 
 
 
-```{r plot-residuals-ndvi, fig.dim = c(15,5)}
-listgrob1 <- list("WR/wr.ndvi.selm.results.png","WR/wr.ndvi.poly.results.png","WR/wr.ndvi.glm.results.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-plot_grid(plotlist = listgrob1, ncol = 3, nrow = 1, labels = c("a)","b)","c)"))
+```{r plot-residuals-ndvi, fig.dim = c(8,8)}
+listgrob1 <- list("WR/wr.ndvi.selm.results.png","WR/wr.ndvi.poly.results.png","WR/wr.ndvi.glm.results.png","WR/wr.ndvi.betareg.results.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+plot_grid(plotlist = listgrob1, ncol = 2, nrow = 2, labels = c("a)","b)","c)","d)"))
 
 ```
 
-```{r plot-res-ndvi, fig.dim ) c(12,16)}
-listgrob2 <- list("WR/wr.selm.ndvi.residuals.png","WR/wr.poly.ndvi.residuals.png", "WR/wr.glm.ndvi.residuals.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-plot_grid(plotlist = listgrob2, ncol= 3, nrow = 1,labels = c("d)","e)","f)"), hjust = 3)
+```{r plot-res-ndvi, fig.dim = c(6,8)}
+listgrob2 <- list("WR/wr.selm.ndvi.residuals.png","WR/wr.poly.ndvi.residuals.png", "WR/wr.glm.ndvi.residuals.png","WR/wr.betareg.ndvi.residuals.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+plot_grid(plotlist = listgrob2, ncol= 2, nrow = 2,labels = c("e)","f)","g)","h)"))
 ```
 
 <div align = 'center'>*`r fig_nums(name = "residuals-ndvi", caption = "Results of NDVI models (SELM and polynomial): observed vs predicted for a) SELM and b) polynoimal model,  and map of residuals (observed - predicted) for c) SELM and d) Polynomial")`*</div>
 
-```{r contourplots}
+```{r contourplots, fig.dim = c(12,10)}
+selm.ndvi <- readRDS("WR/selm.ndvi.rds")
 poly.ndvi <- readRDS("WR/poly.ndvi.rds")
 glm.ndvi <- readRDS("WR/glm.ndvi.rds")
+betareg.ndvi <- readRDS("WR/betareg.ndvi.rds")
+
 fennoscandia <- readRDS("fennoscandia.33.rds")
+
 
 xtemp <- seq(min(fennoscandia$Temp), max(fennoscandia$Temp), 0.1)
 yprecip <- seq(min(fennoscandia$logPrecip), max(fennoscandia$logPrecip), 0.1)
 data.fit <-  expand.grid(Temp = xtemp, logPrecip = yprecip)
+
+mtrx3d <-  predict(selm.ndvi, newdata = data.fit, type = "response")
+
+mtrx.melt <- cbind(data.fit, mtrx3d)
+names(mtrx.melt) <- c("Temp","logPrecip","NDVI")
+
+cp1 <- ggplot(mtrx.melt,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
+  geom_tile(aes(fill = NDVI))+
+  stat_contour(bins = 15)+
+  geom_point(data = fennoscandia, aes(x=Temp, y = logPrecip, col = NDVI), size = 1)+
+  scale_fill_viridis_c(aesthetics = c("fill", "col"), name = "NDVI")+
+  labs(title = "Contour plot SELM")+
+   theme_minimal(base_size = 10)
+
+
 mtrx3d <-  predict(poly.ndvi, newdata = data.fit, type = "response")
 
 mtrx.melt <- cbind(data.fit, mtrx3d)
 names(mtrx.melt) <- c("Temp","logPrecip","NDVI")
 
-ggplot(mtrx.melt,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
+cp2 <- ggplot(mtrx.melt,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
   geom_tile(aes(fill = NDVI))+
   stat_contour(bins = 15)+
-  geom_point(data = fennoscandia, aes(x=Temp, y = logPrecip), size = 1)+
-  scale_fill_viridis_c()+
-  labs(title = "Contour plot polynomial model")
+  geom_point(data = fennoscandia, aes(x=Temp, y = logPrecip, col = NDVI), size = 1)+
+  scale_fill_viridis_c(aesthetics = c("fill", "col"), name = "NDVI")+
+  labs(title = "Contour plot polynomial model")+
+   theme_minimal(base_size = 10)
 
 mtrx3d <-  predict(glm.ndvi, newdata = data.fit, type = "response")
 
 mtrx.melt <- cbind(data.fit, mtrx3d)
 names(mtrx.melt) <- c("Temp","logPrecip","NDVI")
 
-ggplot(mtrx.melt,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
+cp3 <- ggplot(mtrx.melt,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
   geom_tile(aes(fill = NDVI))+
   stat_contour(bins = 15)+
-  geom_point(data = fennoscandia, aes(x=Temp, y = logPrecip), size = 1)+
-  scale_fill_viridis_c()+
-  labs(title = "Contour plot binomial model")
+  geom_point(data = fennoscandia, aes(x=Temp, y = logPrecip, col = NDVI), size = 1)+
+  scale_fill_viridis_c(aesthetics = c("fill", "col"), name = "NDVI")+
+  labs(title = "Contour plot binomial model")+
   theme_minimal(base_size = 10)
-  theme_minimal(base_size = 10)
+ 
 
 
+mtrx3d <-  predict(betareg.ndvi, newdata = data.fit, type = "response")
+
+mtrx.melt <- cbind(data.fit, mtrx3d)
+names(mtrx.melt) <- c("Temp","logPrecip","NDVI")
+
+cp4 <- ggplot(mtrx.melt,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..), col = "black")+
+  geom_tile(aes(fill = NDVI))+
+  stat_contour(bins = 15)+
+  geom_point(data = fennoscandia, aes(x=Temp, y = logPrecip, col = NDVI), size = 1)+
+  scale_fill_viridis_c(aesthetics = c("fill", "col"), name = "NDVI")+
+  labs(title = "Contour plot beta model")+
+  theme_minimal(base_size = 10)
+
+grid.arrange(cp1,cp2,cp3,cp4, nrow = 2, ncol = 2)
 ```
 
 The binomial model preforms better: low residuals and prediction range between 0 and 1. This model will be used to forecast NDVI in 2050 and in 2100. 
@@ -948,7 +1011,7 @@ df.ssp126.2100 <- readRDS("WR/df.ssp126.2100.rds")
 df.ssp370.2100 <- readRDS("WR/df.ssp370.2100.rds")
 
 
-ndvi.model <- readRDS("WR/glm.ndvi.rds")
+ndvi.model <- readRDS("WR/betareg.ndvi.rds")
 wr.kmat <- readRDS("WR/wr.kmat.rds")
 wr.sf.95 <- readRDS("WR/wr.sf.95.rds")
 wr.sf.95$logPrecip <- wr.sf.95$Precip %>% log()
@@ -1180,6 +1243,44 @@ saveRDS(wr.sf.370.2100, "WR/wr.sf.370.2100.rds")
 
 Then we plot the difference between the forecasted variables in 2050 and 2100, compared to 1995.  
 
+```{r other-plots}
+wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
+wr.sf.126.2100 <- readRDS("WR/wr.sf.126.2100.rds")
+wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
+wr.sf.370.2100 <- readRDS("WR/wr.sf.370.2100.rds")
+
+t1 <- ggplot(wr.sf.126.2050)+geom_point(aes(x = Temp95, y = Temp))+geom_abline(slope = 1, intercept = 0, col = "red")+
+  labs(y = "Temperature SSP 1-2.6, 2050", x = "Temperature 1995 (°C)")+theme_minimal()
+t2 <- ggplot(wr.sf.126.2100)+geom_point(aes(x = Temp95, y = Temp))+geom_abline(slope = 1, intercept = 0, col = "red")+
+  labs(y = "Temperature SSP 1-2.6, 2100", x = "Temperature 1995 (°C)")+theme_minimal()
+t3 <- ggplot(wr.sf.370.2050)+geom_point(aes(x = Temp95, y = Temp))+geom_abline(slope = 1, intercept = 0, col = "red")+
+  labs(y = "Temperature SSP 3-7.0, 2050", x = "Temperature 1995 (°C)")+theme_minimal()
+t4 <- ggplot(wr.sf.370.2100)+geom_point(aes(x = Temp95, y = Temp))+geom_abline(slope = 1, intercept = 0, col = "red")+
+  labs(y = "Temperature SSP 3-7.0, 2100", x = "Temperature 1995 (°C)")+theme_minimal()
+
+ggarrange(t1,t2,t3,t4, nrow = 2, ncol = 2)
+
+p1 <- ggplot(wr.sf.126.2050)+geom_point(aes(x = Prec95, y = Precip))+geom_abline(slope = 1, intercept = 0, col = "red")+
+    labs(y = "Precipitations SSP 1-2.6, 2050", x = "Precipitations 1995 (mm/y)")+theme_minimal()
+p2 <- ggplot(wr.sf.126.2100)+geom_point(aes(x = Prec95, y = Precip))+geom_abline(slope = 1, intercept = 0, col = "red")+
+  labs(y= "Precipitations SSP 1-2.6, 2100", x = "Precipitations 1995 (mm/y)")+theme_minimal()
+p3 <- ggplot(wr.sf.370.2050)+geom_point(aes(x = Prec95, y = Precip))+geom_abline(slope = 1, intercept = 0, col = "red")+
+  labs(y = "Precipitations SSP 3-7.0, 2050", x = "Precipitations 1995 (mm/y)")+theme_minimal()
+p4 <- ggplot(wr.sf.370.2100)+geom_point(aes(x = Prec95, y = Precip))+geom_abline(slope = 1, intercept = 0, col = "red")+
+  labs(y = "Precipitations SSP 3-7.0, 2100", x = "Precipitations 1995 (mm/y)")+theme_minimal()
+
+ggarrange(p1,p2,p3,p4, nrow = 2, ncol = 2)
+
+# d1 <- ggplot(wr.sf.126.2050)+geom_point(aes(x = TNdep95, y = TNdep))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
+# d2 <- ggplot(wr.sf.126.2100)+geom_point(aes(x = TNdep95, y = TNdep))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
+# d3 <- ggplot(wr.sf.370.2050)+geom_point(aes(x = TNdep95, y = TNdep))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
+# d4 <- ggplot(wr.sf.370.2100)+geom_point(aes(x = TNdep95, y = TNdep))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
+# 
+# ggarrange(d1,d2,d3,d4, nrow = 2, ncol = 2)
+```
+
+<div align = 'center'>*`r fig_nums(name = "futre-temp-prec", caption = "Forecasted temperature and precipitation compared to 1995 values")`*</div>
+
 ```{r point-diff}
 wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
 wr.sf.126.2100 <- readRDS("WR/wr.sf.126.2100.rds")
@@ -1187,18 +1288,20 @@ wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
 wr.sf.370.2100 <- readRDS("WR/wr.sf.370.2100.rds")
 
 n1 <- ggplot(wr.sf.126.2050)+geom_point(aes(x = NDVI95, y = NDVI))+ geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "NDVI SSP 1-2.6, 2050")+ theme_minimal()
+  ylim(0,1)+labs(y = "NDVI SSP 1-2.6, 2050")+ theme_minimal()
 n2 <- ggplot(wr.sf.126.2100)+geom_point(aes(x = NDVI95, y = NDVI))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "NDVI SSP 1-2.6, 2100")+theme_minimal()
+  ylim(0,1)+labs(y = "NDVI SSP 1-2.6, 2100")+theme_minimal()
 n3 <- ggplot(wr.sf.370.2050)+geom_point(aes(x = NDVI95, y = NDVI))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "NDVI SSP 3-7.0, 2050")+theme_minimal()
+  ylim(0,1)+labs(y = "NDVI SSP 3-7.0, 2050")+theme_minimal()
 n4 <- ggplot(wr.sf.370.2100)+geom_point(aes(x = NDVI95, y = NDVI))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "NDVI SSP 3-7.0, 2100")+theme_minimal()
+  ylim(0,1)+labs(y = "NDVI SSP 3-7.0, 2100")+theme_minimal()
 
 ggarrange(n1,n2,n3,n4, nrow = 2, ncol = 2)
 ```
 
-```{r contourplots-ndvi-future}
+<div align = 'center'>*`r fig_nums(name = "futre-temp-prec", caption = "Forecasted NDVI compared to 1995 values")`*</div>
+
+```{r contourplots-ndvi-future, fig.dim = c(12,10)}
 glm.ndvi <- readRDS("WR/glm.ndvi.rds")
 fennoscandia <- readRDS("fennoscandia.33.rds")
 
@@ -1206,6 +1309,8 @@ wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
 wr.sf.126.2100 <- readRDS("WR/wr.sf.126.2100.rds")
 wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
 wr.sf.370.2100 <- readRDS("WR/wr.sf.370.2100.rds")
+
+par(mfrow = c(2,2))
 
 xtemp1 <- seq(min(wr.sf.126.2050$Temp), max(wr.sf.126.2050$Temp), 0.1)
 yprecip1 <- seq(min(wr.sf.126.2050$logPrecip), max(wr.sf.126.2050$logPrecip), 0.1)
@@ -1215,7 +1320,7 @@ mtrx3d1 <-  predict(glm.ndvi, newdata = data.fit1, type = "response")
 mtrx.melt1 <- cbind(data.fit1, mtrx3d1)
 names(mtrx.melt1) <- c("Temp","logPrecip","NDVI")
 
-ggplot(mtrx.melt1,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
+fcp1 <- ggplot(mtrx.melt1,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
   geom_tile(aes(fill = NDVI))+
   stat_contour(bins = 15)+
   geom_point(data = wr.sf.126.2050, aes(x=Temp, y = logPrecip), size = 1)+
@@ -1230,7 +1335,7 @@ mtrx3d2 <-  predict(glm.ndvi, newdata = data.fit2, type = "response")
 mtrx.melt2 <- cbind(data.fit2, mtrx3d2)
 names(mtrx.melt2) <- c("Temp","logPrecip","NDVI")
 
-ggplot(mtrx.melt2,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
+fcp2 <- ggplot(mtrx.melt2,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
   geom_tile(aes(fill = NDVI))+
   stat_contour(bins = 15)+
   geom_point(data = wr.sf.126.2100, aes(x=Temp, y = logPrecip), size = 1)+
@@ -1245,7 +1350,7 @@ mtrx3d3 <-  predict(glm.ndvi, newdata = data.fit3, type = "response")
 mtrx.melt3 <- cbind(data.fit3, mtrx3d3)
 names(mtrx.melt3) <- c("Temp","logPrecip","NDVI")
 
-ggplot(mtrx.melt3,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
+fcp3 <- ggplot(mtrx.melt3,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
   geom_tile(aes(fill = NDVI))+
   stat_contour(bins = 15)+
   geom_point(data = wr.sf.370.2050, aes(x=Temp, y = logPrecip), size = 1)+
@@ -1260,16 +1365,23 @@ mtrx3d4 <-  predict(glm.ndvi, newdata = data.fit4, type = "response")
 mtrx.melt4 <- cbind(data.fit4, mtrx3d4)
 names(mtrx.melt4) <- c("Temp","logPrecip","NDVI")
 
-ggplot(mtrx.melt4,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
+fcp4 <- ggplot(mtrx.melt4,aes(x=Temp, y = logPrecip, z = NDVI)) + stat_contour(geom="polygon", aes(fill = ..level..))+
   geom_tile(aes(fill = NDVI))+
   stat_contour(bins = 15)+
   geom_point(data = wr.sf.370.2100, aes(x=Temp, y = logPrecip), size = 1)+
   scale_fill_viridis_c()+
   labs(title = "Contour plot NDVI SSP 3-7.0, 2100")
+
+grid.arrange(fcp1,fcp2,fcp3,fcp4,nrow=2,ncol=2)
 ```
 
 
 ```{r plot-future-ndvi, eval = F}
+wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
+wr.sf.126.2100 <- readRDS("WR/wr.sf.126.2100.rds")
+wr.sf.370.2050 <- readRDS("WR/wr.sf.370.2050.rds")
+wr.sf.370.2100 <- readRDS("WR/wr.sf.370.2100.rds")
+
 mn0 <- ggplot(wr.sf.126.2050)+geom_sf(aes(fill = NDVI95, col = NDVI95)) + 
   scale_colour_continuous_divergingx(palette = "RdYlBu", mid = 0.5, rev = T , aesthetics = c("fill","col"), name = "NDVI 1995", limits = c(0,1))+   theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
@@ -1308,36 +1420,7 @@ listgrob <- list("WR/NDVI_1995.png","white.png","WR/NDVI_SSP126_2050.png", "WR/N
 plot_grid(plotlist = listgrob, ncol= 2, nrow = 3, align = "v", greedy = T)
 ```
 
-```{r other-plots}
-t1 <- ggplot(wr.sf.126.2050)+geom_point(aes(x = Temp95, y = Temp))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "Temperature SSP 1-2.6, 2050", x = "Temperature 1995 (°C)")+theme_minimal()
-t2 <- ggplot(wr.sf.126.2100)+geom_point(aes(x = Temp95, y = Temp))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "Temperature SSP 1-2.6, 2100", x = "Temperature 1995 (°C)")+theme_minimal()
-t3 <- ggplot(wr.sf.370.2050)+geom_point(aes(x = Temp95, y = Temp))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "Temperature SSP 3-7.0, 2050", x = "Temperature 1995 (°C)")+theme_minimal()
-t4 <- ggplot(wr.sf.370.2100)+geom_point(aes(x = Temp95, y = Temp))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "Temperature SSP 3-7.0, 2100", x = "Temperature 1995 (°C)")+theme_minimal()
 
-ggarrange(t1,t2,t3,t4, nrow = 2, ncol = 2)
-
-p1 <- ggplot(wr.sf.126.2050)+geom_point(aes(x = Prec95, y = Precip))+geom_abline(slope = 1, intercept = 0, col = "red")+
-    labs(y = "Precipitations SSP 1-2.6, 2050", x = "Precipitations 1995 (mm/y)")+theme_minimal()
-p2 <- ggplot(wr.sf.126.2100)+geom_point(aes(x = Prec95, y = Precip))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y= "Precipitations SSP 1-2.6, 2100", x = "Precipitations 1995 (mm/y)")+theme_minimal()
-p3 <- ggplot(wr.sf.370.2050)+geom_point(aes(x = Prec95, y = Precip))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "Precipitations SSP 3-7.0, 2050", x = "Precipitations 1995 (mm/y)")+theme_minimal()
-p4 <- ggplot(wr.sf.370.2100)+geom_point(aes(x = Prec95, y = Precip))+geom_abline(slope = 1, intercept = 0, col = "red")+
-  labs(y = "Precipitations SSP 1-2.6, 2100", x = "Precipitations 1995 (mm/y)")+theme_minimal()
-
-ggarrange(p1,p2,p3,p4, nrow = 2, ncol = 2)
-
-# d1 <- ggplot(wr.sf.126.2050)+geom_point(aes(x = TNdep95, y = TNdep))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
-# d2 <- ggplot(wr.sf.126.2100)+geom_point(aes(x = TNdep95, y = TNdep))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
-# d3 <- ggplot(wr.sf.370.2050)+geom_point(aes(x = TNdep95, y = TNdep))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
-# d4 <- ggplot(wr.sf.370.2100)+geom_point(aes(x = TNdep95, y = TNdep))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
-# 
-# ggarrange(d1,d2,d3,d4, nrow = 2, ncol = 2)
-```
 ```{r create-plots-forecasts, eval = F}
 wr.sf.126.2050 <- readRDS("WR/wr.sf.126.2050.rds")
 wr.sf.126.2100 <- readRDS("WR/wr.sf.126.2100.rds")
@@ -1463,6 +1546,45 @@ plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ## Forecast TOC for 2050 and 2100
 
 The average concentration of total organic carbon in the coastal drainage basins was predicted based on the SELM with 5 predictors, fitted on the Fennoscandian dataset. The difference between the predicted log(TOC) for 2050 and 2100 under the SSP 1-2.6 and 3-7.0 scenarios, compared to the log(TOC) predicted for 1995, was computed and plotted.  
+```{r boxplots-ssp126, eval = F}
+fennoscandia <- readRDS("fennoscandia.33.rds")
+sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
+wr.ssp126.2050 <- readRDS("WR/wr.ssp126.2050.rds")
+wr.ssp370.2050 <- readRDS("WR/wr.ssp370.2050.rds")
+wr.ssp126.2100 <- readRDS("WR/wr.ssp126.2050.rds")
+wr.ssp370.2100 <- readRDS("WR/wr.ssp370.2050.rds")
+
+temperature <- c(fennoscandia$Temp, sem.pred.wr$Temp,wr.ssp126.2050$Temp,wr.ssp370.2050$Temp, wr.ssp126.2100$Temp,wr.ssp370.2100$Temp)
+precipitation <- c(fennoscandia$Precip, sem.pred.wr$Precip,wr.ssp126.2050$Precip,wr.ssp370.2050$Precip, wr.ssp126.2100$Precip,wr.ssp370.2100$Precip)
+ndvi <- c(fennoscandia$NDVI, sem.pred.wr$NDVI,wr.ssp126.2050$NDVI,wr.ssp370.2050$NDVI, wr.ssp126.2100$NDVI,wr.ssp370.2100$NDVI)
+runoff <- c(fennoscandia$Runoff, sem.pred.wr$Runoff,wr.ssp126.2050$Runoff,wr.ssp370.2050$Runoff, wr.ssp126.2100$Runoff,wr.ssp370.2100$Runoff)
+tndep <- c(fennoscandia$TNdep, sem.pred.wr$TNdep,wr.ssp126.2050$TNdep,wr.ssp370.2050$TNdep, wr.ssp126.2100$TNdep,wr.ssp370.2100$TNdep)
+toc <- c(fennoscandia$TOC, sem.pred.wr$TOC95,wr.ssp126.2050$TOC,wr.ssp370.2050$TOC, wr.ssp126.2100$TOC,wr.ssp370.2100$TOC)
+
+neworder <- c("Fennoscandia","WR1995","SSP126.2050","SSP126.2100","SSP370.2050","SSP370.2100")
+model <- factor(c(rep("Fennoscandia",dim(fennoscandia)[1]),
+                  rep("WR1995",dim(sem.pred.wr)[1]),
+                  rep("SSP126.2050", dim(wr.ssp126.2050)[1]),
+                  rep("SSP370.2050", dim(wr.ssp370.2050)[1]),
+                  rep("SSP126.2100", dim(wr.ssp126.2100)[1]),
+                  rep("SSP370.2100", dim(wr.ssp370.2100)[1])),
+                levels = neworder)
+
+compare.ssp <- data.frame(value = c(temperature, precipitation, runoff, ndvi, toc), variable = c(rep("Temperature (°C)", length(temperature)), rep("Precipitation (mm)", length(precipitation)), rep("Runoff (mm/y)",length(runoff)), rep("NDVI",length(ndvi)), rep("TOC (mg/L)", length(toc))), model = rep(model,5)) 
+
+ggplot(compare.ssp)+geom_boxplot(aes(y= value,col=variable))+
+  labs(y="", x = "")+scale_color_viridis_d(end = 0.8)+
+  theme_minimal()+
+  theme(legend.position = "", axis.text.x = element_blank())+
+  facet_grid(cols = vars(model), rows = vars(factor(variable, levels = c("Temperature (°C)","Precipitation (mm)","Runoff (mm/y)","NDVI","TOC (mg/L)"))), scales = "free_y", shrink = T)
+ggsave("WR/compare.ssp.png", width = 30, height = 25, units = "cm", dpi = "retina")
+```
+
+```{r boxplot-ssp}
+knitr::include_graphics("WR/compare.ssp.png")
+```
+
+<div align = 'center'>*`r fig_nums("compare.ssp","Boxplots of the main predictors for the fennoscandian dataset, the coastal drainage basins in 1995, and the forecasts for the coastal drainage basins for SSP 1-2.6 and 3-7.0 in 2050 and 2100")`*</div>
 
 ```{r sem-model-toc-ssp126-2050, eval = F}
 sem.fennoscandia.5 <- readRDS("sem.fennoscandia.5.Rdata")
@@ -1528,39 +1650,8 @@ saveRDS(wr.ssp370,"WR/wr.ssp370.2100.rds")
 
 The average TOC concentration was plotted. 
 
-```{r boxplots-ssp126, eval = F}
-sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
-wr.ssp126.2050 <- readRDS("WR/wr.ssp126.2050.rds")
-wr.ssp370.2050 <- readRDS("WR/wr.ssp370.2050.rds")
-wr.ssp126.2100 <- readRDS("WR/wr.ssp126.2050.rds")
-wr.ssp370.2100 <- readRDS("WR/wr.ssp370.2050.rds")
 
-temperature <- c(sem.pred.wr$Temp,wr.ssp126.2050$Temp,wr.ssp370.2050$Temp, wr.ssp126.2100$Temp,wr.ssp370.2100$Temp)
-precipitation <- c(sem.pred.wr$Precip,wr.ssp126.2050$Precip,wr.ssp370.2050$Precip, wr.ssp126.2100$Precip,wr.ssp370.2100$Precip)
-ndvi <- c(sem.pred.wr$NDVI,wr.ssp126.2050$NDVI,wr.ssp370.2050$NDVI, wr.ssp126.2100$NDVI,wr.ssp370.2100$NDVI)
-runoff <- c(sem.pred.wr$Runoff,wr.ssp126.2050$Runoff,wr.ssp370.2050$Runoff, wr.ssp126.2100$Runoff,wr.ssp370.2100$Runoff)
-tndep <- c(sem.pred.wr$TNdep,wr.ssp126.2050$TNdep,wr.ssp370.2050$TNdep, wr.ssp126.2100$TNdep,wr.ssp370.2100$TNdep)
-toc <- c(sem.pred.wr$TOC95,wr.ssp126.2050$TOC,wr.ssp370.2050$TOC, wr.ssp126.2100$TOC,wr.ssp370.2100$TOC)
-
-neworder <- c("1995","SSP126","SSP370")
-model <- factor(c(rep("1995",dim(sem.pred.wr)[1]),rep("SSP126", dim(wr.ssp126)[1]), rep("SSP370", dim(wr.ssp370)[1])),levels = neworder)
-
-compare.ssp <- data.frame(value = c(temperature, precipitation, ndvi, runoff,toc), variable = c(rep("Temperature (°C)", length(temperature)), rep("Precipitation (mm)", length(precipitation)), rep("NDVI",length(ndvi)), rep("Runoff (mm/y)",length(runoff)), rep("TOC (mg/L)", length(toc))), model = rep(model,5)) 
-
-ggplot(compare.ssp)+geom_boxplot(aes(y= value,col=variable))+
-  labs(y="", x = "")+scale_color_brewer(type = "seq",palette = "Dark2",direction = -1)+
-  theme_minimal()+
-  theme(legend.position = "", axis.text.x = element_blank())+
-  facet_grid(cols = vars(model), rows = vars(factor(variable, levels = c("Temperature (°C)","Precipitation (mm)","NDVI","Runoff (mm/y)","TOC (mg/L)"))), scales = "free_y", shrink = T)
-ggsave("WR/compare.ssp.png", width = 10, height = 20, units = "cm", dpi = "retina")
-
-```
-
-```{r map-fit-toc-95-bis}
-knitr::include_graphics("WR/wr.log.toc.png")
-```
-
-```{r plots-forecast-toc, eval = T, fig.dim= c(12,16)}
+```{r plots-forecast-toc, eval = T, fig.dim= c(6,8)}
 wr.ssp126.2050 <- readRDS("WR/wr.ssp126.2050.rds")
 wr.ssp370.2050 <- readRDS("WR/wr.ssp370.2050.rds")
 wr.ssp126.2100 <- readRDS("WR/wr.ssp126.2100.rds")
@@ -1573,11 +1664,12 @@ for(i in names(list.sf)){
   list.sf[[i]]$diffTOC <- list.sf[[i]]$TOC - list.sf[[i]]$TOC95
   list.sf[[i]]$diff.log <- list.sf[[i]]$fit - list.sf[[i]]$wr.pred.fit
   list.sf[[i]]$exp.diff.log <- exp(list.sf[[i]]$diff.log)
+  list.sf[[i]]$percent.change <- (list.sf[[i]]$exp.diff.log - 1) * 100
 }
 
 all.diff <- data.frame(gid = c(wr.ssp126.2050$gid, wr.ssp370.2050$gid, wr.ssp126.2100$gid, wr.ssp370.2100$gid))
 
-for(x in c("fit","diffTOC","diff.log","exp.diff.log")){
+for(x in c("fit","diffTOC","diff.log","exp.diff.log","percent.change")){
   all.vec <- c()
   
   for(i in names(list.sf)){
@@ -1590,13 +1682,19 @@ for(x in c("fit","diffTOC","diff.log","exp.diff.log")){
 max.lim <- apply(all.diff, 2, max, na.rm = T)
 min.lim <- apply(all.diff, 2, min, na.rm = T)
 
-legends <- c("Difference TOC (mg/L)","Difference log(TOC)", "exp(difference log(TOC)")
-
-diffs <- c("diffTOC","diff.log", "exp.diff.log")
 ```
 
 ```{r plot-forecast-logtoc, eval = F}
-t1 <- ggplot(list.sf[["SSP126.2050"]])+
+
+t0 <- ggplot(list.sf[["SSP126.2050"]])+
+    geom_sf(aes(fill=wr.pred.fit, col= wr.pred.fit), size= 0.05)+
+   scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[2],max.lim[2]),
+                       name = "logTOC in 1995")+
+   theme_minimal(base_size = 10)+
+  theme(legend.position = "bottom")
+ggsave("WR/toc_1995.png", t0 ,dpi = "retina", width = 12, height = 16, units = "cm")
+
+  t1 <- ggplot(list.sf[["SSP126.2050"]])+
     geom_sf(aes(fill=fit, col= fit), size= 0.05)+
    scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[2],max.lim[2]),
                        name = "a) Forecast logTOC\n SSP1-2.6 - 2050")+
@@ -1604,14 +1702,16 @@ t1 <- ggplot(list.sf[["SSP126.2050"]])+
   theme(legend.position = "bottom")
 #    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Forecast logTOC\n SSP1-2.6 - 2050", mid = (max.lim[2]-min.lim[2])/2, limits = c(min.lim[2],max.lim[2]), rev = T) +
 #    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+ggsave("WR/logTOC_ssp126.2050.png", t1 ,dpi = "retina", width = 12, height = 16, units = "cm")
 
+  
 t2 <- ggplot(list.sf[["SSP126.2100"]])+
     geom_sf(aes(fill=fit, col= fit), size= 0.05)+
      scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[2],max.lim[2]),
                        name = "b) Forecast logTOC\n SSP1-2.6 - 2100")+
    theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
-
+ggsave("WR/logTOC_ssp126.2100.png", t2 ,dpi = "retina", width = 12, height = 16, units = "cm")
 
 t3 <- ggplot(list.sf[["SSP370.2050"]])+
    geom_sf(aes(fill=fit, col= fit), size= 0.05)+
@@ -1619,7 +1719,7 @@ t3 <- ggplot(list.sf[["SSP370.2050"]])+
                        name = "c) Forecast logTOC\n SSP3-7.0 - 2050")+
    theme_minimal(base_size = 10)+
    theme(legend.position = "bottom")
-
+ggsave("WR/logTOC_ssp370.2050.png", t3 ,dpi = "retina", width = 12, height = 16, units = "cm")
 
 t4 <- ggplot(list.sf[["SSP370.2100"]])+
    geom_sf(aes(fill=fit, col= fit), size= 0.05)+
@@ -1627,42 +1727,71 @@ t4 <- ggplot(list.sf[["SSP370.2100"]])+
                        name = "d) Forecast logTOC\n SSP3-7.0 - 2100")+
    theme_minimal(base_size = 10)+
    theme(legend.position = "bottom")
+ggsave("WR/logTOC_ssp370.2100.png", t4 ,dpi = "retina", width = 12, height = 16, units = "cm")
 
-
-
-tt <- grid.arrange(t1, t2, t3, t4, ncol = 2, nrow = 2)
-ggsave( "forecast.log.toc.png", tt)
 ```
 
-```{r plot-forecast.log.toc.png}
-knitr::include_graphics("forecast.log.toc.png")
+```{r map-fit-toc-95-bis, fig.dim = c(12,16)}
+knitr::include_graphics("WR/toc_1995.png")
 ```
-```{r map-percent-change, eval = F}
 
-highchangeid <- subset(list.sf$SSP370.2100, exp.diff.log > 25)$gid
+```{r map-forecast-log-toc, fig.dim = c(12,16)}
+list.grob <- c("WR/logTOC_ssp126.2050.png", "WR/logTOC_ssp126.2100.png","WR/logTOC_ssp370.2050.png","WR/logTOC_ssp370.2100.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+plot_grid(plotlist = list.grob, nrow = 2, ncol = 2, labels = c("a)","b)","c)","d)"), label_size = 10)
+```
+
+<div align = 'center'>*`r fig_nums("future-logtoc","Forecast of mean log(TOC) for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios.")`*</div>
+
+```{r map-proportion-change, eval = F}
 
 p1 <- ggplot(list.sf[["SSP126.2050"]])+
     geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
    # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
    #                     name = "a) Forecasted percent increase in [TOC]\n SSP1-2.6 - 2050")+
-    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Forecast [TOC] increase in %\n SSP1-2.6 - 2050", mid = (max.lim[5]-min.lim[5])/2, limits = c(min.lim[5],max.lim[5]), rev = T) +
-     theme_minimal(base_size = 10)+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Forecast [TOC] increase in %\n SSP1-2.6 - 2050", mid = 1, limits = c(min.lim[5],max.lim[5]), rev = T) +
+     theme_minimal(base_size = 6)+
     theme(legend.position = "bottom")
 
+
+
+p2 <- ggplot(list.sf[["SSP126.2100"]])+
+    geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="b) Forecast [TOC] increase in %\n SSP1-2.6 - 2100", mid = 1, limits = c(min.lim[5],max.lim[5]), rev = T) +
+       # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
+       #                 name = "b) Forecasted percent change TOC\n SSP1-2.6 - 2100")+
+   theme_minimal(base_size = 6)+
+  theme(legend.position = "bottom")
+
+
+
+p3 <- ggplot(list.sf[["SSP370.2050"]])+
+   geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
+        scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="c) Forecast [TOC] increase in %\n SSP3-7.0 - 2050", mid = 1, limits = c(min.lim[5],max.lim[5]), rev = T) +
+   # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
+   #                     name = "c) Forecasted percent change TOC\n SSP3-7.0 - 2050")+
+   theme_minimal(base_size = 6)+
+   theme(legend.position = "bottom")
+
+
+
+p4 <- ggplot(list.sf[["SSP370.2100"]])+
+   geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
+      scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="d) Forecast [TOC] increase in %\n SSP3-7.0 - 2100", mid = 1, limits = c(min.lim[5],max.lim[5]), rev = T) +
+   # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
+   #                     name = "d) Forecasted percent change TOC\n SSP3-7.0 - 2100")+
+   theme_minimal(base_size = 6)+
+   theme(legend.position = "bottom")
+
+pp <- grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+ggsave("forecast.percent.change.toc.png", pp, width = 12, height = 16, units = "cm")
+
+highchangeid <- subset(list.sf$SSP370.2100, exp.diff.log > 25)$gid
 
 pp1 <- ggplot()+
     geom_sf(data = subset(list.sf[["SSP126.2050"]], exp.diff.log < 20), aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
    scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],20),
                        name = "a) Forecasted percent change TOC\n SSP1-2.6 - 2050")+
    geom_sf(data = subset(list.sf[["SSP126.2050"]], exp.diff.log > 20), aes(fill=exp.diff.log), col= "black", fill = "black", size= 0.05)+
-   theme_minimal(base_size = 10)+
-  theme(legend.position = "bottom")
-
-p2 <- ggplot(list.sf[["SSP126.2100"]])+
-    geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
-    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="b) Forecast [TOC] increase in %\n SSP1-2.6 - 2100", mid = (max.lim[5]-min.lim[5])/2, limits = c(min.lim[5],max.lim[5]), rev = T) +
-       # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
-       #                 name = "b) Forecasted percent change TOC\n SSP1-2.6 - 2100")+
    theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
 
@@ -1674,15 +1803,6 @@ pp2 <- ggplot()+
    theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
 
-
-p3 <- ggplot(list.sf[["SSP370.2050"]])+
-   geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
-        scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="c) Forecast [TOC] increase in %\n SSP3-7.0 - 2050", mid = (max.lim[5]-min.lim[5])/2, limits = c(min.lim[5],max.lim[5]), rev = T) +
-   # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
-   #                     name = "c) Forecasted percent change TOC\n SSP3-7.0 - 2050")+
-   theme_minimal(base_size = 10)+
-   theme(legend.position = "bottom")
-
 pp3 <- ggplot()+
     geom_sf(data = subset(list.sf[["SSP370.2050"]], exp.diff.log < 20), aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
    scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],20),
@@ -1690,15 +1810,6 @@ pp3 <- ggplot()+
    geom_sf(data = subset(list.sf[["SSP370.2050"]], exp.diff.log > 20), aes(fill=exp.diff.log), col= "black", fill = "black", size= 0.05)+
    theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
-
-
-p4 <- ggplot(list.sf[["SSP370.2100"]])+
-   geom_sf(aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
-      scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="d) Forecast [TOC] increase in %\n SSP3-7.0 - 2100", mid = (max.lim[5]-min.lim[5])/2, limits = c(min.lim[5],max.lim[5]), rev = T) +
-   # scale_fill_distiller(type = "seq", palette = 8, aesthetics = c("colour","fill"), direction = 1, limits = c(min.lim[5],max.lim[5]),
-   #                     name = "d) Forecasted percent change TOC\n SSP3-7.0 - 2100")+
-   theme_minimal(base_size = 10)+
-   theme(legend.position = "bottom")
 
 pp4 <- ggplot()+
     geom_sf(data = subset(list.sf[["SSP370.2100"]], exp.diff.log < 20), aes(fill=exp.diff.log, col= exp.diff.log), size= 0.05)+
@@ -1708,19 +1819,54 @@ pp4 <- ggplot()+
    theme_minimal(base_size = 10)+
   theme(legend.position = "bottom")
 
-
-
-pp <- grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
-ggsave("forecast.percent.change.toc.png", pp, width = 10, height = 8)
-
 ppp <- grid.arrange(pp1, pp2, pp3, pp4, ncol = 2, nrow = 2)
-ggsave("forecast.percent.change.toc.2.png", ppp, width = 10, height = 8)
+ggsave("WR/forecast.prop.change.png", ppp, width = 12, height = 16)
 
 ```
 
-```{r forecast.percent.change.toc}
-knitr::include_graphics("forecast.percent.change.toc.png")
+```{r map-percent-change, eval = F}
+
+c1 <- ggplot()+
+    geom_sf(data = subset(list.sf[["SSP126.2050"]], percent.change < 307), aes(fill=percent.change, col= percent.change), size= 0.05)+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="a) Forecast [TOC] change in %\n SSP1-2.6 - 2050", mid = 0, limits = c(min.lim[6],307), rev = T) +
+    geom_sf(data = subset(list.sf[["SSP126.2050"]], percent.change > 307), fill = "black", col = "black")+
+    theme_minimal(base_size = 12)+
+    theme(legend.position = "bottom")
+ggsave("WR/percentTOC_ssp126.2050.png", c1 ,dpi = "retina", width = 12, height = 16, units = "cm")
+
+c2 <- ggplot()+
+    geom_sf(data = subset(list.sf[["SSP126.2100"]], percent.change < 307), aes(fill=percent.change, col= percent.change), size= 0.05)+
+    scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="b) Forecast [TOC] change in %\n SSP1-2.6 - 2100", mid = 0, limits = c(min.lim[6],307), rev = T) +
+  geom_sf(data = subset(list.sf[["SSP126.2100"]], percent.change > 307), fill = "black", col = "black")+
+   theme_minimal(base_size = 12)+
+  theme(legend.position = "bottom")
+ggsave("WR/percentTOC_ssp126.2100.png", c2 ,dpi = "retina", width = 12, height = 16, units = "cm")
+
+c3 <- ggplot()+
+   geom_sf(data = subset(list.sf[["SSP370.2050"]], percent.change < 307), aes(fill=percent.change, col= percent.change), size= 0.05)+
+        scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="c) Forecast [TOC] change in %\n SSP3-7.0 - 2050", mid = 0, limits = c(min.lim[6],307), rev = T) +
+  geom_sf(data = subset(list.sf[["SSP370.2050"]], percent.change > 307), fill = "black", col = "black")+
+     theme_minimal(base_size = 12)+
+   theme(legend.position = "bottom")
+ggsave("WR/percentTOC_ssp370.2050.png", c3 ,dpi = "retina", width = 12, height = 16, units = "cm")
+
+c4 <- ggplot()+
+   geom_sf(data = subset(list.sf[["SSP370.2100"]], percent.change < 307), aes(fill=percent.change, col= percent.change), size= 0.05)+
+      scale_fill_continuous_divergingx(palette = "RdYlBu", aesthetics = c("fill","col"),name="d) Forecast [TOC] change in %\n SSP3-7.0 - 2100", mid = 0, limits = c(min.lim[6],307), rev = T) +
+  geom_sf(data = subset(list.sf[["SSP370.2100"]], percent.change > 307), fill = "black", col = "black")+
+   theme_minimal(base_size = 12)+
+   theme(legend.position = "bottom")
+ggsave("WR/percentTOC_ssp370.2100.png", c4 ,dpi = "retina", width = 12, height = 16, units = "cm")
+
 ```
+
+```{r map-forecast-percent-toc, fig.dim = c(12,16)}
+list.grob <- c("WR/percentTOC_ssp126.2050.png", "WR/percentTOC_ssp126.2100.png","WR/percentTOC_ssp370.2050.png","WR/percentTOC_ssp370.2100.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+plot_grid(plotlist = list.grob, nrow = 2, ncol = 2, labels = c("a)","b)","c)","d)"), label_size = 10)
+```
+
+<div align = 'center'>*`r fig_nums("future-change-toc","Forecast of change of TOC concentration in % for the period 2041-2060 (i.e., 2050) and for the period 2081-2100 (i.e., 2100), under SSP 1-2.6 (2ºC target) and SSP 3-7.0 (realistic worst-case) scenarios. In black: catchments with concentration change superior to 307% (5% of the catchments)")`*</div>
+
 
 ```{r map-diff-log-toc, eval = F}
 
@@ -1869,12 +2015,18 @@ ggplot() +
   geom_path(data = toc.export.df, aes(x=Year, y = TOC_Tg, col = Model, group = Model), size = 0.5) +
   geom_abline(slope = 0, intercept = 0, col = "firebrick4", size = 0.3)+
   scale_color_manual(values = c("firebrick4","steelblue4","darkorange"))+
-  geom_label(data = filter(toc.export.df, Model == "SSP126"), 
-             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = -1.5, size = 2, label.padding = unit(0.2,"lines"), show_guide = F) +
-  geom_label(data = filter(toc.export.df, Model == "SSP370"), 
-             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = 1.5, size = 2, label.padding = unit(0.2,"lines"), show_guide = F) +
-  geom_label(data = filter(toc.export.df, Model == "Historical"), 
-             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = 1.5, size = 2, label.padding = unit(0.2,"lines"), show_guide = F) +
+  geom_label(data = filter(toc.export.df, Model == "SSP126" & Diff == "Absolute"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = -0.5, size = 2, label.padding = unit(0.2,"lines"), show.legend = F) +
+  geom_label(data = filter(toc.export.df, Model == "SSP126"& Diff == "Difference"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = -0.1, size = 2, label.padding = unit(0.2,"lines"), show.legend = F) +
+  geom_label(data = filter(toc.export.df, Model == "SSP370"& Diff == "Absolute"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = 0.5, size = 2, label.padding = unit(0.2,"lines"), show.legend = F) +
+   geom_label(data = filter(toc.export.df, Model == "SSP370"& Diff == "Difference"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = 0.1, size = 2, label.padding = unit(0.2,"lines"), show.legend = F) +
+  geom_label(data = filter(toc.export.df, Model == "Historical"& Diff == "Absolute"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = 0.5, size = 2, label.padding = unit(0.2,"lines"), show.legend = F) +  
+  geom_label(data = filter(toc.export.df, Model == "Historical"& Diff == "Difference"), 
+             aes(x=Year, y = TOC_Tg, col = Model, label = round(TOC_Tg,1)), nudge_y = 0.1, size = 2, label.padding = unit(0.2,"lines"), show.legend = F) +
   labs(x="Year", y= "TOC (Tg)")+
   facet_grid(cols=vars(Nation), rows = vars(Diff), scales = "free_y")+
   theme_bw(base_size = 12)+
@@ -1885,7 +2037,7 @@ ggsave(filename = "WR/TOC_export.png", dpi = "retina", width = 20, height = 15, 
 
 <div align = 'center'>*`r table_nums("toc-export-table","TOC exported from coastal drainage basins (Tg)")`*</div>*
 
-```{r table-darkening}
+```{r table-darkening, eval = F}
 toc.export.df <- readRDS("WR/toc.export.df.rds") %>% dplyr::select(c("Nation", "Model", "Year","Diff","TOC_Tg"))
 
 toc.export.df %>% arrange(Model) %>% 

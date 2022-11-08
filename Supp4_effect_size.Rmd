@@ -150,7 +150,9 @@ Therefore:
 
 $[TOC]_{forecast} = [TOC]_{initial} \times exp(difference \; log([TOC]))$
 
+The percent change is: 
 
+$\delta[TOC]\% = ([TOC]_{forecast}/[TOC]_{initial}) -1) \times 100$
 
 # References
 
