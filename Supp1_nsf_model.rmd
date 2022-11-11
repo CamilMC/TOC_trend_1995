@@ -26,7 +26,7 @@ library(gimms)
 library(raster)
 library(ncdf4)
 library(rgdal)
-library(spdep)
+library(spatialreg)
 
 library(stringr)
 library(ggplot2)
@@ -512,6 +512,7 @@ fennoscandia$Temp <- fennoscandia$Temp / 10 # divided by 10 because the temperat
 fennoscandia$s.Temp <-  scale(fennoscandia$Temp) 
 fennoscandia$logPrecip <- log(fennoscandia$Precip+1e-5)
 fennoscandia$s.logPrecip <- scale(fennoscandia$logPrec)
+fennoscandia$logSlope <- log(fennoscandia$Slope)
 fennoscandia$s.Slope <- scale(fennoscandia$Slope)
 fennoscandia$s.TNdep <- scale(fennoscandia$TNdep)
 fennoscandia$s.TSdep <- scale(fennoscandia$TSdep)
@@ -550,17 +551,17 @@ The TOC concentration and the predictor variables were plotted by catchment.
 
 ```{r map-cat-variable, eval = F}
 fennoscandia.33 <- readRDS("fennoscandia.33.rds")
-m <- c("TOC","NDVI","Runoff","Precip","Temp","Bog","Arable","Forest","TNdep","TSdep")
-u <- c("TOC concentration,\nmgC/L", "NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean annual\nprecipitation, mm/y","Mean annual\n temperature, °C","Proportion of bogs","Proportion of\narable land","Proportion of forest","Total nitrogen\ndeposition, mg/m2", "Total sulphur\ndeposition, mg/m2")
-dir <- c(T,F,F,F,T,T,T,F,F,F)
-midpoint <- c(0,0.6,median(fennoscandia.33$Runoff),median(fennoscandia.33$Precip),median(fennoscandia.33$Temp),0.3,0.3,0.5,median(fennoscandia.33$TNdep), median(fennoscandia.33$TSdep))
+m <- c("TOC","NDVI","Runoff","Precip","Slope","Temp","Bog","Arable","Forest","TNdep","TSdep")
+u <- c("TOC concentration,\nmgC/L", "NDVI on scale 0 to 1", "Mean Runoff, mm/y","Mean annual\nprecipitation, mm/y","Average slope (°)","Mean annual\n temperature, °C","Proportion of bogs","Proportion of\narable land","Proportion of forest","Total nitrogen\ndeposition, mg/m2", "Total sulphur\ndeposition, mg/m2")
+dir <- c(T,F,F,F,T,T,T,T,F,F,F)
+midpoint <- c(0,0.6,median(fennoscandia.33$Runoff),median(fennoscandia.33$Precip),5,median(fennoscandia.33$Temp),0.3,0.3,0.5,median(fennoscandia.33$TNdep), median(fennoscandia.33$TSdep))
 marg <- 0
 nor <- st_read("Country_shapefile/norway.shp") %>% st_transform(crs(fennoscandia.33))
 swe <- st_read("Country_shapefile/sweden.shp") %>% st_transform(crs(fennoscandia.33))
 fin <- st_read("Country_shapefile/finland.shp") %>% st_transform(crs(fennoscandia.33))
 
 
-for(i in m[6:7]){
+for(i in m[5]){
   
  mysf <- fennoscandia.33
 
@@ -614,13 +615,13 @@ ggsave(plot = white.fen, filename = "white.fen.png", dpi = "retina", width = 10,
 ```
 
 ```{r include-maps, hold = T, fig.dim = c(30,30)}
-listgrob <- list("map.toc.png","map.ndvi.png","map.Runoff.png","map.Precip.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+listgrob <- list("map.toc.png","map.ndvi.png","map.Runoff.png","map.Precip.png","map.Slope.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 #grid.arrange(grobs = listgrob, ncol = 3)
-all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)","j"), label_size = 20)
+all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 4, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)","j)","g)"), label_size = 20)
 print(all.map)
 ```
 
-<div align = 'center'>*`r fig_nums("insert-maps", "Maps of DOM (TOC, a) and its predictor variables : Biomass (NDVI, b), mean runoff intensity (Runoff, c), temperature (Temp, d), precipitation intensity (Precip, e), proportion of peat (Bog, f), proportion of forest (Forest, c), proportion of arable land (Arable, d), total nitrogen deposition (TNdep, i) and total sulfur deposition (TSdep, j) in the studied catchments")`*</div>
+<div align = 'center'>*`r fig_nums("insert-maps", "Maps of DOM (TOC, a) and its predictor variables : Biomass (NDVI, b), mean yearly runoff  (Runoff, c), temperature (Temp, d), mean yearly precipitation (Precip, e), proportion of peat (Bog, f), proportion of forest (Forest, c), proportion of arable land (Arable, d), total nitrogen deposition (TNdep, i) and total sulfur deposition (TSdep, j) in the studied catchments")`*</div>
 
 ```{r table-variables}
 fennoscandia.33 <- readRDS("fennoscandia.33.rds") %>% st_drop_geometry()
@@ -667,7 +668,7 @@ fennoscandia <- readRDS("fennoscandia.rds")
 
 moran.list <- c() 
 
-m <- c("logTOC","NDVI","logRunoff","logPrecip","Temp","Bog","Arable","Forest","TNdep","TSdep")
+m <- c("logTOC","NDVI","Temp","logRunoff","logPrecip","Bog","Arable","Forest","TNdep","TSdep")
 
 for (i in m){
   moran.list[[i]] <- moran.test(fennoscandia[,i],k.neigh.w, na.action = na.omit, alternative = "two.sided")

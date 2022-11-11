@@ -159,20 +159,20 @@ Spatially distributed data of the mean values of summer NDVI, Runoff, Precip, Te
 
 
 ```{r insert-maps, fig.dim = c(30,36), fig.align = "center"}
-listgrob <- list("map.ndvi.png","map.Runoff.png","map.Precip.png","map.temp.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+listgrob <- list("map.ndvi.png","map.temp.png","map.Runoff.png","map.Precip.png","map.Bog.png","map.arable.png","map.forest.png","map.tndep.png", "map.tsdep.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 #grid.arrange(grobs = listgrob, ncol = 3)
 all.map <- plot_grid(plotlist = listgrob, ncol= 3, nrow = 3, align = "v", greedy = T, labels = c("a)","b)","c)","d)","e)","f)","g)","h)","i)"), label_size = 25)
 save_plot("predictor.maps.png",all.map, ncol = 3, nrow = 3, base_height = 8, base_width = 6)
 print(all.map)
 ```
 
-*`r fig_nums("insert-maps", "Maps of the predictor variables: NDVI (a), mean runoff intensity (Runoff, b), temperature (Temp, c), precipitation intensity (Precip, d), proportion of peat (Bog, e), proportion of forest (Forest, f), proportion of arable land (Arable, g), total nitrogen deposition (TNdep, h) and total sulfur deposition (TSdep, i) in the studied catchments")`*
+*`r fig_nums("insert-maps", "Maps of the predictor variables: NDVI (a), temperature (Temp, b), mean runoff intensity (Runoff, c), precipitation intensity (Precip, d), average slope (Slope, e), proportion of peat (Bog, f), proportion of forest (Forest, g), proportion of arable land (Arable, h), total nitrogen deposition (TNdep, i) and total sulfur deposition (TSdep, j) in the studied catchments")`*
 
 
 ### Pearson Correlation coefficient, autocorrelation and Variance Inflation Factor
 
 ```{r p-I-VIF}
-m <- c("logTOC","NDVI","logRunoff","logPrecip","Temp","Bog","Arable","Forest","TNdep","TSdep")
+m <- c("logTOC","NDVI","Temp","logRunoff","logPrecip","Bog","Arable","Forest","TNdep","TSdep")
 cor.mat <- cor(dplyr::select(fennoscandia,m[-1]))
 
 lm.all <- lm(data = fennoscandia, formula = as.formula(paste(m[1],"~",paste(m[-1],collapse = "+"))))
@@ -220,7 +220,7 @@ moran.vif.df %>% arrange(desc(moran.I)) %>%
 
 ```{r moran-fig, fig.dim = c(20,12)}
 list.grob <- c("map.TOC.png", "moran.vif.table.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
-moran.map <- plot_grid(plotlist = list.grob, nrow= 1, ncol = 2, labels = c("a)","b)"), label_size = 25)
+moran.map <- plot_grid(plotlist = list.grob, nrow= 1, ncol = 2, labels = c("a)","b)"), label_size = 20)
 save_plot(filename = "moran.table.map.png", moran.map, nrow = 1, ncol = 2)
 print(moran.map)
 ```
@@ -303,9 +303,9 @@ Future trends in TNdep were assessed based on estimations from IPCC as described
 
 
 ```{r ssp-toc, fig.dim= c(12,16)}
-listgrob <- list("WR/SSP126.2050.diff.log.png", "WR/SSP126.2100.diff.log.png","WR/SSP370.2050.diff.log.png","WR/SSP370.2100.diff.log.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+listgrob <- list("WR/percentTOC_ssp126.2050.png", "WR/percentTOC_ssp126.2100.png","WR/percentTOC_ssp370.2050.png","WR/percentTOC_ssp370.2100.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
 ssp <- plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
-save_plot("ssp.toc.png",ssp, ncol = 2, nrow = 2, base_height = 4, base_width = 3)
+save_plot("ssp.toc.png",ssp, ncol = 2, nrow = 2, base_height = 4, base_width = 3, dpi = "retina")
 print(ssp)
 ```
 

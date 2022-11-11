@@ -38,7 +38,6 @@ library(colorspace)
 library(cowplot)
 library(png)
 
-library(spdep)
 library(spatialreg)
 
 library(kableExtra)
