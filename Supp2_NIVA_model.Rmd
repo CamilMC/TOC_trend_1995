@@ -386,7 +386,7 @@ saveRDS(niva_predict,"NIVA_test/niva_predict.rds")
 niva_predict <- readRDS("NIVA_test/niva_predict.rds")
 
 ggplot(niva_predict) + geom_point(aes(y = log(toc_2019), x = fit, col = latitude), size = 1)+
-  scale_color_continuous_divergingx(palette = "RdYlBu", aesthetics = c("col"), mid = 65, name = "Latitude")+
+  scale_color_continuous_divergingx(palette = "RdYlBu", aesthetics = c("col"), mid = 60, name = "Latitude")+
   labs(y = "logTOC 2019", x = "Predicted logTOC")+
   annotate(geom = "label", label = paste("r = ", round(cor(log(niva_predict$toc_2019),niva_predict$fit),2)), x = 2, y = -1.5, size = 3)+
   geom_abline(slope  = 1, intercept = 0, col = "black")+
@@ -454,7 +454,7 @@ niva_predict <- readRDS("NIVA_test/niva_predict_lm.rds")
 
 ggplot(niva_predict) + geom_point(aes(x = log(toc_2019), y = niva_fit, col = latitud))+
   labs(x = "log(TOC 2019)", y = "Predicted logTOC")+
-  scale_color_continuous_divergingx(palette = "RdYlBu", name = "Latitude", mid = median(niva_predict$latitud))+
+  scale_color_continuous_divergingx(palette = "RdYlBu", name = "Latitude", mid = 60)+
   annotate(geom = "label", label = paste("r = ", round(cor(log(niva_predict$toc_2019),niva_predict$niva_fit),2)), x = 2, y = -0.2)+
   geom_abline(slope  = 1, intercept = 0, col = "red")+
   theme_minimal(base_size = 10)+theme(legend.position = "bottom")
@@ -486,41 +486,3 @@ grid.arrange(grobs = listgrob, ncol = 2, nrow = 1, labels = c("a)","b)"))
 # References
 
 ```r knit::exit()```
-
-```{r reverse-test}
-niva.data <- readRDS("NIVA_test/niva.data.rds")
-niva.kmat <- readRDS("NIVA_test/niva.kmat.rds")
-niva.data$logTOC <- log(niva.data$toc_2019)
-
-fm <- logTOC~NDVI+logRunoff+Bog+Arable+TNdep
-
-sem.fennoscandia.5 <- errorsarlm(fm,fennoscandia,k.neigh.w)
-saveRDS(sem.fennoscandia.5,"sem.fennoscandia.5.rds")
-
-
-selm.niva <- errorsarlm(fm,niva.data, niva.kmat)
-
-fennoscandia <- readRDS("fennoscandia.rds")
-k.neigh.w <- readRDS("k.neigh.w.rds")
-fen_fit <- predict(selm.niva, newdata = fennoscandia, k.neigh.w)
-
-fen_predict <- cbind(fennoscandia, fen_fit)
-fen_predict$diffTOC <- fen_predict$TOC - exp(fen_predict$fit)
-fen_predict$diffLogTOC <- fen_predict$logTOC - fen_predict$fit
-
-saveRDS(fen_predict,"NIVA_test/fen_predict.rds")
-
-
-```
-
-```{r plot-reverse-model-results-selm, eval = F}
-fen_predict <- readRDS("NIVA_test/fen_predict.rds")
-
-ggplot(fen_predict) + geom_point(aes(y = logTOC, x = fen_fit, col = latitude))+
-  labs(x = "logTOC 1995", y = "Predicted logTOC 1995")+
-  scale_color_continuous_divergingx(palette = "RdYlBu", name = "Latitude", mid = median(fen_predict$latitude))+
-  annotate(geom = "label", label = paste("r = ", round(cor(fen_predict$logTOC,fen_predict$fit),2)), x = 2, y = -0.2)+
-  geom_abline(slope  = 1, intercept = 0, col = "red")+
-  theme_minimal(base_size = 10)+theme(legend.position = "bottom")
-ggsave(filename = "NIVA_test/fen_selm_result.png", dpi = "retina", width = 10, height = 12, units = "cm")
-```

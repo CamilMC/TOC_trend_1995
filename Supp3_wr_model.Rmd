@@ -1545,6 +1545,7 @@ plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 ## Forecast TOC for 2050 and 2100
 
 The average concentration of total organic carbon in the coastal drainage basins was predicted based on the SELM with 5 predictors, fitted on the Fennoscandian dataset. The difference between the predicted log(TOC) for 2050 and 2100 under the SSP 1-2.6 and 3-7.0 scenarios, compared to the log(TOC) predicted for 1995, was computed and plotted.  
+
 ```{r boxplots-ssp126, eval = F}
 fennoscandia <- readRDS("fennoscandia.33.rds")
 sem.pred.wr <- readRDS("WR/sem.pred.wr.rds")
@@ -1904,6 +1905,49 @@ listgrob <- list("WR/SSP126.2050.diff.log.png", "WR/SSP126.2100.diff.log.png","W
 ssp <- plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
 save_plot("ssp.toc.png",ssp, ncol = 2, nrow = 2, base_height = 4, base_width = 3)
 print(ssp)
+```
+
+```{r map-diff-plus-minus, eval = F}
+
+for(i in names(list.sf)){
+  list.sf[[i]]$sign.diff <- sign(list.sf[[i]]$diffTOC) %>% as.factor()
+} 
+
+
+g <- ggplot(list.sf[["SSP126.2050"]])+
+    geom_sf(aes(fill=sign.diff, col= sign.diff), size= 0.05)+
+    scale_color_manual(values = c("lightblue","firebrick"), labels = c("Decreased [TOC]", "Increased [TOC]"), aesthetics = c("fill","col"), name = "SSP 1-2.6 2050")+
+    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+
+ggsave(plot = g, filename = "WR/SSP126.2050.sign.diff.png",dpi = "retina", width = 12, height = 16, units = "cm")
+
+g <- ggplot(list.sf[["SSP126.2100"]])+
+    geom_sf(aes(fill=sign.diff, col= sign.diff), size= 0.05)+
+    scale_color_manual(values = c("lightblue","firebrick"), labels = c("Decreased [TOC]", "Increased [TOC]"), aesthetics = c("fill","col"), name = "SSP 1-2.6 2100")+
+    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+
+ggsave(plot = g, filename = "WR/SSP126.2100.sign.diff.png",dpi = "retina", width = 12, height = 16, units = "cm")
+
+g <- ggplot(list.sf[["SSP370.2050"]])+
+    geom_sf(aes(fill=sign.diff, col= sign.diff), size= 0.05)+
+    scale_color_manual(values = c("lightblue","firebrick"), labels = c("Decreased [TOC]", "Increased [TOC]"), aesthetics = c("fill","col"), name = "SSP 3-7.0 2050")+
+    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+
+ggsave(plot = g, filename = "WR/SSP370.2050.sign.diff.png",dpi = "retina", width = 12, height = 16, units = "cm")
+
+g <- ggplot(list.sf[["SSP370.2100"]])+
+    geom_sf(aes(fill=sign.diff, col= sign.diff), size= 0.05)+
+    scale_color_manual(values = c("lightblue","firebrick"), labels = c("Decreased [TOC]", "Increased [TOC]"), aesthetics = c("fill","col"), name = "SSP 3-7.0 2100")+
+    theme_minimal(base_size = 10)+theme(legend.position = "bottom")
+
+ggsave(plot = g, filename = "WR/SSP370.2100.sign.diff.png",dpi = "retina", width = 12, height = 16, units = "cm")
+```
+
+```{r ssp-sign-diff-toc, fig.dim= c(12,16)}
+listgrob <- list("WR/SSP126.2050.sign.diff.png", "WR/SSP126.2100.sign.diff.png","WR/SSP370.2050.sign.diff.png","WR/SSP370.2100.sign.diff.png") %>% lapply(readPNG) %>% lapply(rasterGrob)
+sdf <- plot_grid(plotlist = listgrob, ncol= 2, nrow = 2, align = "v", greedy = T)
+save_plot("sign.diff.toc.png",sdf, ncol = 2, nrow = 2, base_height = 4, base_width = 3)
+print(sdf)
 ```
 
 # Coastal drainage basins: coastal darkening
