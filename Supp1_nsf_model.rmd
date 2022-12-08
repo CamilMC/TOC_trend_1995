@@ -130,6 +130,12 @@ saveRDS(catchment.poly.corine, "Fennoscandia_NTNU/catchment.poly.Rdata")
 st_write(catchment.poly,"catchment.poly.shp")
 ```
 
+```{r test-area}
+g1 <- ggplot()+geom_point(data = subset(fennoscandia.33, area > 3500),aes(x=longitude, y = latitude, col = "big"), size = 1)+
+  geom_point(data = subset(fennoscandia.33, area < 3500),aes(x=longitude, y = latitude, col = "small"), size = 2)+
+  scale_color_viridis_d(end = 0.8)
+
+```
 ## TOC
 
 The TOC data was measured after the Northern Lake Survey 1995 [@Henriksen1998]. It was stored in the ecco_biwa database (https://github.com/andersfi/BiWa_ECCO).
@@ -213,6 +219,19 @@ The names of the variables in the CORDEX project follow the CF Metadata conventi
 According to Euro-CORDEX guidelines, we used the mean runoff over 30 years. We chose the interval 1970 - 2000 to match the temperature and precipitation data provided by WorldClim (p11 on EURO-CORDEX guidelines https://www.euro-cordex.net/imperia/md/content/csc/cordex/guidance_for_euro-cordex_climate_projections_data_use__2021-02_1_.pdf). This time period matches .
 
 ```{r runoff, eval = F}
+runoff.raster <- "CORDEX/mrro_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
+runoff.nc <- nc_open(runoff.raster)
+
+runoff.stack <- raster::stack(runoff.raster, bands = c(1441:1812)) # Correspond to January 1970 to December 2000
+runoff.mean <- runoff.stack %>% mean() 
+
+catchment.poly <- readRDS("catchment.poly.Rdata")
+runoff.fennoscandia <- raster::extract(runoff.mean, catchment.poly, fun = mean, df = T, sp = T, na.rm = T)
+names(runoff.fennoscandia) <- c("ebint","runoff")
+saveRDS(runoff.fennoscandia,"CORDEX/total.runoff.fennoscandia.rds")
+```
+
+```{r total-runoff, eval = F}
 runoff.raster <- "CORDEX/mrros_Lmon_CNRM-CM6-1-HR_historical_r1i1p1f2_gr_185001-201412.nc"
 runoff.nc <- nc_open(runoff.raster)
 
@@ -223,6 +242,32 @@ catchment.poly <- readRDS("catchment.poly.Rdata")
 runoff.fennoscandia <- raster::extract(runoff.mean, catchment.poly, fun = mean, df = T, sp = T, na.rm = T)
 names(runoff.fennoscandia) <- c("ebint","runoff")
 saveRDS(runoff.fennoscandia,"CORDEX/runoff.fennoscandia.rds")
+```
+
+```{r compare}
+mrro <- readRDS("CORDEX/total.runoff.fennoscandia.rds") %>% setNames(c("ebint","mrro"))
+mrros <- readRDS("CORDEX/runoff.fennoscandia.rds")%>% setNames(c("ebint","mrros"))
+annual.prec <- readRDS("annual.prec.Rdata")
+names(annual.prec) <- c("ebint","prec")
+
+runoff <- merge(mrro, mrros, by = "ebint") %>% merge(annual.prec, by = "ebint") %>% st_as_sf()
+
+r1 <- ggplot(runoff)+geom_point(aes(x=mrro, y = mrros))+geom_abline(slope = 1, intercept = 0, col = "red")+theme_minimal()
+ggsave("CORDEX/surf.total.runoff.png", r1)
+
+runoff$surf.total <- runoff$mrros / runoff$mrro * 100
+r2 <- ggplot(runoff)+geom_sf(aes(fill=surf.total, col = surf.total))+scale_color_viridis_c(name = "Share of surface runoff in total runoff", option = "A", aesthetics = c("fill","col"))+
+  theme_minimal()
+ggsave("CORDEX/map.surf.total.png",r2)
+
+r3 <- ggplot(runoff, aes(x = prec))+geom_point(aes(y = mrro, col = "total runoff"))+
+  geom_point(aes(y = mrros, col = "surface runoff"))+scale_color_viridis_d(option = "A", end = 0.8)+
+  annotate(label = paste("cor surface runoff/prec = ",round(cor(runoff$mrros, runoff$prec, use = "pairwise.complete"),2)), geom = "label", x = 2000, y = 1e-5)+
+  annotate(label = paste("cor total runoff/prec = ",round(cor(runoff$mrro, runoff$prec, use = "pairwise.complete"),2)), geom = "label", x = 1000, y = 6e-5)+
+  labs(y = "Runoff, kg/m2/s", x = "Precipitation, mm/y")
+  theme_minimal()
+ggsave("CORDEX/runoff.prec.png",r3)
+
 ```
 
 ## Temperature, precipitation and slope
