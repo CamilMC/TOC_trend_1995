@@ -1,7 +1,7 @@
 # Spatial predictors and temporal forecast of Organic Carbon in boreal lakes
 
 
-This website supports the supplementary information for the article "Spatial predictors and temporal forecast of Organic Carbon in boreal lakes".
+This website supports the supplementary information for the article [Spatial predictors and temporal forecast of Organic Carbon in boreal lakes](https://doi.org/10.1016/j.scitotenv.2023.161676).
 
 ## Abstract
 
